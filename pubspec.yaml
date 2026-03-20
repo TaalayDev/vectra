@@ -1,0 +1,134 @@
+name: vectra
+description: "A new Flutter project."
+publish_to: 'none' 
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  flutter_localizations:
+    sdk: flutter
+
+  intl: ^0.19.0
+
+  cupertino_icons: ^1.0.6
+
+  # ui
+  flutter_svg: ^2.0.10+1
+  cached_network_image: ^3.4.1
+  another_flushbar: ^1.12.30
+  google_fonts: ^7.1.0
+  flutter_staggered_grid_view: ^0.7.0
+  sliver_tools: ^0.2.12
+
+  # icons
+  flutter_vector_icons: ^2.0.0
+  animate_icons: ^2.0.0
+
+  # network
+  dio: ^5.4.1
+  dio_cache_interceptor: ^3.5.0
+  tf_dio_cache: ^1.0.1
+
+  # utils
+  logging: ^1.2.0
+  path_provider: ^2.1.4
+  url_launcher: ^6.0.3
+  image_cropper: ^8.0.2
+  image_picker: ^1.1.2
+  image_gallery_saver_plus: ^4.0.1
+  universal_html: ^2.2.4
+  file_picker: ^8.1.2
+  image: ^4.5.4
+  equatable: ^2.0.5
+  flutter_colorpicker: ^1.1.0
+  uuid: ^4.5.0
+  share_plus: ^10.0.3
+  flutter_dotenv: ^5.2.1
+  package_info_plus: ^9.0.0
+
+  # animation
+  flutter_animate: ^4.1.0
+  flutter_staggered_animations: ^1.1.1
+  shimmer: ^3.0.0
+
+  # storage
+  shared_preferences: ^2.2.2
+
+  # state management
+  flutter_hooks: ^0.20.5
+  hooks_riverpod: ^2.5.1
+
+  # annotations
+  freezed_annotation: ^2.1.0
+  json_annotation: ^4.8.1
+  riverpod_annotation: ^2.3.5
+
+  # database
+  drift: ^2.20.2
+  drift_flutter: ^0.2.0
+
+  custom_mouse_cursor: ^1.1.2
+  animated_reorderable_list: ^1.1.1
+  firebase_core: ^3.13.1
+  firebase_analytics: ^11.4.6
+  firebase_auth: ^5.5.4
+  google_sign_in: ^6.3.0
+  sign_in_with_apple: ^7.0.1
+
+  # subscription
+  in_app_purchase: ^3.2.0
+  # purchase_validator: ^1.0.1
+
+  flutter_markdown: ^0.6.18
+  confetti: ^0.7.0
+
+  in_app_review: ^2.0.10
+  flutter_rating_bar: ^4.0.1
+  lottie: ^3.3.1
+  window_manager: ^0.4.3
+
+  google_mobile_ads: ^5.2.0
+  flutter_box_transform: ^0.4.7
+  animated_glitch: ^2.0.0+2
+  vector_math: ^2.1.4
+  visibility_detector: ^0.4.0+2
+
+  # drag and drop
+  desktop_drop: ^0.5.0
+  archive: ^4.0.4
+
+
+dependency_overrides:
+  intl: ^0.19.0
+  
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  build_runner: ^2.0.4
+  freezed: ^2.3.0
+  json_serializable: ^6.7.0
+  riverpod_generator: ^2.2.3
+  drift_dev: ^2.20.3
+
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
+  generate: true
+
+  assets:
+    - assets/vectors/
+    - assets/images/
+    - assets/animations/
+    - assets/data/
+
+assets_dir: "assets"
+assets_output_file: "lib/config/assets.dart"
+assets_class_name: "Assets"
