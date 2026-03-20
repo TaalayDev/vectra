@@ -1,3 +1,6 @@
 {
-    "appName": "Vectra"
+    "appName": "Vectra",
+    "uiFieldTap": "Tap to edit",
+    "uiFieldEnabled": "Enabled",
+    "uiFieldDisabled": "Disabled"
 }

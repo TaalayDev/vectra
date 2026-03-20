@@ -9,7 +9,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
   firebase_core
   screen_retriever_windows
   share_plus
-  sqlite3_flutter_libs
+  synthkit
   url_launcher_windows
   window_manager
 )

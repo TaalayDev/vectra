@@ -98,6 +98,24 @@ abstract class Strings {
   /// In en, this message translates to:
   /// **'Vectra'**
   String get appName;
+
+  /// No description provided for @uiFieldTap.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap to edit'**
+  String get uiFieldTap;
+
+  /// No description provided for @uiFieldEnabled.
+  ///
+  /// In en, this message translates to:
+  /// **'Enabled'**
+  String get uiFieldEnabled;
+
+  /// No description provided for @uiFieldDisabled.
+  ///
+  /// In en, this message translates to:
+  /// **'Disabled'**
+  String get uiFieldDisabled;
 }
 
 class _StringsDelegate extends LocalizationsDelegate<Strings> {

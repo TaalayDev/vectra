@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
@@ -51,8 +50,10 @@ class InterstitialAdController extends StateNotifier<bool> {
   }
 
   String _getAdUnitId() {
-    final adId = Platform.isAndroid ? dotenv.env['ANDROID_INTERSTITIAL_ID'] : dotenv.env['IOS_INTERSTITIAL_ID'];
-    if (kDebugMode || adId == null || adId.isEmpty) {
+    final adId = Platform.isAndroid
+        ? const String.fromEnvironment('ANDROID_INTERSTITIAL_ID')
+        : const String.fromEnvironment('IOS_INTERSTITIAL_ID');
+    if (kDebugMode || adId.isEmpty) {
       if (Platform.isAndroid) {
         return 'ca-app-pub-3940256099942544/1033173712'; // Android test ad unit
       } else if (Platform.isIOS) {
@@ -60,7 +61,7 @@ class InterstitialAdController extends StateNotifier<bool> {
       }
     }
 
-    return adId!;
+    return adId;
   }
 
   Future<void> showAdIfLoaded(VoidCallback onAdDismissed) async {

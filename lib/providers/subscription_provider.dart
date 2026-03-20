@@ -31,7 +31,7 @@ class SubscriptionState extends _$SubscriptionState {
       );
     }
 
-    const testing = bool.fromEnvironment('TESTING');
+    const testing = bool.fromEnvironment('TESTING', defaultValue: kDebugMode);
 
     if (kIsWeb || Platform.isAndroid || Platform.isWindows || testing) {
       return UserSubscription(

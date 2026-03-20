@@ -1,0 +1,176 @@
+// GENERATED CODE - DO NOT MODIFY BY HAND
+
+part of 'editor_state_provider.dart';
+
+// **************************************************************************
+// RiverpodGenerator
+// **************************************************************************
+
+String _$activeSceneHash() => r'6d8158ce6746841e6c9a7a7786be65840e20b2f9';
+
+/// See also [activeScene].
+@ProviderFor(activeScene)
+final activeSceneProvider = AutoDisposeProvider<VecScene?>.internal(
+  activeScene,
+  name: r'activeSceneProvider',
+  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+      ? null
+      : _$activeSceneHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
+
+@Deprecated('Will be removed in 3.0. Use Ref instead')
+// ignore: unused_element
+typedef ActiveSceneRef = AutoDisposeProviderRef<VecScene?>;
+String _$activeLayerHash() => r'154d729570e65b4e00b8161504ecda82eb170ccc';
+
+/// See also [activeLayer].
+@ProviderFor(activeLayer)
+final activeLayerProvider = AutoDisposeProvider<VecLayer?>.internal(
+  activeLayer,
+  name: r'activeLayerProvider',
+  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+      ? null
+      : _$activeLayerHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
+
+@Deprecated('Will be removed in 3.0. Use Ref instead')
+// ignore: unused_element
+typedef ActiveLayerRef = AutoDisposeProviderRef<VecLayer?>;
+String _$selectedShapeHash() => r'0ead7f4a439445e7a2c6853a7933437a915c19f4';
+
+/// See also [selectedShape].
+@ProviderFor(selectedShape)
+final selectedShapeProvider = AutoDisposeProvider<VecShape?>.internal(
+  selectedShape,
+  name: r'selectedShapeProvider',
+  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+      ? null
+      : _$selectedShapeHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
+
+@Deprecated('Will be removed in 3.0. Use Ref instead')
+// ignore: unused_element
+typedef SelectedShapeRef = AutoDisposeProviderRef<VecShape?>;
+String _$activeToolHash() => r'a291a86ebb8bc48b7806828ce4f5c8efddc0c8fb';
+
+/// See also [ActiveTool].
+@ProviderFor(ActiveTool)
+final activeToolProvider =
+    AutoDisposeNotifierProvider<ActiveTool, VecTool>.internal(
+      ActiveTool.new,
+      name: r'activeToolProvider',
+      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+          ? null
+          : _$activeToolHash,
+      dependencies: null,
+      allTransitiveDependencies: null,
+    );
+
+typedef _$ActiveTool = AutoDisposeNotifier<VecTool>;
+String _$zoomLevelHash() => r'431ccedf63edf71d7e6e61fd3371fa8a66be3d4c';
+
+/// See also [ZoomLevel].
+@ProviderFor(ZoomLevel)
+final zoomLevelProvider =
+    AutoDisposeNotifierProvider<ZoomLevel, double>.internal(
+      ZoomLevel.new,
+      name: r'zoomLevelProvider',
+      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+          ? null
+          : _$zoomLevelHash,
+      dependencies: null,
+      allTransitiveDependencies: null,
+    );
+
+typedef _$ZoomLevel = AutoDisposeNotifier<double>;
+String _$cursorPositionHash() => r'e77b01083c7d5cebe6e03910d94d5bdab3f07d9d';
+
+/// See also [CursorPosition].
+@ProviderFor(CursorPosition)
+final cursorPositionProvider =
+    AutoDisposeNotifierProvider<CursorPosition, Offset>.internal(
+      CursorPosition.new,
+      name: r'cursorPositionProvider',
+      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+          ? null
+          : _$cursorPositionHash,
+      dependencies: null,
+      allTransitiveDependencies: null,
+    );
+
+typedef _$CursorPosition = AutoDisposeNotifier<Offset>;
+String _$panelVisibilityHash() => r'0a8bea0b47db0ddccf39fec2689e2bd404de847a';
+
+/// See also [PanelVisibility].
+@ProviderFor(PanelVisibility)
+final panelVisibilityProvider =
+    AutoDisposeNotifierProvider<
+      PanelVisibility,
+      ({bool layers, bool properties, bool timeline})
+    >.internal(
+      PanelVisibility.new,
+      name: r'panelVisibilityProvider',
+      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+          ? null
+          : _$panelVisibilityHash,
+      dependencies: null,
+      allTransitiveDependencies: null,
+    );
+
+typedef _$PanelVisibility =
+    AutoDisposeNotifier<({bool layers, bool properties, bool timeline})>;
+String _$timelineHeightHash() => r'4a67843ba1d11ceb433ef959a02b0cd27a9afe56';
+
+/// See also [TimelineHeight].
+@ProviderFor(TimelineHeight)
+final timelineHeightProvider =
+    AutoDisposeNotifierProvider<TimelineHeight, double>.internal(
+      TimelineHeight.new,
+      name: r'timelineHeightProvider',
+      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+          ? null
+          : _$timelineHeightHash,
+      dependencies: null,
+      allTransitiveDependencies: null,
+    );
+
+typedef _$TimelineHeight = AutoDisposeNotifier<double>;
+String _$selectedShapeIdHash() => r'407eb50eff395244e084017de7408ff2d26bdc80';
+
+/// See also [SelectedShapeId].
+@ProviderFor(SelectedShapeId)
+final selectedShapeIdProvider =
+    AutoDisposeNotifierProvider<SelectedShapeId, String?>.internal(
+      SelectedShapeId.new,
+      name: r'selectedShapeIdProvider',
+      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+          ? null
+          : _$selectedShapeIdHash,
+      dependencies: null,
+      allTransitiveDependencies: null,
+    );
+
+typedef _$SelectedShapeId = AutoDisposeNotifier<String?>;
+String _$isPlayingHash() => r'3f76a99475e2acd6f86181558f9645b2762950f4';
+
+/// See also [IsPlaying].
+@ProviderFor(IsPlaying)
+final isPlayingProvider = AutoDisposeNotifierProvider<IsPlaying, bool>.internal(
+  IsPlaying.new,
+  name: r'isPlayingProvider',
+  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+      ? null
+      : _$isPlayingHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
+
+typedef _$IsPlaying = AutoDisposeNotifier<bool>;
+// ignore_for_file: type=lint
+// ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member, deprecated_member_use_from_same_package

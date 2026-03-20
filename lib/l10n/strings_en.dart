@@ -10,4 +10,13 @@ class StringsEn extends Strings {
 
   @override
   String get appName => 'Vectra';
+
+  @override
+  String get uiFieldTap => 'Tap to edit';
+
+  @override
+  String get uiFieldEnabled => 'Enabled';
+
+  @override
+  String get uiFieldDisabled => 'Disabled';
 }

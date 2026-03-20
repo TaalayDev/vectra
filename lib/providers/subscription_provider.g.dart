@@ -13,15 +13,17 @@ String _$subscriptionStreamHash() =>
 @ProviderFor(subscriptionStream)
 final subscriptionStreamProvider =
     AutoDisposeStreamProvider<UserSubscription>.internal(
-  subscriptionStream,
-  name: r'subscriptionStreamProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$subscriptionStreamHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
+      subscriptionStream,
+      name: r'subscriptionStreamProvider',
+      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+          ? null
+          : _$subscriptionStreamHash,
+      dependencies: null,
+      allTransitiveDependencies: null,
+    );
 
+@Deprecated('Will be removed in 3.0. Use Ref instead')
+// ignore: unused_element
 typedef SubscriptionStreamRef = AutoDisposeStreamProviderRef<UserSubscription>;
 String _$productsStreamHash() => r'59fefd0bb131aeb26260ae0aa0b0c762d04969d8';
 
@@ -29,15 +31,17 @@ String _$productsStreamHash() => r'59fefd0bb131aeb26260ae0aa0b0c762d04969d8';
 @ProviderFor(productsStream)
 final productsStreamProvider =
     AutoDisposeStreamProvider<List<ProductDetails>>.internal(
-  productsStream,
-  name: r'productsStreamProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$productsStreamHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
+      productsStream,
+      name: r'productsStreamProvider',
+      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+          ? null
+          : _$productsStreamHash,
+      dependencies: null,
+      allTransitiveDependencies: null,
+    );
 
+@Deprecated('Will be removed in 3.0. Use Ref instead')
+// ignore: unused_element
 typedef ProductsStreamRef = AutoDisposeStreamProviderRef<List<ProductDetails>>;
 String _$purchaseUpdatesStreamHash() =>
     r'63a79d171e85458592c847aa2cb0ea46164f2d34';
@@ -46,17 +50,19 @@ String _$purchaseUpdatesStreamHash() =>
 @ProviderFor(purchaseUpdatesStream)
 final purchaseUpdatesStreamProvider =
     AutoDisposeStreamProvider<List<PurchaseDetails>>.internal(
-  purchaseUpdatesStream,
-  name: r'purchaseUpdatesStreamProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$purchaseUpdatesStreamHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
+      purchaseUpdatesStream,
+      name: r'purchaseUpdatesStreamProvider',
+      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+          ? null
+          : _$purchaseUpdatesStreamHash,
+      dependencies: null,
+      allTransitiveDependencies: null,
+    );
 
-typedef PurchaseUpdatesStreamRef
-    = AutoDisposeStreamProviderRef<List<PurchaseDetails>>;
+@Deprecated('Will be removed in 3.0. Use Ref instead')
+// ignore: unused_element
+typedef PurchaseUpdatesStreamRef =
+    AutoDisposeStreamProviderRef<List<PurchaseDetails>>;
 String _$subscriptionErrorsStreamHash() =>
     r'b7a0d1d1915dd5f96aa3a778bcd86e89e9500ae4';
 
@@ -64,15 +70,17 @@ String _$subscriptionErrorsStreamHash() =>
 @ProviderFor(subscriptionErrorsStream)
 final subscriptionErrorsStreamProvider =
     AutoDisposeStreamProvider<String>.internal(
-  subscriptionErrorsStream,
-  name: r'subscriptionErrorsStreamProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$subscriptionErrorsStreamHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
+      subscriptionErrorsStream,
+      name: r'subscriptionErrorsStreamProvider',
+      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+          ? null
+          : _$subscriptionErrorsStreamHash,
+      dependencies: null,
+      allTransitiveDependencies: null,
+    );
 
+@Deprecated('Will be removed in 3.0. Use Ref instead')
+// ignore: unused_element
 typedef SubscriptionErrorsStreamRef = AutoDisposeStreamProviderRef<String>;
 String _$isFeatureLockedHash() => r'e564ad97beed2e5b08f6b68254629494c2cc6f1f';
 
@@ -107,21 +115,15 @@ class IsFeatureLockedFamily extends Family<bool> {
   const IsFeatureLockedFamily();
 
   /// See also [isFeatureLocked].
-  IsFeatureLockedProvider call(
-    SubscriptionFeature feature,
-  ) {
-    return IsFeatureLockedProvider(
-      feature,
-    );
+  IsFeatureLockedProvider call(SubscriptionFeature feature) {
+    return IsFeatureLockedProvider(feature);
   }
 
   @override
   IsFeatureLockedProvider getProviderOverride(
     covariant IsFeatureLockedProvider provider,
   ) {
-    return call(
-      provider.feature,
-    );
+    return call(provider.feature);
   }
 
   static const Iterable<ProviderOrFamily>? _dependencies = null;
@@ -142,24 +144,19 @@ class IsFeatureLockedFamily extends Family<bool> {
 /// See also [isFeatureLocked].
 class IsFeatureLockedProvider extends AutoDisposeProvider<bool> {
   /// See also [isFeatureLocked].
-  IsFeatureLockedProvider(
-    SubscriptionFeature feature,
-  ) : this._internal(
-          (ref) => isFeatureLocked(
-            ref as IsFeatureLockedRef,
-            feature,
-          ),
-          from: isFeatureLockedProvider,
-          name: r'isFeatureLockedProvider',
-          debugGetCreateSourceHash:
-              const bool.fromEnvironment('dart.vm.product')
-                  ? null
-                  : _$isFeatureLockedHash,
-          dependencies: IsFeatureLockedFamily._dependencies,
-          allTransitiveDependencies:
-              IsFeatureLockedFamily._allTransitiveDependencies,
-          feature: feature,
-        );
+  IsFeatureLockedProvider(SubscriptionFeature feature)
+    : this._internal(
+        (ref) => isFeatureLocked(ref as IsFeatureLockedRef, feature),
+        from: isFeatureLockedProvider,
+        name: r'isFeatureLockedProvider',
+        debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+            ? null
+            : _$isFeatureLockedHash,
+        dependencies: IsFeatureLockedFamily._dependencies,
+        allTransitiveDependencies:
+            IsFeatureLockedFamily._allTransitiveDependencies,
+        feature: feature,
+      );
 
   IsFeatureLockedProvider._internal(
     super._createNotifier, {
@@ -174,9 +171,7 @@ class IsFeatureLockedProvider extends AutoDisposeProvider<bool> {
   final SubscriptionFeature feature;
 
   @override
-  Override overrideWith(
-    bool Function(IsFeatureLockedRef provider) create,
-  ) {
+  Override overrideWith(bool Function(IsFeatureLockedRef provider) create) {
     return ProviderOverride(
       origin: this,
       override: IsFeatureLockedProvider._internal(
@@ -210,6 +205,8 @@ class IsFeatureLockedProvider extends AutoDisposeProvider<bool> {
   }
 }
 
+@Deprecated('Will be removed in 3.0. Use Ref instead')
+// ignore: unused_element
 mixin IsFeatureLockedRef on AutoDisposeProviderRef<bool> {
   /// The parameter `feature` of this provider.
   SubscriptionFeature get feature;
@@ -230,30 +227,32 @@ String _$purchaseOffersHash() => r'7b55b6c872c0116fc1200748b71f4f3894cc0019';
 @ProviderFor(purchaseOffers)
 final purchaseOffersProvider =
     AutoDisposeProvider<List<PurchaseOffer>>.internal(
-  purchaseOffers,
-  name: r'purchaseOffersProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$purchaseOffersHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
+      purchaseOffers,
+      name: r'purchaseOffersProvider',
+      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+          ? null
+          : _$purchaseOffersHash,
+      dependencies: null,
+      allTransitiveDependencies: null,
+    );
 
+@Deprecated('Will be removed in 3.0. Use Ref instead')
+// ignore: unused_element
 typedef PurchaseOffersRef = AutoDisposeProviderRef<List<PurchaseOffer>>;
-String _$subscriptionStateHash() => r'33f4257998fc4885048856b8d88c4a533f8f993d';
+String _$subscriptionStateHash() => r'209f9d377216f3f6c5fc72a9a7682c65e3538821';
 
 /// See also [SubscriptionState].
 @ProviderFor(SubscriptionState)
 final subscriptionStateProvider =
     AutoDisposeNotifierProvider<SubscriptionState, UserSubscription>.internal(
-  SubscriptionState.new,
-  name: r'subscriptionStateProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$subscriptionStateHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
+      SubscriptionState.new,
+      name: r'subscriptionStateProvider',
+      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+          ? null
+          : _$subscriptionStateHash,
+      dependencies: null,
+      allTransitiveDependencies: null,
+    );
 
 typedef _$SubscriptionState = AutoDisposeNotifier<UserSubscription>;
 String _$temporaryProStatusHash() =>
@@ -263,15 +262,15 @@ String _$temporaryProStatusHash() =>
 @ProviderFor(TemporaryProStatus)
 final temporaryProStatusProvider =
     AutoDisposeNotifierProvider<TemporaryProStatus, Duration?>.internal(
-  TemporaryProStatus.new,
-  name: r'temporaryProStatusProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$temporaryProStatusHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
+      TemporaryProStatus.new,
+      name: r'temporaryProStatusProvider',
+      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+          ? null
+          : _$temporaryProStatusHash,
+      dependencies: null,
+      allTransitiveDependencies: null,
+    );
 
 typedef _$TemporaryProStatus = AutoDisposeNotifier<Duration?>;
 // ignore_for_file: type=lint
-// ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member
+// ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member, deprecated_member_use_from_same_package

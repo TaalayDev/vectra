@@ -6,17 +6,17 @@ import '../core/utils/locale_manager.dart';
 import '../providers/providers.dart';
 import '../l10n/strings.dart';
 import '../providers/subscription_provider.dart';
-import '../ui/screens.dart';
+import '../ui/screens/home_screen.dart';
 import '../ui/contents/theme_selector.dart';
 
-class PixelVerseApp extends ConsumerStatefulWidget {
-  const PixelVerseApp({super.key});
+class VectraApp extends ConsumerStatefulWidget {
+  const VectraApp({super.key});
 
   @override
-  ConsumerState<PixelVerseApp> createState() => _PixelVerseAppState();
+  ConsumerState<VectraApp> createState() => _VectraAppState();
 }
 
-class _PixelVerseAppState extends ConsumerState<PixelVerseApp> with WidgetsBindingObserver {
+class _VectraAppState extends ConsumerState<VectraApp> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
@@ -61,7 +61,7 @@ class _PixelVerseAppState extends ConsumerState<PixelVerseApp> with WidgetsBindi
         supportedLocales: Strings.supportedLocales,
         localizationsDelegates: Strings.localizationsDelegates,
         locale: _getLocale(ref),
-        home: const Scaffold(),
+        home: const HomeScreen(),
       ),
     );
   }

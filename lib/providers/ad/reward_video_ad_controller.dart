@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
@@ -54,9 +53,11 @@ class RewardVideoAdController extends StateNotifier<bool> {
   }
 
   String _getAdUnitId() {
-    final adId = Platform.isAndroid ? dotenv.env['ANDROID_REWARDED_ID'] : dotenv.env['IOS_REWARDED_ID'];
+    final adId = Platform.isAndroid
+        ? const String.fromEnvironment('ANDROID_REWARDED_ID')
+        : const String.fromEnvironment('IOS_REWARDED_ID');
 
-    if (kDebugMode || adId == null || adId.isEmpty) {
+    if (kDebugMode || adId.isEmpty) {
       if (Platform.isAndroid) {
         return 'ca-app-pub-3940256099942544/5224354917'; // Android test rewarded ad unit
       } else if (Platform.isIOS) {
@@ -64,7 +65,7 @@ class RewardVideoAdController extends StateNotifier<bool> {
       }
     }
 
-    return adId!;
+    return adId;
   }
 
   Future<bool> showAdIfLoaded() async {
