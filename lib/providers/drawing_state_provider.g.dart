@@ -22,7 +22,7 @@ final activeDrawingProvider =
     );
 
 typedef _$ActiveDrawing = AutoDisposeNotifier<DrawingState?>;
-String _$activePenDrawingHash() => r'7502ebca6905628ef54ffa82a99b4fb88972eff5';
+String _$activePenDrawingHash() => r'2a6e9bd7def24e96dcc69828fd5794b702f4d221';
 
 /// See also [ActivePenDrawing].
 @ProviderFor(ActivePenDrawing)

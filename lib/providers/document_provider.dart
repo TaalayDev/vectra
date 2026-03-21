@@ -1,6 +1,7 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:uuid/uuid.dart';
 
+import '../core/pathfinder/pathfinder.dart';
 import '../data/models/vec_color.dart';
 import '../data/models/vec_document.dart';
 import '../data/models/vec_keyframe.dart';
@@ -8,7 +9,9 @@ import '../data/models/vec_layer.dart';
 import '../data/models/vec_scene.dart';
 import '../data/models/vec_shape.dart';
 import '../data/models/vec_symbol.dart';
+import '../data/models/vec_timeline.dart';
 import '../data/models/vec_track.dart';
+import '../data/models/vec_transform.dart';
 import '../data/repositories/vec_file_repository.dart';
 import '../data/services/vec_document_service.dart';
 import 'editor_state_provider.dart';
@@ -214,6 +217,24 @@ class VecDocumentState extends _$VecDocumentState {
     ));
   }
 
+  /// Creates a fully initialised scene (1 layer + timeline) and appends it.
+  void addNewScene({String? name}) {
+    final sceneId = _uuid.v4();
+    final layerId = _uuid.v4();
+    final trackId = _uuid.v4();
+    final fps = state.meta.fps;
+    final scene = VecScene(
+      id: sceneId,
+      name: name ?? 'Scene ${state.scenes.length + 1}',
+      layers: [VecLayer(id: layerId, name: 'Layer 1')],
+      timeline: VecTimeline(
+        duration: fps * 3, // 3 seconds default
+        tracks: [VecTrack(id: trackId, layerId: layerId)],
+      ),
+    );
+    _commit(state.copyWith(scenes: [...state.scenes, scene]));
+  }
+
   // ===========================================================================
   // Layers
   // ===========================================================================
@@ -262,6 +283,20 @@ class VecDocumentState extends _$VecDocumentState {
     }));
   }
 
+  /// Reorders layers to match [orderedIds] (full ordered list of all layer IDs).
+  /// Updates each layer's [order] field to reflect its new position.
+  void reorderLayers(String sceneId, List<String> orderedIds) {
+    _commit(_withScene(sceneId, (scene) {
+      final layerMap = {for (final l in scene.layers) l.id: l};
+      final reordered = [
+        for (var i = 0; i < orderedIds.length; i++)
+          if (layerMap.containsKey(orderedIds[i]))
+            layerMap[orderedIds[i]]!.copyWith(order: i),
+      ];
+      return scene.copyWith(layers: reordered);
+    }));
+  }
+
   // ===========================================================================
   // Shapes
   // ===========================================================================
@@ -272,6 +307,156 @@ class VecDocumentState extends _$VecDocumentState {
       layerId,
       (l) => l.copyWith(shapes: [...l.shapes, shape]),
     ));
+  }
+
+  /// Adds multiple shapes in one undo-able step.
+  void addShapes(String sceneId, String layerId, List<VecShape> shapes) {
+    _commit(_withLayer(
+      sceneId,
+      layerId,
+      (l) => l.copyWith(shapes: [...l.shapes, ...shapes]),
+    ));
+  }
+
+  /// Removes multiple shapes in one undo-able step.
+  void removeShapes(String sceneId, String layerId, List<String> shapeIds) {
+    _commit(_withLayer(
+      sceneId,
+      layerId,
+      (l) => l.copyWith(
+        shapes: l.shapes.where((s) => !shapeIds.contains(s.id)).toList(),
+      ),
+    ));
+  }
+
+  /// Wraps [shapeIds] into a new [VecGroupShape] inserted at the topmost
+  /// z-position of the selected shapes.  Returns the new group's ID.
+  String groupShapes(String sceneId, String layerId, List<String> shapeIds) {
+    final groupId = _uuid.v4();
+    _commit(_withLayer(sceneId, layerId, (layer) {
+      // Collect selected shapes in layer z-order, track lowest z-index
+      final selected = <VecShape>[];
+      var insertAt = layer.shapes.length;
+      for (var i = 0; i < layer.shapes.length; i++) {
+        if (shapeIds.contains(layer.shapes[i].id)) {
+          selected.add(layer.shapes[i]);
+          if (i < insertAt) insertAt = i;
+        }
+      }
+      if (selected.isEmpty) return layer;
+
+      // Bounding box of all selected shapes (ignoring rotation for simplicity)
+      var minX = selected.first.transform.x;
+      var minY = selected.first.transform.y;
+      var maxX = minX + selected.first.transform.width;
+      var maxY = minY + selected.first.transform.height;
+      for (final s in selected) {
+        final t = s.transform;
+        if (t.x < minX) minX = t.x;
+        if (t.y < minY) minY = t.y;
+        if (t.x + t.width > maxX) maxX = t.x + t.width;
+        if (t.y + t.height > maxY) maxY = t.y + t.height;
+      }
+
+      // Adjust children to group-local space
+      final children = selected.map((s) => s.copyWith(
+            data: s.data.copyWith(
+              transform: s.transform.copyWith(
+                x: s.transform.x - minX,
+                y: s.transform.y - minY,
+              ),
+            ),
+          )).toList();
+
+      final group = VecShape.group(
+        data: VecShapeData(
+          id: groupId,
+          transform: VecTransform(
+            x: minX,
+            y: minY,
+            width: maxX - minX,
+            height: maxY - minY,
+          ),
+          fills: const [],
+          strokes: const [],
+        ),
+        children: children,
+      );
+
+      final remaining =
+          layer.shapes.where((s) => !shapeIds.contains(s.id)).toList();
+      remaining.insert(insertAt, group);
+      return layer.copyWith(shapes: remaining);
+    }));
+    return groupId;
+  }
+
+  /// Dissolves the selected [VecGroupShape], inserting its children back into
+  /// the layer at the group's z-position.  Returns the children's IDs.
+  List<String> ungroupShape(
+      String sceneId, String layerId, String groupId) {
+    final childIds = <String>[];
+    _commit(_withLayer(sceneId, layerId, (layer) {
+      final groupIdx = layer.shapes.indexWhere((s) => s.id == groupId);
+      if (groupIdx == -1) return layer;
+
+      final groupShape = layer.shapes[groupIdx].maybeMap(
+          group: (g) => g, orElse: () => null);
+      if (groupShape == null) return layer;
+
+      final gt = groupShape.data.transform;
+      final children = groupShape.children.map((c) {
+        childIds.add(c.id);
+        return c.copyWith(
+          data: c.data.copyWith(
+            transform: c.transform.copyWith(
+              x: c.transform.x + gt.x,
+              y: c.transform.y + gt.y,
+            ),
+          ),
+        );
+      }).toList();
+
+      final shapes = List<VecShape>.from(layer.shapes);
+      shapes.removeAt(groupIdx);
+      for (var i = 0; i < children.length; i++) {
+        shapes.insert(groupIdx + i, children[i]);
+      }
+      return layer.copyWith(shapes: shapes);
+    }));
+    return childIds;
+  }
+
+  /// Updates a child of [groupId] without adding to undo history (use during
+  /// drag).  Call [commitCurrentState] on drag-end.
+  void updateGroupChildNoHistory(
+    String sceneId,
+    String layerId,
+    String groupId,
+    String childId,
+    VecShape Function(VecShape) updater,
+  ) {
+    final newDoc = _withLayer(sceneId, layerId, (layer) {
+      return layer.copyWith(
+        shapes: [
+          for (final s in layer.shapes)
+            if (s.id == groupId)
+              s.maybeMap(
+                group: (g) => g.copyWith(
+                  children: [
+                    for (final c in g.children)
+                      if (c.id == childId) updater(c) else c,
+                  ],
+                ),
+                orElse: () => s,
+              )
+            else
+              s,
+        ],
+      );
+    });
+    state = newDoc;
+    _service.markDirty();
   }
 
   void updateShape(
@@ -316,6 +501,79 @@ class VecDocumentState extends _$VecDocumentState {
   /// undo-able step for the entire drag operation.
   void commitCurrentState() {
     _commit(state);
+  }
+
+  // ===========================================================================
+  // Pathfinder
+  // ===========================================================================
+
+  /// Applies [op] to the selected shapes (in bottom-to-top layer order),
+  /// removes them from the layer, and inserts the result in their place.
+  /// The entire replacement is one undo step.
+  List<String> applyPathfinder(
+    String sceneId,
+    String layerId,
+    List<String> shapeIds,
+    PathfinderOp op,
+  ) {
+    if (shapeIds.length < 2) return [];
+
+    final resultIds = <String>[];
+
+    _commit(_withLayer(sceneId, layerId, (layer) {
+      // Collect inputs in bottom-to-top order (layer.shapes order)
+      final inputs = layer.shapes
+          .where((s) => shapeIds.contains(s.id))
+          .toList(); // already in layer order (bottom first)
+
+      // Find insertion index = position of first (bottommost) selected shape
+      final insertIdx =
+          layer.shapes.indexWhere((s) => shapeIds.contains(s.id));
+
+      // Remove originals
+      final remaining =
+          layer.shapes.where((s) => !shapeIds.contains(s.id)).toList();
+
+      // Apply operation
+      final results = PathfinderOps.apply(inputs, op);
+      for (final r in results) {
+        resultIds.add(r.id);
+      }
+
+      // Insert results at original position
+      final newShapes = [
+        ...remaining.take(insertIdx),
+        ...results,
+        ...remaining.skip(insertIdx),
+      ];
+
+      return layer.copyWith(shapes: newShapes);
+    }));
+
+    return resultIds;
+  }
+
+  /// Flattens a live [VecCompoundShape] to a [VecPathShape].
+  String? expandCompound(String sceneId, String layerId, String shapeId) {
+    String? newId;
+
+    _commit(_withLayer(sceneId, layerId, (layer) {
+      final idx = layer.shapes.indexWhere((s) => s.id == shapeId);
+      if (idx == -1) return layer;
+
+      final compound =
+          layer.shapes[idx].maybeMap(compound: (c) => c, orElse: () => null);
+      if (compound == null) return layer;
+
+      final expanded = PathfinderOps.expand(compound);
+      newId = expanded.id;
+
+      final newShapes = [...layer.shapes];
+      newShapes[idx] = expanded;
+      return layer.copyWith(shapes: newShapes);
+    }));
+
+    return newId;
   }
 
   void removeShape(String sceneId, String layerId, String shapeId) {

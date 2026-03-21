@@ -88,30 +88,71 @@ class DrawingPreviewPainter extends CustomPainter {
   }
 
   void _paintPenPreview(Canvas canvas) {
-    final points = penDrawing!.points;
-    if (points.isEmpty) return;
+    final nodes = penDrawing!.nodes;
+    if (nodes.isEmpty) return;
 
+    // Build path with cubic beziers where handles are defined
     final path = Path();
-    path.moveTo(points.first.dx, points.first.dy);
-    for (var i = 1; i < points.length; i++) {
-      path.lineTo(points[i].dx, points[i].dy);
+    path.moveTo(nodes.first.position.dx, nodes.first.position.dy);
+    for (var i = 1; i < nodes.length; i++) {
+      final from = nodes[i - 1];
+      final to = nodes[i];
+      final cp1 = from.handleOut ?? from.position;
+      final cp2 = to.handleIn ?? to.position;
+      if (from.isCurve || to.isCurve) {
+        path.cubicTo(cp1.dx, cp1.dy, cp2.dx, cp2.dy,
+            to.position.dx, to.position.dy);
+      } else {
+        path.lineTo(to.position.dx, to.position.dy);
+      }
     }
-
     canvas.drawPath(path, _strokePaint);
 
-    // Draw node dots
-    final dotPaint = Paint()
-      ..color = strokeColor
-      ..style = PaintingStyle.fill;
-    final dotBorderPaint = Paint()
-      ..color = Colors.white
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5;
+    // Draw handle lines and handle dots
+    final handleLinePaint = Paint()
+      ..color = strokeColor.withAlpha(150)
+      ..strokeWidth = 1.0
+      ..style = PaintingStyle.stroke;
 
-    for (final p in points) {
-      canvas.drawCircle(p, 4, dotPaint);
-      canvas.drawCircle(p, 4, dotBorderPaint);
+    for (final n in nodes) {
+      if (n.isCurve) {
+        final ho = n.handleOut!;
+        final hi = n.handleIn!;
+        canvas.drawLine(Offset(hi.dx, hi.dy), Offset(ho.dx, ho.dy),
+            handleLinePaint);
+        _drawHandleDot(canvas, ho);
+        _drawHandleDot(canvas, hi);
+      }
     }
+
+    // Draw node dots on top of handle lines
+    for (final n in nodes) {
+      _drawNodeDot(canvas, n.position);
+    }
+  }
+
+  void _drawNodeDot(Canvas canvas, Offset p) {
+    canvas.drawCircle(p, 4,
+        Paint()
+          ..color = strokeColor
+          ..style = PaintingStyle.fill);
+    canvas.drawCircle(p, 4,
+        Paint()
+          ..color = Colors.white
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.5);
+  }
+
+  void _drawHandleDot(Canvas canvas, Offset p) {
+    canvas.drawCircle(p, 3,
+        Paint()
+          ..color = Colors.white
+          ..style = PaintingStyle.fill);
+    canvas.drawCircle(p, 3,
+        Paint()
+          ..color = strokeColor
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.5);
   }
 
   void _drawDimensionHint(Canvas canvas, Rect rect) {

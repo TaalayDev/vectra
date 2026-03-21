@@ -235,3 +235,33 @@ const _$VecLoopTypeEnumMap = {
   VecLoopType.playOnce: 'playOnce',
   VecLoopType.pingPong: 'pingPong',
 };
+
+_$VecCompoundShapeImpl _$$VecCompoundShapeImplFromJson(
+  Map<String, dynamic> json,
+) => _$VecCompoundShapeImpl(
+  data: VecShapeData.fromJson(json['data'] as Map<String, dynamic>),
+  op: $enumDecode(_$PathfinderOpEnumMap, json['op']),
+  inputs: (json['inputs'] as List<dynamic>)
+      .map((e) => VecShape.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  $type: json['type'] as String?,
+);
+
+Map<String, dynamic> _$$VecCompoundShapeImplToJson(
+  _$VecCompoundShapeImpl instance,
+) => <String, dynamic>{
+  'data': instance.data,
+  'op': _$PathfinderOpEnumMap[instance.op]!,
+  'inputs': instance.inputs,
+  'type': instance.$type,
+};
+
+const _$PathfinderOpEnumMap = {
+  PathfinderOp.unite: 'unite',
+  PathfinderOp.minusFront: 'minusFront',
+  PathfinderOp.intersect: 'intersect',
+  PathfinderOp.exclude: 'exclude',
+  PathfinderOp.divide: 'divide',
+  PathfinderOp.trim: 'trim',
+  PathfinderOp.outline: 'outline',
+};

@@ -6,6 +6,7 @@ import '../../../data/models/vec_shape.dart';
 import '../../../providers/document_provider.dart';
 import '../../../providers/editor_state_provider.dart';
 import '../common/panel_header.dart';
+import 'pathfinder_panel.dart';
 import 'properties_sections.dart';
 
 class PropertiesPanel extends ConsumerWidget {
@@ -16,24 +17,20 @@ class PropertiesPanel extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final shape = ref.watch(selectedShapeProvider);
+    final selectedIds = ref.watch(selectedShapeIdsProvider);
 
     return Container(
       decoration: BoxDecoration(
         color: theme.surface,
-        border: Border(
-          left: BorderSide(color: theme.divider, width: 0.5),
-        ),
+        border: Border(left: BorderSide(color: theme.divider, width: 0.5)),
       ),
       child: Column(
         children: [
-          PanelHeader(
-            title: shape != null ? _shapeTypeName(shape) : 'Properties',
-            theme: theme,
-          ),
+          PanelHeader(title: shape != null ? _shapeTypeName(shape) : 'Properties', theme: theme),
           Expanded(
-            child: shape == null
+            child: shape == null && selectedIds.length < 2
                 ? _buildEmptyState()
-                : _buildSections(context, ref, shape),
+                : _buildSections(context, ref, shape, selectedIds),
           ),
         ],
       ),
@@ -49,24 +46,14 @@ class PropertiesPanel extends ConsumerWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            Icons.touch_app_outlined,
-            size: 32,
-            color: theme.textDisabled.withAlpha(80),
-          ),
+          Icon(Icons.touch_app_outlined, size: 32, color: theme.textDisabled.withAlpha(80)),
           const SizedBox(height: 8),
-          Text(
-            'No selection',
-            style: TextStyle(fontSize: 12, color: theme.textDisabled),
-          ),
+          Text('No selection', style: TextStyle(fontSize: 12, color: theme.textDisabled)),
           const SizedBox(height: 4),
           Text(
             'Select a shape to see\nits properties',
             textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 10,
-              color: theme.textDisabled.withAlpha(120),
-            ),
+            style: TextStyle(fontSize: 10, color: theme.textDisabled.withAlpha(120)),
           ),
         ],
       ),
@@ -77,12 +64,20 @@ class PropertiesPanel extends ConsumerWidget {
   // Sections with real callbacks
   // ---------------------------------------------------------------------------
 
-  Widget _buildSections(BuildContext context, WidgetRef ref, VecShape shape) {
+  Widget _buildSections(BuildContext context, WidgetRef ref, VecShape? shape, List<String> selectedIds) {
     final scene = ref.read(activeSceneProvider);
     final layerId = ref.read(activeLayerIdProvider);
     final docNotifier = ref.read(vecDocumentStateProvider.notifier);
 
     if (scene == null || layerId == null) return const SizedBox.shrink();
+
+    // When only multi-selection (no single shape), show pathfinder only
+    if (shape == null) {
+      return ListView(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        children: [PathfinderPanel(theme: theme)],
+      );
+    }
 
     // Committed update — goes to undo history
     void onUpdate(VecShape Function(VecShape) updater) {
@@ -110,6 +105,15 @@ class PropertiesPanel extends ConsumerWidget {
           onLiveUpdate: onLiveUpdate,
           onCommit: onCommit,
         ),
+        // Corner radius — rectangles only
+        ...shape.maybeMap(
+          rectangle: (r) => [
+            Divider(height: 1, color: theme.divider.withAlpha(60)),
+            CornerSection(shape: r, theme: theme, onUpdate: onUpdate),
+          ],
+          orElse: () => const <Widget>[],
+        ),
+        PathfinderPanel(theme: theme),
         Divider(height: 1, color: theme.divider.withAlpha(60)),
         FillSection(
           fills: shape.fills,
@@ -127,11 +131,7 @@ class PropertiesPanel extends ConsumerWidget {
           onCommit: onCommit,
         ),
         Divider(height: 1, color: theme.divider.withAlpha(60)),
-        BlendSection(
-          blendMode: shape.blendMode,
-          theme: theme,
-          onUpdate: onUpdate,
-        ),
+        BlendSection(blendMode: shape.blendMode, theme: theme, onUpdate: onUpdate),
       ],
     );
   }
@@ -149,6 +149,7 @@ class PropertiesPanel extends ConsumerWidget {
       text: (_) => 'Text',
       group: (_) => 'Group',
       symbolInstance: (_) => 'Symbol',
+      compound: (s) => '${s.op.name[0].toUpperCase()}${s.op.name.substring(1)}',
     );
   }
 }

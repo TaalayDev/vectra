@@ -27,25 +27,56 @@ class LayersPanel extends ConsumerWidget {
       ),
       child: Column(
         children: [
+          // ----------------------------------------------------------------
+          // Header: title + add + delete buttons
+          // ----------------------------------------------------------------
           PanelHeader(
             title: 'Layers',
             theme: theme,
-            trailing: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: () {
-                  if (scene != null) {
-                    ref.read(vecDocumentStateProvider.notifier).addLayer(scene.id);
-                  }
-                },
-                borderRadius: BorderRadius.circular(4),
-                child: Padding(
-                  padding: const EdgeInsets.all(2),
-                  child: Icon(Icons.add, size: 14, color: theme.textSecondary),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Delete active layer (disabled when only one layer left)
+                if (activeLayerId != null && layers.length > 1)
+                  _HeaderButton(
+                    icon: Icons.delete_outline,
+                    color: theme.error,
+                    tooltip: 'Delete layer',
+                    onTap: () {
+                      ref
+                          .read(vecDocumentStateProvider.notifier)
+                          .removeLayer(scene!.id, activeLayerId);
+                      // Switch to first remaining layer
+                      final remaining =
+                          layers.where((l) => l.id != activeLayerId).toList();
+                      if (remaining.isNotEmpty) {
+                        ref
+                            .read(activeLayerIdProvider.notifier)
+                            .set(remaining.last.id);
+                      }
+                    },
+                  ),
+
+                // Add layer
+                _HeaderButton(
+                  icon: Icons.add,
+                  color: theme.textSecondary,
+                  tooltip: 'Add layer',
+                  onTap: () {
+                    if (scene != null) {
+                      ref
+                          .read(vecDocumentStateProvider.notifier)
+                          .addLayer(scene.id);
+                    }
+                  },
                 ),
-              ),
+              ],
             ),
           ),
+
+          // ----------------------------------------------------------------
+          // Layer list — reorderable
+          // ----------------------------------------------------------------
           Expanded(
             child: layers.isEmpty
                 ? Center(
@@ -57,22 +88,46 @@ class LayersPanel extends ConsumerWidget {
                       ),
                     ),
                   )
-                : ListView.builder(
+                : ReorderableListView.builder(
                     padding: const EdgeInsets.symmetric(vertical: 2),
+                    buildDefaultDragHandles: false,
                     itemCount: layers.length,
-                    itemBuilder: (_, index) {
-                      // Show layers in reverse order (top layer first)
-                      final layer = layers[layers.length - 1 - index];
+                    onReorder: (oldDisplayIdx, newDisplayIdx) {
+                      if (scene == null) return;
+                      // Layers are displayed in reverse order: display[i] = actual[n-1-i]
+                      // Build the new display-order ID list, perform the move, then reverse.
+                      final n = layers.length;
+                      final displayIds = List<String>.generate(
+                          n, (i) => layers[n - 1 - i].id);
+                      final id = displayIds.removeAt(oldDisplayIdx);
+                      final insertAt = newDisplayIdx > oldDisplayIdx
+                          ? newDisplayIdx - 1
+                          : newDisplayIdx;
+                      displayIds.insert(insertAt, id);
+                      // Reverse back to actual order for the provider
+                      final actualIds = displayIds.reversed.toList();
+                      ref
+                          .read(vecDocumentStateProvider.notifier)
+                          .reorderLayers(scene.id, actualIds);
+                    },
+                    itemBuilder: (_, displayIdx) {
+                      final n = layers.length;
+                      final layer = layers[n - 1 - displayIdx];
                       return LayerRow(
+                        key: ValueKey(layer.id),
                         layer: layer,
                         sceneId: scene!.id,
                         isActive: layer.id == activeLayerId,
                         theme: theme,
+                        index: displayIdx,
                       );
                     },
                   ),
           ),
+
+          // ----------------------------------------------------------------
           // Scene indicator
+          // ----------------------------------------------------------------
           if (scene != null)
             Container(
               height: 28,
@@ -85,7 +140,8 @@ class LayersPanel extends ConsumerWidget {
               ),
               child: Row(
                 children: [
-                  Icon(Icons.movie_outlined, size: 12, color: theme.textDisabled),
+                  Icon(Icons.movie_outlined,
+                      size: 12, color: theme.textDisabled),
                   const SizedBox(width: 6),
                   Text(
                     scene.name,
@@ -98,6 +154,43 @@ class LayersPanel extends ConsumerWidget {
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+// =============================================================================
+// Small header button
+// =============================================================================
+
+class _HeaderButton extends StatelessWidget {
+  const _HeaderButton({
+    required this.icon,
+    required this.color,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final Color color;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      waitDuration: const Duration(milliseconds: 600),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(4),
+          child: Padding(
+            padding: const EdgeInsets.all(2),
+            child: Icon(icon, size: 14, color: color),
+          ),
+        ),
       ),
     );
   }

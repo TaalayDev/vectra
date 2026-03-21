@@ -379,6 +379,8 @@ VecShape _$VecShapeFromJson(Map<String, dynamic> json) {
       return VecGroupShape.fromJson(json);
     case 'symbolInstance':
       return VecSymbolInstanceShape.fromJson(json);
+    case 'compound':
+      return VecCompoundShape.fromJson(json);
 
     default:
       throw CheckedFromJsonException(
@@ -443,6 +445,12 @@ mixin _$VecShape {
       int firstFrame,
     )
     symbolInstance,
+    required TResult Function(
+      VecShapeData data,
+      PathfinderOp op,
+      List<VecShape> inputs,
+    )
+    compound,
   }) => throw _privateConstructorUsedError;
   @optionalTypeArgs
   TResult? whenOrNull<TResult extends Object?>({
@@ -490,6 +498,12 @@ mixin _$VecShape {
       int firstFrame,
     )?
     symbolInstance,
+    TResult? Function(
+      VecShapeData data,
+      PathfinderOp op,
+      List<VecShape> inputs,
+    )?
+    compound,
   }) => throw _privateConstructorUsedError;
   @optionalTypeArgs
   TResult maybeWhen<TResult extends Object?>({
@@ -533,6 +547,8 @@ mixin _$VecShape {
       int firstFrame,
     )?
     symbolInstance,
+    TResult Function(VecShapeData data, PathfinderOp op, List<VecShape> inputs)?
+    compound,
     required TResult orElse(),
   }) => throw _privateConstructorUsedError;
   @optionalTypeArgs
@@ -544,6 +560,7 @@ mixin _$VecShape {
     required TResult Function(VecTextShape value) text,
     required TResult Function(VecGroupShape value) group,
     required TResult Function(VecSymbolInstanceShape value) symbolInstance,
+    required TResult Function(VecCompoundShape value) compound,
   }) => throw _privateConstructorUsedError;
   @optionalTypeArgs
   TResult? mapOrNull<TResult extends Object?>({
@@ -554,6 +571,7 @@ mixin _$VecShape {
     TResult? Function(VecTextShape value)? text,
     TResult? Function(VecGroupShape value)? group,
     TResult? Function(VecSymbolInstanceShape value)? symbolInstance,
+    TResult? Function(VecCompoundShape value)? compound,
   }) => throw _privateConstructorUsedError;
   @optionalTypeArgs
   TResult maybeMap<TResult extends Object?>({
@@ -564,6 +582,7 @@ mixin _$VecShape {
     TResult Function(VecTextShape value)? text,
     TResult Function(VecGroupShape value)? group,
     TResult Function(VecSymbolInstanceShape value)? symbolInstance,
+    TResult Function(VecCompoundShape value)? compound,
     required TResult orElse(),
   }) => throw _privateConstructorUsedError;
 
@@ -792,6 +811,12 @@ class _$VecPathShapeImpl extends VecPathShape {
       int firstFrame,
     )
     symbolInstance,
+    required TResult Function(
+      VecShapeData data,
+      PathfinderOp op,
+      List<VecShape> inputs,
+    )
+    compound,
   }) {
     return path(data, nodes, isClosed);
   }
@@ -843,6 +868,12 @@ class _$VecPathShapeImpl extends VecPathShape {
       int firstFrame,
     )?
     symbolInstance,
+    TResult? Function(
+      VecShapeData data,
+      PathfinderOp op,
+      List<VecShape> inputs,
+    )?
+    compound,
   }) {
     return path?.call(data, nodes, isClosed);
   }
@@ -890,6 +921,8 @@ class _$VecPathShapeImpl extends VecPathShape {
       int firstFrame,
     )?
     symbolInstance,
+    TResult Function(VecShapeData data, PathfinderOp op, List<VecShape> inputs)?
+    compound,
     required TResult orElse(),
   }) {
     if (path != null) {
@@ -908,6 +941,7 @@ class _$VecPathShapeImpl extends VecPathShape {
     required TResult Function(VecTextShape value) text,
     required TResult Function(VecGroupShape value) group,
     required TResult Function(VecSymbolInstanceShape value) symbolInstance,
+    required TResult Function(VecCompoundShape value) compound,
   }) {
     return path(this);
   }
@@ -922,6 +956,7 @@ class _$VecPathShapeImpl extends VecPathShape {
     TResult? Function(VecTextShape value)? text,
     TResult? Function(VecGroupShape value)? group,
     TResult? Function(VecSymbolInstanceShape value)? symbolInstance,
+    TResult? Function(VecCompoundShape value)? compound,
   }) {
     return path?.call(this);
   }
@@ -936,6 +971,7 @@ class _$VecPathShapeImpl extends VecPathShape {
     TResult Function(VecTextShape value)? text,
     TResult Function(VecGroupShape value)? group,
     TResult Function(VecSymbolInstanceShape value)? symbolInstance,
+    TResult Function(VecCompoundShape value)? compound,
     required TResult orElse(),
   }) {
     if (path != null) {
@@ -1153,6 +1189,12 @@ class _$VecRectangleShapeImpl extends VecRectangleShape {
       int firstFrame,
     )
     symbolInstance,
+    required TResult Function(
+      VecShapeData data,
+      PathfinderOp op,
+      List<VecShape> inputs,
+    )
+    compound,
   }) {
     return rectangle(data, cornerRadii, cornerStyle);
   }
@@ -1204,6 +1246,12 @@ class _$VecRectangleShapeImpl extends VecRectangleShape {
       int firstFrame,
     )?
     symbolInstance,
+    TResult? Function(
+      VecShapeData data,
+      PathfinderOp op,
+      List<VecShape> inputs,
+    )?
+    compound,
   }) {
     return rectangle?.call(data, cornerRadii, cornerStyle);
   }
@@ -1251,6 +1299,8 @@ class _$VecRectangleShapeImpl extends VecRectangleShape {
       int firstFrame,
     )?
     symbolInstance,
+    TResult Function(VecShapeData data, PathfinderOp op, List<VecShape> inputs)?
+    compound,
     required TResult orElse(),
   }) {
     if (rectangle != null) {
@@ -1269,6 +1319,7 @@ class _$VecRectangleShapeImpl extends VecRectangleShape {
     required TResult Function(VecTextShape value) text,
     required TResult Function(VecGroupShape value) group,
     required TResult Function(VecSymbolInstanceShape value) symbolInstance,
+    required TResult Function(VecCompoundShape value) compound,
   }) {
     return rectangle(this);
   }
@@ -1283,6 +1334,7 @@ class _$VecRectangleShapeImpl extends VecRectangleShape {
     TResult? Function(VecTextShape value)? text,
     TResult? Function(VecGroupShape value)? group,
     TResult? Function(VecSymbolInstanceShape value)? symbolInstance,
+    TResult? Function(VecCompoundShape value)? compound,
   }) {
     return rectangle?.call(this);
   }
@@ -1297,6 +1349,7 @@ class _$VecRectangleShapeImpl extends VecRectangleShape {
     TResult Function(VecTextShape value)? text,
     TResult Function(VecGroupShape value)? group,
     TResult Function(VecSymbolInstanceShape value)? symbolInstance,
+    TResult Function(VecCompoundShape value)? compound,
     required TResult orElse(),
   }) {
     if (rectangle != null) {
@@ -1513,6 +1566,12 @@ class _$VecEllipseShapeImpl extends VecEllipseShape {
       int firstFrame,
     )
     symbolInstance,
+    required TResult Function(
+      VecShapeData data,
+      PathfinderOp op,
+      List<VecShape> inputs,
+    )
+    compound,
   }) {
     return ellipse(data, startAngle, endAngle, innerRadius);
   }
@@ -1564,6 +1623,12 @@ class _$VecEllipseShapeImpl extends VecEllipseShape {
       int firstFrame,
     )?
     symbolInstance,
+    TResult? Function(
+      VecShapeData data,
+      PathfinderOp op,
+      List<VecShape> inputs,
+    )?
+    compound,
   }) {
     return ellipse?.call(data, startAngle, endAngle, innerRadius);
   }
@@ -1611,6 +1676,8 @@ class _$VecEllipseShapeImpl extends VecEllipseShape {
       int firstFrame,
     )?
     symbolInstance,
+    TResult Function(VecShapeData data, PathfinderOp op, List<VecShape> inputs)?
+    compound,
     required TResult orElse(),
   }) {
     if (ellipse != null) {
@@ -1629,6 +1696,7 @@ class _$VecEllipseShapeImpl extends VecEllipseShape {
     required TResult Function(VecTextShape value) text,
     required TResult Function(VecGroupShape value) group,
     required TResult Function(VecSymbolInstanceShape value) symbolInstance,
+    required TResult Function(VecCompoundShape value) compound,
   }) {
     return ellipse(this);
   }
@@ -1643,6 +1711,7 @@ class _$VecEllipseShapeImpl extends VecEllipseShape {
     TResult? Function(VecTextShape value)? text,
     TResult? Function(VecGroupShape value)? group,
     TResult? Function(VecSymbolInstanceShape value)? symbolInstance,
+    TResult? Function(VecCompoundShape value)? compound,
   }) {
     return ellipse?.call(this);
   }
@@ -1657,6 +1726,7 @@ class _$VecEllipseShapeImpl extends VecEllipseShape {
     TResult Function(VecTextShape value)? text,
     TResult Function(VecGroupShape value)? group,
     TResult Function(VecSymbolInstanceShape value)? symbolInstance,
+    TResult Function(VecCompoundShape value)? compound,
     required TResult orElse(),
   }) {
     if (ellipse != null) {
@@ -1857,6 +1927,12 @@ class _$VecPolygonShapeImpl extends VecPolygonShape {
       int firstFrame,
     )
     symbolInstance,
+    required TResult Function(
+      VecShapeData data,
+      PathfinderOp op,
+      List<VecShape> inputs,
+    )
+    compound,
   }) {
     return polygon(data, sideCount, starDepth);
   }
@@ -1908,6 +1984,12 @@ class _$VecPolygonShapeImpl extends VecPolygonShape {
       int firstFrame,
     )?
     symbolInstance,
+    TResult? Function(
+      VecShapeData data,
+      PathfinderOp op,
+      List<VecShape> inputs,
+    )?
+    compound,
   }) {
     return polygon?.call(data, sideCount, starDepth);
   }
@@ -1955,6 +2037,8 @@ class _$VecPolygonShapeImpl extends VecPolygonShape {
       int firstFrame,
     )?
     symbolInstance,
+    TResult Function(VecShapeData data, PathfinderOp op, List<VecShape> inputs)?
+    compound,
     required TResult orElse(),
   }) {
     if (polygon != null) {
@@ -1973,6 +2057,7 @@ class _$VecPolygonShapeImpl extends VecPolygonShape {
     required TResult Function(VecTextShape value) text,
     required TResult Function(VecGroupShape value) group,
     required TResult Function(VecSymbolInstanceShape value) symbolInstance,
+    required TResult Function(VecCompoundShape value) compound,
   }) {
     return polygon(this);
   }
@@ -1987,6 +2072,7 @@ class _$VecPolygonShapeImpl extends VecPolygonShape {
     TResult? Function(VecTextShape value)? text,
     TResult? Function(VecGroupShape value)? group,
     TResult? Function(VecSymbolInstanceShape value)? symbolInstance,
+    TResult? Function(VecCompoundShape value)? compound,
   }) {
     return polygon?.call(this);
   }
@@ -2001,6 +2087,7 @@ class _$VecPolygonShapeImpl extends VecPolygonShape {
     TResult Function(VecTextShape value)? text,
     TResult Function(VecGroupShape value)? group,
     TResult Function(VecSymbolInstanceShape value)? symbolInstance,
+    TResult Function(VecCompoundShape value)? compound,
     required TResult orElse(),
   }) {
     if (polygon != null) {
@@ -2280,6 +2367,12 @@ class _$VecTextShapeImpl extends VecTextShape {
       int firstFrame,
     )
     symbolInstance,
+    required TResult Function(
+      VecShapeData data,
+      PathfinderOp op,
+      List<VecShape> inputs,
+    )
+    compound,
   }) {
     return text(
       data,
@@ -2341,6 +2434,12 @@ class _$VecTextShapeImpl extends VecTextShape {
       int firstFrame,
     )?
     symbolInstance,
+    TResult? Function(
+      VecShapeData data,
+      PathfinderOp op,
+      List<VecShape> inputs,
+    )?
+    compound,
   }) {
     return text?.call(
       data,
@@ -2398,6 +2497,8 @@ class _$VecTextShapeImpl extends VecTextShape {
       int firstFrame,
     )?
     symbolInstance,
+    TResult Function(VecShapeData data, PathfinderOp op, List<VecShape> inputs)?
+    compound,
     required TResult orElse(),
   }) {
     if (text != null) {
@@ -2426,6 +2527,7 @@ class _$VecTextShapeImpl extends VecTextShape {
     required TResult Function(VecTextShape value) text,
     required TResult Function(VecGroupShape value) group,
     required TResult Function(VecSymbolInstanceShape value) symbolInstance,
+    required TResult Function(VecCompoundShape value) compound,
   }) {
     return text(this);
   }
@@ -2440,6 +2542,7 @@ class _$VecTextShapeImpl extends VecTextShape {
     TResult? Function(VecTextShape value)? text,
     TResult? Function(VecGroupShape value)? group,
     TResult? Function(VecSymbolInstanceShape value)? symbolInstance,
+    TResult? Function(VecCompoundShape value)? compound,
   }) {
     return text?.call(this);
   }
@@ -2454,6 +2557,7 @@ class _$VecTextShapeImpl extends VecTextShape {
     TResult Function(VecTextShape value)? text,
     TResult Function(VecGroupShape value)? group,
     TResult Function(VecSymbolInstanceShape value)? symbolInstance,
+    TResult Function(VecCompoundShape value)? compound,
     required TResult orElse(),
   }) {
     if (text != null) {
@@ -2656,6 +2760,12 @@ class _$VecGroupShapeImpl extends VecGroupShape {
       int firstFrame,
     )
     symbolInstance,
+    required TResult Function(
+      VecShapeData data,
+      PathfinderOp op,
+      List<VecShape> inputs,
+    )
+    compound,
   }) {
     return group(data, children);
   }
@@ -2707,6 +2817,12 @@ class _$VecGroupShapeImpl extends VecGroupShape {
       int firstFrame,
     )?
     symbolInstance,
+    TResult? Function(
+      VecShapeData data,
+      PathfinderOp op,
+      List<VecShape> inputs,
+    )?
+    compound,
   }) {
     return group?.call(data, children);
   }
@@ -2754,6 +2870,8 @@ class _$VecGroupShapeImpl extends VecGroupShape {
       int firstFrame,
     )?
     symbolInstance,
+    TResult Function(VecShapeData data, PathfinderOp op, List<VecShape> inputs)?
+    compound,
     required TResult orElse(),
   }) {
     if (group != null) {
@@ -2772,6 +2890,7 @@ class _$VecGroupShapeImpl extends VecGroupShape {
     required TResult Function(VecTextShape value) text,
     required TResult Function(VecGroupShape value) group,
     required TResult Function(VecSymbolInstanceShape value) symbolInstance,
+    required TResult Function(VecCompoundShape value) compound,
   }) {
     return group(this);
   }
@@ -2786,6 +2905,7 @@ class _$VecGroupShapeImpl extends VecGroupShape {
     TResult? Function(VecTextShape value)? text,
     TResult? Function(VecGroupShape value)? group,
     TResult? Function(VecSymbolInstanceShape value)? symbolInstance,
+    TResult? Function(VecCompoundShape value)? compound,
   }) {
     return group?.call(this);
   }
@@ -2800,6 +2920,7 @@ class _$VecGroupShapeImpl extends VecGroupShape {
     TResult Function(VecTextShape value)? text,
     TResult Function(VecGroupShape value)? group,
     TResult Function(VecSymbolInstanceShape value)? symbolInstance,
+    TResult Function(VecCompoundShape value)? compound,
     required TResult orElse(),
   }) {
     if (group != null) {
@@ -3072,6 +3193,12 @@ class _$VecSymbolInstanceShapeImpl extends VecSymbolInstanceShape {
       int firstFrame,
     )
     symbolInstance,
+    required TResult Function(
+      VecShapeData data,
+      PathfinderOp op,
+      List<VecShape> inputs,
+    )
+    compound,
   }) {
     return symbolInstance(
       data,
@@ -3131,6 +3258,12 @@ class _$VecSymbolInstanceShapeImpl extends VecSymbolInstanceShape {
       int firstFrame,
     )?
     symbolInstance,
+    TResult? Function(
+      VecShapeData data,
+      PathfinderOp op,
+      List<VecShape> inputs,
+    )?
+    compound,
   }) {
     return symbolInstance?.call(
       data,
@@ -3186,6 +3319,8 @@ class _$VecSymbolInstanceShapeImpl extends VecSymbolInstanceShape {
       int firstFrame,
     )?
     symbolInstance,
+    TResult Function(VecShapeData data, PathfinderOp op, List<VecShape> inputs)?
+    compound,
     required TResult orElse(),
   }) {
     if (symbolInstance != null) {
@@ -3212,6 +3347,7 @@ class _$VecSymbolInstanceShapeImpl extends VecSymbolInstanceShape {
     required TResult Function(VecTextShape value) text,
     required TResult Function(VecGroupShape value) group,
     required TResult Function(VecSymbolInstanceShape value) symbolInstance,
+    required TResult Function(VecCompoundShape value) compound,
   }) {
     return symbolInstance(this);
   }
@@ -3226,6 +3362,7 @@ class _$VecSymbolInstanceShapeImpl extends VecSymbolInstanceShape {
     TResult? Function(VecTextShape value)? text,
     TResult? Function(VecGroupShape value)? group,
     TResult? Function(VecSymbolInstanceShape value)? symbolInstance,
+    TResult? Function(VecCompoundShape value)? compound,
   }) {
     return symbolInstance?.call(this);
   }
@@ -3240,6 +3377,7 @@ class _$VecSymbolInstanceShapeImpl extends VecSymbolInstanceShape {
     TResult Function(VecTextShape value)? text,
     TResult Function(VecGroupShape value)? group,
     TResult Function(VecSymbolInstanceShape value)? symbolInstance,
+    TResult Function(VecCompoundShape value)? compound,
     required TResult orElse(),
   }) {
     if (symbolInstance != null) {
@@ -3284,4 +3422,367 @@ abstract class VecSymbolInstanceShape extends VecShape {
   @JsonKey(includeFromJson: false, includeToJson: false)
   _$$VecSymbolInstanceShapeImplCopyWith<_$VecSymbolInstanceShapeImpl>
   get copyWith => throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class _$$VecCompoundShapeImplCopyWith<$Res>
+    implements $VecShapeCopyWith<$Res> {
+  factory _$$VecCompoundShapeImplCopyWith(
+    _$VecCompoundShapeImpl value,
+    $Res Function(_$VecCompoundShapeImpl) then,
+  ) = __$$VecCompoundShapeImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call({VecShapeData data, PathfinderOp op, List<VecShape> inputs});
+
+  @override
+  $VecShapeDataCopyWith<$Res> get data;
+}
+
+/// @nodoc
+class __$$VecCompoundShapeImplCopyWithImpl<$Res>
+    extends _$VecShapeCopyWithImpl<$Res, _$VecCompoundShapeImpl>
+    implements _$$VecCompoundShapeImplCopyWith<$Res> {
+  __$$VecCompoundShapeImplCopyWithImpl(
+    _$VecCompoundShapeImpl _value,
+    $Res Function(_$VecCompoundShapeImpl) _then,
+  ) : super(_value, _then);
+
+  /// Create a copy of VecShape
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({Object? data = null, Object? op = null, Object? inputs = null}) {
+    return _then(
+      _$VecCompoundShapeImpl(
+        data: null == data
+            ? _value.data
+            : data // ignore: cast_nullable_to_non_nullable
+                  as VecShapeData,
+        op: null == op
+            ? _value.op
+            : op // ignore: cast_nullable_to_non_nullable
+                  as PathfinderOp,
+        inputs: null == inputs
+            ? _value._inputs
+            : inputs // ignore: cast_nullable_to_non_nullable
+                  as List<VecShape>,
+      ),
+    );
+  }
+}
+
+/// @nodoc
+@JsonSerializable()
+class _$VecCompoundShapeImpl extends VecCompoundShape {
+  const _$VecCompoundShapeImpl({
+    required this.data,
+    required this.op,
+    required final List<VecShape> inputs,
+    final String? $type,
+  }) : _inputs = inputs,
+       $type = $type ?? 'compound',
+       super._();
+
+  factory _$VecCompoundShapeImpl.fromJson(Map<String, dynamic> json) =>
+      _$$VecCompoundShapeImplFromJson(json);
+
+  @override
+  final VecShapeData data;
+  @override
+  final PathfinderOp op;
+  final List<VecShape> _inputs;
+  @override
+  List<VecShape> get inputs {
+    if (_inputs is EqualUnmodifiableListView) return _inputs;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_inputs);
+  }
+
+  @JsonKey(name: 'type')
+  final String $type;
+
+  @override
+  String toString() {
+    return 'VecShape.compound(data: $data, op: $op, inputs: $inputs)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$VecCompoundShapeImpl &&
+            (identical(other.data, data) || other.data == data) &&
+            (identical(other.op, op) || other.op == op) &&
+            const DeepCollectionEquality().equals(other._inputs, _inputs));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(
+    runtimeType,
+    data,
+    op,
+    const DeepCollectionEquality().hash(_inputs),
+  );
+
+  /// Create a copy of VecShape
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$VecCompoundShapeImplCopyWith<_$VecCompoundShapeImpl> get copyWith =>
+      __$$VecCompoundShapeImplCopyWithImpl<_$VecCompoundShapeImpl>(
+        this,
+        _$identity,
+      );
+
+  @override
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>({
+    required TResult Function(
+      VecShapeData data,
+      List<VecPathNode> nodes,
+      bool isClosed,
+    )
+    path,
+    required TResult Function(
+      VecShapeData data,
+      List<double> cornerRadii,
+      VecCornerStyle cornerStyle,
+    )
+    rectangle,
+    required TResult Function(
+      VecShapeData data,
+      double startAngle,
+      double endAngle,
+      double innerRadius,
+    )
+    ellipse,
+    required TResult Function(
+      VecShapeData data,
+      int sideCount,
+      double? starDepth,
+    )
+    polygon,
+    required TResult Function(
+      VecShapeData data,
+      String content,
+      String fontFamily,
+      double fontSize,
+      int fontWeight,
+      double tracking,
+      double leading,
+      VecTextAlign alignment,
+      String? textOnPathRef,
+    )
+    text,
+    required TResult Function(VecShapeData data, List<VecShape> children) group,
+    required TResult Function(
+      VecShapeData data,
+      String symbolId,
+      VecColor? colorTint,
+      double tintAmount,
+      double alphaOverride,
+      VecLoopType loopType,
+      int firstFrame,
+    )
+    symbolInstance,
+    required TResult Function(
+      VecShapeData data,
+      PathfinderOp op,
+      List<VecShape> inputs,
+    )
+    compound,
+  }) {
+    return compound(data, op, inputs);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>({
+    TResult? Function(
+      VecShapeData data,
+      List<VecPathNode> nodes,
+      bool isClosed,
+    )?
+    path,
+    TResult? Function(
+      VecShapeData data,
+      List<double> cornerRadii,
+      VecCornerStyle cornerStyle,
+    )?
+    rectangle,
+    TResult? Function(
+      VecShapeData data,
+      double startAngle,
+      double endAngle,
+      double innerRadius,
+    )?
+    ellipse,
+    TResult? Function(VecShapeData data, int sideCount, double? starDepth)?
+    polygon,
+    TResult? Function(
+      VecShapeData data,
+      String content,
+      String fontFamily,
+      double fontSize,
+      int fontWeight,
+      double tracking,
+      double leading,
+      VecTextAlign alignment,
+      String? textOnPathRef,
+    )?
+    text,
+    TResult? Function(VecShapeData data, List<VecShape> children)? group,
+    TResult? Function(
+      VecShapeData data,
+      String symbolId,
+      VecColor? colorTint,
+      double tintAmount,
+      double alphaOverride,
+      VecLoopType loopType,
+      int firstFrame,
+    )?
+    symbolInstance,
+    TResult? Function(
+      VecShapeData data,
+      PathfinderOp op,
+      List<VecShape> inputs,
+    )?
+    compound,
+  }) {
+    return compound?.call(data, op, inputs);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>({
+    TResult Function(VecShapeData data, List<VecPathNode> nodes, bool isClosed)?
+    path,
+    TResult Function(
+      VecShapeData data,
+      List<double> cornerRadii,
+      VecCornerStyle cornerStyle,
+    )?
+    rectangle,
+    TResult Function(
+      VecShapeData data,
+      double startAngle,
+      double endAngle,
+      double innerRadius,
+    )?
+    ellipse,
+    TResult Function(VecShapeData data, int sideCount, double? starDepth)?
+    polygon,
+    TResult Function(
+      VecShapeData data,
+      String content,
+      String fontFamily,
+      double fontSize,
+      int fontWeight,
+      double tracking,
+      double leading,
+      VecTextAlign alignment,
+      String? textOnPathRef,
+    )?
+    text,
+    TResult Function(VecShapeData data, List<VecShape> children)? group,
+    TResult Function(
+      VecShapeData data,
+      String symbolId,
+      VecColor? colorTint,
+      double tintAmount,
+      double alphaOverride,
+      VecLoopType loopType,
+      int firstFrame,
+    )?
+    symbolInstance,
+    TResult Function(VecShapeData data, PathfinderOp op, List<VecShape> inputs)?
+    compound,
+    required TResult orElse(),
+  }) {
+    if (compound != null) {
+      return compound(data, op, inputs);
+    }
+    return orElse();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>({
+    required TResult Function(VecPathShape value) path,
+    required TResult Function(VecRectangleShape value) rectangle,
+    required TResult Function(VecEllipseShape value) ellipse,
+    required TResult Function(VecPolygonShape value) polygon,
+    required TResult Function(VecTextShape value) text,
+    required TResult Function(VecGroupShape value) group,
+    required TResult Function(VecSymbolInstanceShape value) symbolInstance,
+    required TResult Function(VecCompoundShape value) compound,
+  }) {
+    return compound(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>({
+    TResult? Function(VecPathShape value)? path,
+    TResult? Function(VecRectangleShape value)? rectangle,
+    TResult? Function(VecEllipseShape value)? ellipse,
+    TResult? Function(VecPolygonShape value)? polygon,
+    TResult? Function(VecTextShape value)? text,
+    TResult? Function(VecGroupShape value)? group,
+    TResult? Function(VecSymbolInstanceShape value)? symbolInstance,
+    TResult? Function(VecCompoundShape value)? compound,
+  }) {
+    return compound?.call(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>({
+    TResult Function(VecPathShape value)? path,
+    TResult Function(VecRectangleShape value)? rectangle,
+    TResult Function(VecEllipseShape value)? ellipse,
+    TResult Function(VecPolygonShape value)? polygon,
+    TResult Function(VecTextShape value)? text,
+    TResult Function(VecGroupShape value)? group,
+    TResult Function(VecSymbolInstanceShape value)? symbolInstance,
+    TResult Function(VecCompoundShape value)? compound,
+    required TResult orElse(),
+  }) {
+    if (compound != null) {
+      return compound(this);
+    }
+    return orElse();
+  }
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$$VecCompoundShapeImplToJson(this);
+  }
+}
+
+abstract class VecCompoundShape extends VecShape {
+  const factory VecCompoundShape({
+    required final VecShapeData data,
+    required final PathfinderOp op,
+    required final List<VecShape> inputs,
+  }) = _$VecCompoundShapeImpl;
+  const VecCompoundShape._() : super._();
+
+  factory VecCompoundShape.fromJson(Map<String, dynamic> json) =
+      _$VecCompoundShapeImpl.fromJson;
+
+  @override
+  VecShapeData get data;
+  PathfinderOp get op;
+  List<VecShape> get inputs;
+
+  /// Create a copy of VecShape
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  _$$VecCompoundShapeImplCopyWith<_$VecCompoundShapeImpl> get copyWith =>
+      throw _privateConstructorUsedError;
 }

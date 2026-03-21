@@ -151,6 +151,17 @@ class IsPlaying extends _$IsPlaying {
   void set(bool value) => state = value;
 }
 
+/// The ID of the group shape currently being edited in isolate mode.
+/// Null when not in group-edit mode.
+@riverpod
+class ActiveGroupId extends _$ActiveGroupId {
+  @override
+  String? build() => null;
+
+  void set(String? id) => state = id;
+  void clear() => state = null;
+}
+
 // ---------------------------------------------------------------------------
 // Derived state providers
 // ---------------------------------------------------------------------------
@@ -178,9 +189,21 @@ VecLayer? activeLayer(ActiveLayerRef ref) {
 VecShape? selectedShape(SelectedShapeRef ref) {
   final scene = ref.watch(activeSceneProvider);
   final shapeId = ref.watch(selectedShapeIdProvider);
+  final groupId = ref.watch(activeGroupIdProvider);
   if (scene == null || shapeId == null) return null;
+
   for (final layer in scene.layers) {
     for (final shape in layer.shapes) {
+      // In group-edit mode, look inside the active group's children
+      if (groupId != null && shape.id == groupId) {
+        final g = shape.maybeMap(group: (g) => g, orElse: () => null);
+        if (g != null) {
+          for (final child in g.children) {
+            if (child.id == shapeId) return child;
+          }
+        }
+        continue;
+      }
       if (shape.id == shapeId) return shape;
     }
   }

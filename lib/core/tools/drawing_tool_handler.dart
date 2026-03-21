@@ -39,9 +39,9 @@ class DrawingToolHandler {
     );
   }
 
-  /// Creates a path (polyline) shape from pen tool points.
+  /// Creates a path shape from pen tool nodes, preserving bezier handles.
   VecShape createPath(PenDrawingState pen, {bool closed = false}) {
-    if (pen.points.isEmpty) {
+    if (pen.nodes.isEmpty) {
       return VecShape.path(
         data: VecShapeData(
           id: _uuid.v4(),
@@ -54,22 +54,37 @@ class DrawingToolHandler {
       );
     }
 
-    // Compute bounding box of all points
-    var minX = pen.points.first.dx;
-    var minY = pen.points.first.dy;
+    // Bounding box from node positions only (handles may extend slightly outside)
+    var minX = pen.nodes.first.position.dx;
+    var minY = pen.nodes.first.position.dy;
     var maxX = minX;
     var maxY = minY;
-    for (final p in pen.points) {
+    for (final n in pen.nodes) {
+      final p = n.position;
       if (p.dx < minX) minX = p.dx;
       if (p.dy < minY) minY = p.dy;
       if (p.dx > maxX) maxX = p.dx;
       if (p.dy > maxY) maxY = p.dy;
     }
+    // Avoid degenerate (zero-size) bounding box
+    if (maxX - minX < 1) maxX = minX + 1;
+    if (maxY - minY < 1) maxY = minY + 1;
 
-    // Nodes are relative to the shape's transform position
-    final nodes = pen.points.map((p) {
+    // Convert canvas-space PenNodes to shape-local VecPathNodes
+    final nodes = pen.nodes.map((n) {
+      final localPos = VecPoint(x: n.position.dx - minX, y: n.position.dy - minY);
+      VecPoint? handleOut;
+      VecPoint? handleIn;
+      if (n.isCurve) {
+        handleOut = VecPoint(x: n.handleOut!.dx - minX, y: n.handleOut!.dy - minY);
+        final hi = n.handleIn!;
+        handleIn = VecPoint(x: hi.dx - minX, y: hi.dy - minY);
+      }
       return VecPathNode(
-        position: VecPoint(x: p.dx - minX, y: p.dy - minY),
+        position: localPos,
+        handleOut: handleOut,
+        handleIn: handleIn,
+        type: n.isCurve ? VecNodeType.smooth : VecNodeType.corner,
       );
     }).toList();
 

@@ -25,6 +25,7 @@ class CenterOfMassCalculator {
       text: (s) => _transformCenter(s.data.transform),
       group: (s) => groupCentroid(s.children),
       symbolInstance: (s) => _transformCenter(s.data.transform),
+      compound: (s) => _transformCenter(s.data.transform),
     );
   }
 

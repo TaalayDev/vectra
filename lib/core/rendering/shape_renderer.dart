@@ -4,6 +4,7 @@ import 'dart:ui';
 
 import 'package:flutter/painting.dart';
 
+import '../../core/pathfinder/pathfinder.dart';
 import '../../data/models/vec_fill.dart';
 import '../../data/models/vec_path_node.dart';
 import '../../data/models/vec_shape.dart';
@@ -35,8 +36,12 @@ class ShapeRenderer {
       );
     }
 
-    // Apply affine transform: translate to position, rotate around pivot, scale, skew
-    _applyTransform(canvas, transform);
+    // Compound shapes carry pre-computed canvas-space paths — skip local transform.
+    final isCompound = shape is VecCompoundShape;
+    if (!isCompound) {
+      // Apply affine transform: translate to position, rotate around pivot, scale, skew
+      _applyTransform(canvas, transform);
+    }
 
     // Build path and paint
     shape.map(
@@ -46,6 +51,7 @@ class ShapeRenderer {
       polygon: (s) => _renderPolygon(canvas, s),
       text: (s) => _renderText(canvas, s),
       group: (s) => _renderGroup(canvas, s),
+      compound: (s) => _renderCompound(canvas, s),
       symbolInstance: (s) {}, // TODO: resolve from symbol library
     );
 
@@ -361,6 +367,18 @@ class ShapeRenderer {
     for (final child in s.children) {
       render(canvas, child);
     }
+  }
+
+  // ===========================================================================
+  // Compound (live pathfinder result)
+  // ===========================================================================
+
+  static const _shapeToPath = ShapeToPath();
+
+  void _renderCompound(Canvas canvas, VecCompoundShape s) {
+    // Path is already in canvas space (transform was skipped in render())
+    final path = _shapeToPath.computeCompoundPath(s);
+    _applyFillsAndStrokes(canvas, path, s.data.fills, s.data.strokes);
   }
 
   // ===========================================================================

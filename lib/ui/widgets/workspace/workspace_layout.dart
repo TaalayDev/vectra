@@ -8,6 +8,7 @@ import '../panels/layers_panel.dart';
 import '../panels/properties_panel.dart';
 import '../panels/timeline_panel.dart';
 import '../toolbar/editor_toolbar.dart';
+import 'scene_tabs_bar.dart';
 import 'status_bar.dart';
 
 class WorkspaceLayout extends ConsumerWidget {
@@ -31,10 +32,7 @@ class WorkspaceLayout extends ConsumerWidget {
             children: [
               // Left: Layers panel or collapse strip
               if (panels.layers)
-                SizedBox(
-                  width: 240,
-                  child: LayersPanel(theme: theme),
-                )
+                SizedBox(width: 240, child: LayersPanel(theme: theme))
               else
                 _PanelCollapseStrip(
                   label: 'Layers',
@@ -43,16 +41,11 @@ class WorkspaceLayout extends ConsumerWidget {
                 ),
 
               // Center: Canvas
-              Expanded(
-                child: EditorCanvas(theme: theme),
-              ),
+              Expanded(child: EditorCanvas(theme: theme)),
 
               // Right: Properties panel or collapse strip
               if (panels.properties)
-                SizedBox(
-                  width: 280,
-                  child: PropertiesPanel(theme: theme),
-                )
+                SizedBox(width: 280, child: PropertiesPanel(theme: theme))
               else
                 _PanelCollapseStrip(
                   label: 'Properties',
@@ -63,6 +56,9 @@ class WorkspaceLayout extends ConsumerWidget {
             ],
           ),
         ),
+
+        // Scene tabs bar
+        SceneTabsBar(theme: theme),
 
         // Bottom: Timeline or collapse strip
         if (panels.timeline)
@@ -91,12 +87,7 @@ class WorkspaceLayout extends ConsumerWidget {
 
 /// Vertical collapse strip for side panels (24px wide).
 class _PanelCollapseStrip extends StatelessWidget {
-  const _PanelCollapseStrip({
-    required this.label,
-    required this.theme,
-    required this.onTap,
-    this.alignRight = false,
-  });
+  const _PanelCollapseStrip({required this.label, required this.theme, required this.onTap, this.alignRight = false});
 
   final String label;
   final AppTheme theme;
@@ -114,12 +105,8 @@ class _PanelCollapseStrip extends StatelessWidget {
           decoration: BoxDecoration(
             color: theme.surfaceVariant,
             border: Border(
-              left: alignRight
-                  ? BorderSide(color: theme.divider, width: 0.5)
-                  : BorderSide.none,
-              right: !alignRight
-                  ? BorderSide(color: theme.divider, width: 0.5)
-                  : BorderSide.none,
+              left: alignRight ? BorderSide(color: theme.divider, width: 0.5) : BorderSide.none,
+              right: !alignRight ? BorderSide(color: theme.divider, width: 0.5) : BorderSide.none,
             ),
           ),
           child: Center(
@@ -130,11 +117,7 @@ class _PanelCollapseStrip extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(
-                      alignRight ? Icons.chevron_left : Icons.chevron_right,
-                      size: 10,
-                      color: theme.textDisabled,
-                    ),
+                    Icon(alignRight ? Icons.chevron_left : Icons.chevron_right, size: 10, color: theme.textDisabled),
                     const SizedBox(width: 4),
                     Text(
                       label.toUpperCase(),
@@ -158,11 +141,7 @@ class _PanelCollapseStrip extends StatelessWidget {
 
 /// Horizontal collapse strip for the timeline (24px tall).
 class _HorizontalCollapseStrip extends StatelessWidget {
-  const _HorizontalCollapseStrip({
-    required this.label,
-    required this.theme,
-    required this.onTap,
-  });
+  const _HorizontalCollapseStrip({required this.label, required this.theme, required this.onTap});
 
   final String label;
   final AppTheme theme;
@@ -178,9 +157,7 @@ class _HorizontalCollapseStrip extends StatelessWidget {
           height: 24,
           decoration: BoxDecoration(
             color: theme.surfaceVariant,
-            border: Border(
-              top: BorderSide(color: theme.divider, width: 0.5),
-            ),
+            border: Border(top: BorderSide(color: theme.divider, width: 0.5)),
           ),
           child: Center(
             child: Row(

@@ -32,6 +32,8 @@ class ShortcutsWrapper extends StatefulWidget {
     this.onPaste,
     this.onCut,
     this.onDuplicate,
+    this.onGroup,
+    this.onUngroup,
     this.onCtrlEnter,
     this.onEscape,
     this.onEnter,
@@ -84,6 +86,8 @@ class ShortcutsWrapper extends StatefulWidget {
   final VoidCallback? onPaste;
   final VoidCallback? onCut;
   final VoidCallback? onDuplicate;
+  final VoidCallback? onGroup;
+  final VoidCallback? onUngroup;
   final VoidCallback? onCtrlEnter;
   final VoidCallback? onEscape;
   final VoidCallback? onEnter;
@@ -296,6 +300,8 @@ class _ShortcutsWrapperState extends State<ShortcutsWrapper> {
       LogicalKeySet(controlKey, LogicalKeyboardKey.keyV): const PasteIntent(),
       LogicalKeySet(controlKey, LogicalKeyboardKey.keyX): const CutIntent(),
       LogicalKeySet(controlKey, LogicalKeyboardKey.keyJ): const DuplicateIntent(),
+      LogicalKeySet(controlKey, LogicalKeyboardKey.keyG): const GroupIntent(),
+      LogicalKeySet(controlKey, LogicalKeyboardKey.shift, LogicalKeyboardKey.keyG): const UngroupIntent(),
       LogicalKeySet(controlKey, LogicalKeyboardKey.enter): CallbackIntent(widget.onCtrlEnter ?? () {}),
     };
   }
@@ -338,6 +344,8 @@ class _ShortcutsWrapperState extends State<ShortcutsWrapper> {
       PasteIntent: CallbackAction<PasteIntent>(onInvoke: (intent) => widget.onPaste?.call()),
       CutIntent: CallbackAction<CutIntent>(onInvoke: (intent) => widget.onCut?.call()),
       DuplicateIntent: CallbackAction<DuplicateIntent>(onInvoke: (intent) => widget.onDuplicate?.call()),
+      GroupIntent: CallbackAction<GroupIntent>(onInvoke: (intent) => widget.onGroup?.call()),
+      UngroupIntent: CallbackAction<UngroupIntent>(onInvoke: (intent) => widget.onUngroup?.call()),
       CallbackIntent: CallbackAction<CallbackIntent>(onInvoke: (intent) => intent.callback()),
     };
   }
@@ -435,6 +443,14 @@ class CutIntent extends Intent {
 
 class DuplicateIntent extends Intent {
   const DuplicateIntent();
+}
+
+class GroupIntent extends Intent {
+  const GroupIntent();
+}
+
+class UngroupIntent extends Intent {
+  const UngroupIntent();
 }
 
 class CallbackIntent extends Intent {

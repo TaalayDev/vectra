@@ -52,14 +52,46 @@ class ActiveDrawing extends _$ActiveDrawing {
   }
 }
 
-/// Tracks pen tool nodes being placed (list of offsets).
+/// A single node in a pen-tool path being drawn.
+/// [handleOut] is an absolute canvas position; [handleIn] is its mirror.
+class PenNode {
+  final Offset position;
+  final Offset? handleOut;
+
+  const PenNode({required this.position, this.handleOut});
+
+  bool get isCurve => handleOut != null;
+
+  Offset? get handleIn =>
+      handleOut != null ? position * 2.0 - handleOut! : null;
+
+  PenNode withHandle(Offset out) =>
+      PenNode(position: position, handleOut: out);
+
+  PenNode withPosition(Offset pos) => PenNode(
+        position: pos,
+        handleOut: handleOut != null ? pos + (handleOut! - position) : null,
+      );
+}
+
+/// Tracks pen tool nodes being placed.
 class PenDrawingState {
-  final List<Offset> points;
+  final List<PenNode> nodes;
 
-  const PenDrawingState({required this.points});
+  const PenDrawingState({required this.nodes});
 
-  PenDrawingState addPoint(Offset point) {
-    return PenDrawingState(points: [...points, point]);
+  /// Backward-compat: plain positions of all nodes.
+  List<Offset> get points => nodes.map((n) => n.position).toList();
+
+  PenDrawingState addNode(Offset position) =>
+      PenDrawingState(nodes: [...nodes, PenNode(position: position)]);
+
+  /// Updates the [handleOut] (and derived [handleIn]) of the last node.
+  PenDrawingState updateLastHandle(Offset handleOut) {
+    if (nodes.isEmpty) return this;
+    final updated = List<PenNode>.from(nodes);
+    updated[updated.length - 1] = updated.last.withHandle(handleOut);
+    return PenDrawingState(nodes: updated);
   }
 }
 
@@ -69,13 +101,15 @@ class ActivePenDrawing extends _$ActivePenDrawing {
   PenDrawingState? build() => null;
 
   void start(Offset point) {
-    state = PenDrawingState(points: [point]);
+    state = PenDrawingState(nodes: [PenNode(position: point)]);
   }
 
   void addPoint(Offset point) {
-    if (state != null) {
-      state = state!.addPoint(point);
-    }
+    if (state != null) state = state!.addNode(point);
+  }
+
+  void updateLastHandle(Offset handleOut) {
+    if (state != null) state = state!.updateLastHandle(handleOut);
   }
 
   void cancel() => state = null;

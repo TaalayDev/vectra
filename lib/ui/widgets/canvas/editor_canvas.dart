@@ -6,9 +6,14 @@ import 'package:flutter/services.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import '../../../app/theme/theme.dart';
+import '../../../core/rendering/corner_radius_overlay.dart';
 import '../../../core/rendering/drawing_preview_painter.dart';
+import '../../../core/rendering/path_edit_overlay.dart';
 import '../../../core/tools/select_tool_handler.dart';
 import '../../../data/models/vec_document.dart';
+import '../../../data/models/vec_path_node.dart';
+import '../../../data/models/vec_point.dart';
+import '../../../data/models/vec_transform.dart';
 import '../../../core/rendering/scene_painter.dart';
 import '../../../core/rendering/selection_overlay.dart';
 import '../../../core/tools/drawing_tool_handler.dart';
@@ -17,7 +22,7 @@ import '../../../providers/drawing_state_provider.dart';
 import '../../../providers/editor_state_provider.dart';
 
 // Describes what kind of select-tool drag is active.
-enum _SelectDragMode { none, move, resizeHandle, rotate }
+enum _SelectDragMode { none, move, resizeHandle, rotate, cornerRadius }
 
 class EditorCanvas extends ConsumerStatefulWidget {
   const EditorCanvas({super.key, required this.theme});
@@ -37,12 +42,36 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
   // Select-tool drag state
   _SelectDragMode _selectDragMode = _SelectDragMode.none;
   int _resizeHandleIndex = -1;
-  dynamic _dragStartTransform; // VecTransform captured at drag start
+  dynamic _dragStartTransform; // VecTransform for single-shape drag (canvas-space)
+  Map<String, dynamic> _dragStartTransforms = {}; // shapeId → VecTransform for multi-shape drag
   Offset _dragStartCanvasPoint = Offset.zero;
   double _rotationStartAngle = 0.0; // direction from center to drag-start point
+  // When dragging a group child, store the group transform so we can convert back
+  dynamic _dragGroupTransform; // group's VecTransform when in group-edit mode
+
+  // Marquee (rubber-band) selection drag
+  bool _isMarqueeDrag = false;
+  Offset _marqueeStartCanvas = Offset.zero;
+  Offset _marqueeCurrentCanvas = Offset.zero;
 
   // Hover hit index for cursor
   int _hoverHandleIndex = -1; // -2=rotate, 0-7=resize, -1=none, -3=body
+
+  // Pen tool — handle drag (click+drag to pull bezier handle from last node)
+  bool _isPenHandleDrag = false;
+
+  // Pen tool — node editing (drag an existing node on a selected path)
+  int _editNodeIndex = -1; // index of node being dragged, or -1
+  int _hoverNodeIndex = -1; // index of node under cursor, or -1
+  Offset _editDragStartCanvas = Offset.zero;
+  dynamic _editDragStartTransform; // VecTransform captured at drag start
+
+  // Corner-radius editing (rectangle only, single selection)
+  Set<int> _selectedCorners = {0, 1, 2, 3}; // 0=TL,1=TR,2=BR,3=BL
+  int _hoverCornerIndex = -1;
+  List<double> _cornerRadiiAtDragStart = const [];
+  Set<int> _cornersBeingDragged = const {};
+  String? _cornerEditShapeId; // shape ID last used to set _selectedCorners
 
   AppTheme get theme => widget.theme;
 
@@ -79,7 +108,9 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
     final fitRequest = ref.watch(fitRequestProvider);
     final scene = ref.watch(activeSceneProvider);
     final selectedShapeId = ref.watch(selectedShapeIdProvider);
+    final selectedShapeIds = ref.watch(selectedShapeIdsProvider);
     final selectedShape = ref.watch(selectedShapeProvider);
+    final activeGroupId = ref.watch(activeGroupIdProvider);
     final activeTool = ref.watch(activeToolProvider);
     final drawing = ref.watch(activeDrawingProvider);
     final penDrawing = ref.watch(activePenDrawingProvider);
@@ -89,6 +120,35 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
         activeTool == VecTool.text;
     final isPenTool = activeTool == VecTool.pen;
     final isSelectTool = activeTool == VecTool.select;
+
+    // When in group-edit mode, find the active group shape and compute the
+    // effective canvas-space transform for the selected child.
+    dynamic activeGroup;
+    dynamic displaySelectedShape = selectedShape;
+    if (activeGroupId != null && scene != null) {
+      for (final layer in scene.layers) {
+        for (final shape in layer.shapes) {
+          if (shape.id == activeGroupId) {
+            activeGroup = shape;
+            break;
+          }
+        }
+        if (activeGroup != null) break;
+      }
+    }
+    if (activeGroup != null && selectedShape != null) {
+      // Child transforms are group-local; offset by the group's position.
+      final gt = activeGroup.data.transform;
+      final ct = selectedShape.data.transform;
+      displaySelectedShape = selectedShape.copyWith(
+        data: selectedShape.data.copyWith(
+          transform: ct.copyWith(
+            x: gt.x + ct.x,
+            y: gt.y + ct.y,
+          ),
+        ),
+      );
+    }
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -106,8 +166,14 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
         return Listener(
           onPointerHover: (event) {
             ref.read(cursorPositionProvider.notifier).set(event.localPosition);
-            if (isSelectTool && selectedShape != null) {
-              _updateHoverCursor(selectedShape.transform, zoom, event.localPosition);
+            if (isSelectTool && displaySelectedShape != null) {
+              _updateHoverCursor(displaySelectedShape.transform, zoom, event.localPosition);
+            }
+            if (isSelectTool && selectedShapeIds.length == 1) {
+              _updateHoverCorner(displaySelectedShape, zoom, event.localPosition);
+            }
+            if (isPenTool && penDrawing == null && selectedShape != null) {
+              _updateHoverNode(selectedShape, event.localPosition, zoom);
             }
           },
           onPointerSignal: (event) {
@@ -125,8 +191,12 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
                 ref.read(activeDrawingProvider.notifier).start(local);
                 return;
               }
+              if (isPenTool) {
+                _handlePenPanStart(details, selectedShape, zoom);
+                return;
+              }
               if (isSelectTool) {
-                _handleSelectPanStart(details, scene, selectedShape, zoom);
+                _handleSelectPanStart(details, scene, selectedShape, displaySelectedShape, zoom, activeGroup);
               }
             },
 
@@ -140,8 +210,16 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
                 ref.read(activeDrawingProvider.notifier).update(local);
                 return;
               }
+              if (isPenTool && (_isPenHandleDrag || _editNodeIndex >= 0)) {
+                _handlePenPanUpdate(details, scene, selectedShape);
+                return;
+              }
+              if (isSelectTool && _isMarqueeDrag) {
+                setState(() => _marqueeCurrentCanvas = _toCanvasPoint(details.localPosition));
+                return;
+              }
               if (isSelectTool && _selectDragMode != _SelectDragMode.none) {
-                _handleSelectPanUpdate(details, scene, selectedShape, zoom);
+                _handleSelectPanUpdate(details, scene, selectedShape, zoom, activeGroup);
               }
             },
 
@@ -151,8 +229,17 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
                 _finishDragDrawing(activeTool);
                 return;
               }
+              if (isPenTool && (_isPenHandleDrag || _editNodeIndex >= 0)) {
+                _handlePenPanEnd(scene, selectedShape);
+                return;
+              }
+              if (isSelectTool && _isMarqueeDrag) {
+                _finishMarqueeSelection(scene, activeGroupId);
+                setState(() => _isMarqueeDrag = false);
+                return;
+              }
               if (isSelectTool && _selectDragMode != _SelectDragMode.none) {
-                _handleSelectPanEnd(scene, selectedShape);
+                _handleSelectPanEnd(scene, selectedShape, activeGroup);
               }
             },
 
@@ -160,6 +247,17 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
                 ? (details) {
                     final local = _toCanvasPoint(details.localPosition);
                     final pen = ref.read(activePenDrawingProvider);
+                    // If no active drawing and clicked near an existing node,
+                    // let onPanStart handle the drag instead.
+                    if (pen == null && selectedShape != null) {
+                      final pathShape = selectedShape.maybeMap(
+                          path: (s) => s, orElse: () => null);
+                      if (pathShape != null) {
+                        final nodeIdx = PathEditOverlayPainter.hitTestNode(
+                            pathShape, local, zoom);
+                        if (nodeIdx != -1) return;
+                      }
+                    }
                     if (pen == null) {
                       ref.read(activePenDrawingProvider.notifier).start(local);
                     } else {
@@ -169,15 +267,29 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
                 : isSelectTool
                     ? (details) {
                         final local = _toCanvasPoint(details.localPosition);
-                        final shiftHeld =
-                            HardwareKeyboard.instance.isShiftPressed;
-                        _handleSelectTap(scene, selectedShape, local, zoom, shiftHeld);
+                        final cmdHeld =
+                            HardwareKeyboard.instance.isControlPressed ||
+                            HardwareKeyboard.instance.isMetaPressed;
+                        _handleSelectTap(scene, selectedShape, displaySelectedShape, local, zoom, cmdHeld, activeGroupId);
                       }
                     : null,
 
             onDoubleTap: isPenTool
                 ? () => _finishPenDrawing(closed: true)
-                : null,
+                : isSelectTool
+                    ? () {
+                        if (selectedShape == null) return;
+                        // If the selected shape is a group and we're not already inside it,
+                        // enter group-edit mode.
+                        final isGroup = selectedShape.maybeMap(
+                            group: (_) => true, orElse: () => false);
+                        if (isGroup && activeGroupId == null) {
+                          ref.read(activeGroupIdProvider.notifier).set(selectedShape.id);
+                          ref.read(selectedShapeIdProvider.notifier).clear();
+                          ref.read(selectedShapeIdsProvider.notifier).clear();
+                        }
+                      }
+                    : null,
 
             child: MouseRegion(
               cursor: _isPanning
@@ -213,7 +325,10 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
                             zoom: zoom,
                             scene: scene,
                             selectedShapeId: selectedShapeId,
+                            selectedShapeIds: selectedShapeIds,
                             selectedShape: selectedShape,
+                            displaySelectedShape: displaySelectedShape,
+                            activeGroup: activeGroup,
                             activeTool: activeTool,
                             drawing: drawing,
                             penDrawing: penDrawing,
@@ -257,7 +372,10 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
     required double zoom,
     required dynamic scene,
     required String? selectedShapeId,
+    required List<String> selectedShapeIds,
     required dynamic selectedShape,
+    required dynamic displaySelectedShape,
+    required dynamic activeGroup,
     required VecTool activeTool,
     required dynamic drawing,
     required dynamic penDrawing,
@@ -306,17 +424,95 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
                 ),
               ),
 
-            if (selectedShape != null)
+            // Group outline — dashed rect around the active group bounds
+            if (activeGroup != null)
+              Positioned.fill(
+                child: CustomPaint(
+                  painter: _GroupOutlinePainter(
+                    groupTransform: activeGroup.data.transform,
+                    color: theme.selectionOutline.withAlpha(120),
+                    zoom: zoom,
+                  ),
+                ),
+              ),
+
+            // Multi-selection bounding rect (no handles) — shown when >1 selected
+            if (selectedShapeIds.length > 1 && scene != null)
+              Positioned.fill(
+                child: CustomPaint(
+                  painter: _MultiSelectionPainter(
+                    scene: scene,
+                    selectedIds: selectedShapeIds,
+                    color: theme.selectionOutline,
+                    zoom: zoom,
+                  ),
+                ),
+              ),
+
+            // Single-selection overlay with handles
+            if (selectedShapeIds.length <= 1 && displaySelectedShape != null)
               Positioned.fill(
                 child: CustomPaint(
                   painter: SelectionOverlayPainter(
-                    shape: selectedShape,
+                    shape: displaySelectedShape,
                     selectionColor: theme.selectionOutline,
                     handleColor: theme.onPrimary,
                     zoom: zoom,
                   ),
                 ),
               ),
+
+            // Corner-radius handles — rectangle, single selection only
+            if (selectedShapeIds.length == 1 && displaySelectedShape != null)
+              Builder(builder: (ctx) {
+                final rectShape = displaySelectedShape.maybeMap(
+                    rectangle: (r) => r, orElse: () => null);
+                if (rectShape == null) return const SizedBox.shrink();
+                return Positioned.fill(
+                  child: CustomPaint(
+                    painter: CornerRadiusOverlayPainter(
+                      shape: rectShape,
+                      zoom: zoom,
+                      selectedCorners: _selectedCorners,
+                      hoverCornerIndex: _hoverCornerIndex,
+                      color: theme.selectionOutline,
+                    ),
+                  ),
+                );
+              }),
+
+            // Marquee (rubber-band) selection rect
+            if (_isMarqueeDrag)
+              Positioned.fill(
+                child: CustomPaint(
+                  painter: _MarqueePainter(
+                    start: _marqueeStartCanvas,
+                    end: _marqueeCurrentCanvas,
+                    color: theme.selectionOutline,
+                    zoom: zoom,
+                  ),
+                ),
+              ),
+
+            // Path node editing overlay (pen tool + path selected + not drawing)
+            if (activeTool == VecTool.pen && penDrawing == null &&
+                selectedShape != null)
+              Builder(builder: (context) {
+                final pathShape = selectedShape.maybeMap(
+                    path: (s) => s, orElse: () => null);
+                if (pathShape == null) return const SizedBox.shrink();
+                return Positioned.fill(
+                  child: CustomPaint(
+                    painter: PathEditOverlayPainter(
+                      shape: pathShape,
+                      nodeColor: theme.selectionOutline,
+                      zoom: zoom,
+                      hoveredNodeIndex: _hoverNodeIndex,
+                      draggedNodeIndex: _editNodeIndex,
+                    ),
+                  ),
+                );
+              }),
           ],
         ),
       ),
@@ -330,35 +526,101 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
   void _handleSelectTap(
     dynamic scene,
     dynamic selectedShape,
+    dynamic displaySelectedShape,
     Offset canvasPoint,
     double zoom,
-    bool shiftHeld,
+    bool cmdHeld,
+    String? activeGroupId,
   ) {
+    // Corner-radius handle tap (rectangle, single selection, no group-edit)
+    if (displaySelectedShape != null &&
+        activeGroupId == null &&
+        ref.read(selectedShapeIdsProvider).length == 1) {
+      final rectShape = displaySelectedShape.maybeMap(
+          rectangle: (r) => r, orElse: () => null);
+      if (rectShape != null) {
+        final cornerIdx =
+            CornerRadiusOverlayPainter.hitTestHandle(rectShape, zoom, canvasPoint);
+        if (cornerIdx != -1) {
+          setState(() {
+            if (cmdHeld) {
+              final updated = Set<int>.from(_selectedCorners);
+              if (updated.contains(cornerIdx) && updated.length > 1) {
+                updated.remove(cornerIdx);
+              } else {
+                updated.add(cornerIdx);
+              }
+              _selectedCorners = updated;
+            } else {
+              // If all selected, switch to individual; else select only this one
+              _selectedCorners = _selectedCorners.length == 4 &&
+                      _selectedCorners.contains(cornerIdx)
+                  ? {cornerIdx}
+                  : {cornerIdx};
+            }
+          });
+          return;
+        }
+      }
+    }
+
     // If a shape is selected, ignore taps that land on handles (pan will handle those)
-    if (selectedShape != null) {
+    if (displaySelectedShape != null) {
       final hitIndex = SelectToolHandler.hitTestHandles(
-          selectedShape.transform, zoom, canvasPoint);
+          displaySelectedShape.transform, zoom, canvasPoint);
       if (hitIndex != -1) return; // Let panStart handle it
-      // Also ignore taps inside the body when it's already selected
-      if (SelectToolHandler.hitTestBody(selectedShape.transform, canvasPoint)) {
+      // Also ignore taps inside the body when it's already selected (unless cmd adds to selection)
+      if (!cmdHeld && SelectToolHandler.hitTestBody(displaySelectedShape.transform, canvasPoint)) {
         return;
       }
     }
 
-    _hitTestAndSelect(scene, canvasPoint, shiftHeld);
+    _hitTestAndSelect(scene, canvasPoint, cmdHeld, activeGroupId: activeGroupId);
   }
 
   void _hitTestAndSelect(
     dynamic scene,
     Offset canvasPoint,
-    bool shiftHeld,
-  ) {
+    bool cmdHeld, {
+    String? activeGroupId,
+  }) {
     if (scene == null) {
       ref.read(selectedShapeIdProvider.notifier).clear();
       ref.read(selectedShapeIdsProvider.notifier).clear();
       return;
     }
 
+    // --- Group-edit mode: hit-test only the active group's children ---
+    if (activeGroupId != null) {
+      for (final layer in scene.layers) {
+        for (final shape in layer.shapes) {
+          if (shape.id != activeGroupId) continue;
+          final group = shape.maybeMap(group: (g) => g, orElse: () => null);
+          if (group == null) return;
+          final gt = group.data.transform;
+          for (var i = group.children.length - 1; i >= 0; i--) {
+            final child = group.children[i];
+            final ct = child.data.transform;
+            final et = ct.copyWith(x: gt.x + ct.x, y: gt.y + ct.y);
+            final hit = et.rotation == 0
+                ? Rect.fromLTWH(et.x, et.y, et.width, et.height).contains(canvasPoint)
+                : SelectToolHandler.hitTestBody(et, canvasPoint);
+            if (hit) {
+              ref.read(selectedShapeIdProvider.notifier).set(child.id);
+              ref.read(selectedShapeIdsProvider.notifier).setSingle(child.id);
+              return;
+            }
+          }
+          // Missed all children — deselect child
+          ref.read(selectedShapeIdProvider.notifier).clear();
+          ref.read(selectedShapeIdsProvider.notifier).clear();
+          return;
+        }
+      }
+      return;
+    }
+
+    // --- Normal mode ---
     final layers = List.from(scene.layers)
       ..sort((a, b) => b.order.compareTo(a.order));
 
@@ -372,8 +634,8 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
             : SelectToolHandler.hitTestBody(t, canvasPoint);
 
         if (hit) {
-          if (shiftHeld) {
-            // Toggle in multi-select
+          if (cmdHeld) {
+            // Cmd/Ctrl held → toggle in multi-select
             final ids = ref.read(selectedShapeIdsProvider);
             if (ids.contains(shape.id)) {
               ref.read(selectedShapeIdsProvider.notifier).remove(shape.id);
@@ -385,8 +647,14 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
               ref.read(selectedShapeIdProvider.notifier).set(shape.id);
             }
           } else {
+            // Plain click → select only this shape
             ref.read(selectedShapeIdProvider.notifier).set(shape.id);
             ref.read(selectedShapeIdsProvider.notifier).setSingle(shape.id);
+          }
+          // Reset corner selection when switching shapes
+          if (shape.id != _cornerEditShapeId) {
+            _selectedCorners = {0, 1, 2, 3};
+            _cornerEditShapeId = shape.id;
           }
           ref.read(activeLayerIdProvider.notifier).set(layer.id);
           return;
@@ -394,8 +662,8 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
       }
     }
 
-    // Tapped empty area — deselect
-    if (!shiftHeld) {
+    // Tapped empty area — deselect (only if not adding to selection)
+    if (!cmdHeld) {
       ref.read(selectedShapeIdProvider.notifier).clear();
       ref.read(selectedShapeIdsProvider.notifier).clear();
     }
@@ -409,14 +677,89 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
     DragStartDetails details,
     dynamic scene,
     dynamic selectedShape,
+    dynamic displaySelectedShape,
     double zoom,
+    dynamic activeGroup,
   ) {
-    if (selectedShape == null) return;
     final canvasPoint = _toCanvasPoint(details.localPosition);
-    final t = selectedShape.transform;
+    final selectedIds = ref.read(selectedShapeIdsProvider);
 
-    final hitIndex =
-        SelectToolHandler.hitTestHandles(t, zoom, canvasPoint);
+    // --- Multi-select drag: move all selected shapes together ---
+    if (selectedIds.length > 1 && activeGroup == null && scene != null) {
+      // Check if the drag started on any selected shape
+      bool hitAny = false;
+      for (final layer in scene.layers) {
+        for (final shape in layer.shapes) {
+          if (!selectedIds.contains(shape.id)) continue;
+          final t = shape.data.transform;
+          if (SelectToolHandler.hitTestBody(t, canvasPoint)) {
+            hitAny = true;
+            break;
+          }
+        }
+        if (hitAny) break;
+      }
+
+      if (hitAny) {
+        // Capture start transforms for every selected shape
+        final transforms = <String, dynamic>{};
+        for (final layer in scene.layers) {
+          for (final shape in layer.shapes) {
+            if (selectedIds.contains(shape.id)) {
+              transforms[shape.id] = shape.data.transform;
+            }
+          }
+        }
+        setState(() {
+          _selectDragMode = _SelectDragMode.move;
+          _dragStartTransforms = transforms;
+          _dragStartCanvasPoint = canvasPoint;
+        });
+        return;
+      }
+
+      // Missed all selected shapes → start marquee
+      setState(() {
+        _isMarqueeDrag = true;
+        _marqueeStartCanvas = canvasPoint;
+        _marqueeCurrentCanvas = canvasPoint;
+      });
+      return;
+    }
+
+    // --- Single-select: handle/body/rotate/resize ---
+    if (displaySelectedShape == null) return;
+    // Use effective canvas-space transform for handle/body testing
+    final t = displaySelectedShape.transform;
+
+    // Corner-radius drag (rectangle only, no group-edit)
+    if (activeGroup == null) {
+      final rectShape = displaySelectedShape.maybeMap(
+          rectangle: (r) => r, orElse: () => null);
+      if (rectShape != null) {
+        final cornerIdx =
+            CornerRadiusOverlayPainter.hitTestHandle(rectShape, zoom, canvasPoint);
+        if (cornerIdx != -1) {
+          // If the tapped corner isn't in the current selection, use only it
+          final cornersToChange = _selectedCorners.contains(cornerIdx)
+              ? Set<int>.from(_selectedCorners)
+              : {cornerIdx};
+          final radii = rectShape.cornerRadii.length == 4
+              ? rectShape.cornerRadii
+              : [0.0, 0.0, 0.0, 0.0];
+          setState(() {
+            _selectDragMode = _SelectDragMode.cornerRadius;
+            _cornersBeingDragged = cornersToChange;
+            _cornerRadiiAtDragStart = List<double>.from(radii);
+            _dragStartCanvasPoint = canvasPoint;
+            _dragStartTransform = t;
+          });
+          return;
+        }
+      }
+    }
+
+    final hitIndex = SelectToolHandler.hitTestHandles(t, zoom, canvasPoint);
 
     if (hitIndex == -2) {
       // Rotation handle
@@ -427,6 +770,7 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
         _dragStartTransform = t;
         _dragStartCanvasPoint = canvasPoint;
         _rotationStartAngle = (canvasPoint - center).direction;
+        _dragGroupTransform = activeGroup?.data.transform;
       });
     } else if (hitIndex >= 0) {
       // Resize handle
@@ -435,16 +779,24 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
         _resizeHandleIndex = hitIndex;
         _dragStartTransform = t;
         _dragStartCanvasPoint = canvasPoint;
+        _dragGroupTransform = activeGroup?.data.transform;
       });
     } else if (SelectToolHandler.hitTestBody(t, canvasPoint)) {
-      // Move shape
+      // Move single shape
       setState(() {
         _selectDragMode = _SelectDragMode.move;
         _dragStartTransform = t;
         _dragStartCanvasPoint = canvasPoint;
+        _dragGroupTransform = activeGroup?.data.transform;
+      });
+    } else {
+      // Started on empty space → begin marquee selection
+      setState(() {
+        _isMarqueeDrag = true;
+        _marqueeStartCanvas = canvasPoint;
+        _marqueeCurrentCanvas = canvasPoint;
       });
     }
-    // Otherwise: started on empty space — no drag
   }
 
   void _handleSelectPanUpdate(
@@ -452,26 +804,48 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
     dynamic scene,
     dynamic selectedShape,
     double zoom,
+    dynamic activeGroup,
   ) {
-    if (selectedShape == null || scene == null) return;
+    if (scene == null) return;
     final layerId = ref.read(activeLayerIdProvider);
     if (layerId == null) return;
 
     final canvasPoint = _toCanvasPoint(details.localPosition);
     final delta = canvasPoint - _dragStartCanvasPoint;
+
+    // --- Multi-shape move ---
+    if (_dragStartTransforms.length > 1 && _selectDragMode == _SelectDragMode.move) {
+      for (final entry in _dragStartTransforms.entries) {
+        final start = entry.value;
+        final newT = start.copyWith(
+          x: start.x + delta.dx,
+          y: start.y + delta.dy,
+        );
+        ref.read(vecDocumentStateProvider.notifier).updateShapeNoHistory(
+              scene.id,
+              layerId,
+              entry.key,
+              (s) => s.copyWith(data: s.data.copyWith(transform: newT)),
+            );
+      }
+      return;
+    }
+
+    if (selectedShape == null) return;
+    // _dragStartTransform is in canvas space (effective transform)
     final start = _dragStartTransform!;
 
-    dynamic newTransform;
+    dynamic newCanvasTransform;
 
     switch (_selectDragMode) {
       case _SelectDragMode.move:
-        newTransform = start.copyWith(
+        newCanvasTransform = start.copyWith(
           x: start.x + delta.dx,
           y: start.y + delta.dy,
         );
 
       case _SelectDragMode.resizeHandle:
-        newTransform = SelectToolHandler.applyResizeHandle(
+        newCanvasTransform = SelectToolHandler.applyResizeHandle(
             start, _resizeHandleIndex, delta);
 
       case _SelectDragMode.rotate:
@@ -480,23 +854,72 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
         final currentAngle = (canvasPoint - center).direction;
         final angleDeltaDeg =
             (currentAngle - _rotationStartAngle) * 180 / math.pi;
-        newTransform = start.copyWith(
+        newCanvasTransform = start.copyWith(
           rotation: start.rotation + angleDeltaDeg,
         );
+
+      case _SelectDragMode.cornerRadius:
+        // Un-rotate the canvas delta into shape-local space
+        final angle = start.rotation * math.pi / 180;
+        final cosA = math.cos(angle);
+        final sinA = math.sin(angle);
+        final localDx = delta.dx * cosA + delta.dy * sinA;
+        final localDy = -delta.dx * sinA + delta.dy * cosA;
+        final maxR = math.min(start.width, start.height) / 2;
+        const signs = [
+          Offset(1, 1),   // TL
+          Offset(-1, 1),  // TR
+          Offset(-1, -1), // BR
+          Offset(1, -1),  // BL
+        ];
+        final newRadii = List<double>.from(_cornerRadiiAtDragStart);
+        for (final ci in _cornersBeingDragged) {
+          final s = signs[ci];
+          final rd = (localDx * s.dx + localDy * s.dy) / math.sqrt(2);
+          newRadii[ci] =
+              (_cornerRadiiAtDragStart[ci] + rd).clamp(0.0, maxR);
+        }
+        ref.read(vecDocumentStateProvider.notifier).updateShapeNoHistory(
+              scene.id,
+              layerId,
+              selectedShape.id,
+              (s) => s.maybeMap(
+                rectangle: (r) => r.copyWith(cornerRadii: newRadii),
+                orElse: () => s,
+              ),
+            );
+        return;
 
       case _SelectDragMode.none:
         return;
     }
 
-    ref.read(vecDocumentStateProvider.notifier).updateShapeNoHistory(
-          scene.id,
-          layerId,
-          selectedShape.id,
-          (s) => s.copyWith(data: s.data.copyWith(transform: newTransform)),
-        );
+    if (_dragGroupTransform != null) {
+      // Group-edit mode: convert canvas-space transform back to group-local
+      final gt = _dragGroupTransform!;
+      final localTransform = newCanvasTransform.copyWith(
+        x: newCanvasTransform.x - gt.x,
+        y: newCanvasTransform.y - gt.y,
+      );
+      final groupId = ref.read(activeGroupIdProvider)!;
+      ref.read(vecDocumentStateProvider.notifier).updateGroupChildNoHistory(
+            scene.id,
+            layerId,
+            groupId,
+            selectedShape.id,
+            (c) => c.copyWith(data: c.data.copyWith(transform: localTransform)),
+          );
+    } else {
+      ref.read(vecDocumentStateProvider.notifier).updateShapeNoHistory(
+            scene.id,
+            layerId,
+            selectedShape.id,
+            (s) => s.copyWith(data: s.data.copyWith(transform: newCanvasTransform)),
+          );
+    }
   }
 
-  void _handleSelectPanEnd(dynamic scene, dynamic selectedShape) {
+  void _handleSelectPanEnd(dynamic scene, dynamic selectedShape, dynamic activeGroup) {
     if (selectedShape != null && scene != null) {
       final layerId = ref.read(activeLayerIdProvider);
       if (layerId != null) {
@@ -504,7 +927,169 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
         ref.read(vecDocumentStateProvider.notifier).commitCurrentState();
       }
     }
-    setState(() => _selectDragMode = _SelectDragMode.none);
+    setState(() {
+      _selectDragMode = _SelectDragMode.none;
+      _dragGroupTransform = null;
+      _dragStartTransforms = {};
+    });
+  }
+
+  void _finishMarqueeSelection(dynamic scene, String? activeGroupId) {
+    if (scene == null) return;
+    final marqueeRect = Rect.fromPoints(_marqueeStartCanvas, _marqueeCurrentCanvas);
+    // Ignore tiny accidental drags
+    if (marqueeRect.width < 2 && marqueeRect.height < 2) return;
+
+    final selectedIds = <String>[];
+
+    if (activeGroupId != null) {
+      // In group-edit mode: select children whose effective bounds overlap the marquee
+      for (final layer in scene.layers) {
+        for (final shape in layer.shapes) {
+          if (shape.id != activeGroupId) continue;
+          final group = shape.maybeMap(group: (g) => g, orElse: () => null);
+          if (group == null) return;
+          final gt = group.data.transform;
+          for (final child in group.children) {
+            final ct = child.data.transform;
+            final effectiveRect = Rect.fromLTWH(
+                gt.x + ct.x, gt.y + ct.y, ct.width, ct.height);
+            if (marqueeRect.overlaps(effectiveRect)) selectedIds.add(child.id);
+          }
+        }
+      }
+    } else {
+      // Normal mode: select shapes whose bounds overlap the marquee
+      for (final layer in scene.layers) {
+        if (!layer.visible || layer.locked) continue;
+        for (final shape in layer.shapes) {
+          final t = shape.transform;
+          final shapeRect = Rect.fromLTWH(t.x, t.y, t.width, t.height);
+          if (marqueeRect.overlaps(shapeRect)) selectedIds.add(shape.id);
+        }
+      }
+    }
+
+    if (selectedIds.isNotEmpty) {
+      ref.read(selectedShapeIdsProvider.notifier).setAll(selectedIds);
+      ref.read(selectedShapeIdProvider.notifier).set(selectedIds.last);
+    }
+  }
+
+  // ===========================================================================
+  // Pen tool — handle drag + node editing
+  // ===========================================================================
+
+  void _handlePenPanStart(
+    DragStartDetails details,
+    dynamic selectedShape,
+    double zoom,
+  ) {
+    final pen = ref.read(activePenDrawingProvider);
+
+    // Case 1: currently drawing → pull handle from the last placed node
+    if (pen != null && pen.nodes.isNotEmpty) {
+      setState(() => _isPenHandleDrag = true);
+      return;
+    }
+
+    // Case 2: no active drawing + path selected → try to drag an existing node
+    if (pen == null && selectedShape != null) {
+      final pathShape =
+          selectedShape.maybeMap(path: (s) => s, orElse: () => null);
+      if (pathShape != null) {
+        final canvasPoint = _toCanvasPoint(details.localPosition);
+        final nodeIdx =
+            PathEditOverlayPainter.hitTestNode(pathShape, canvasPoint, zoom);
+        if (nodeIdx != -1) {
+          setState(() {
+            _editNodeIndex = nodeIdx;
+            _editDragStartCanvas = canvasPoint;
+            _editDragStartTransform = pathShape.data.transform;
+          });
+        }
+      }
+    }
+  }
+
+  void _handlePenPanUpdate(
+    DragUpdateDetails details,
+    dynamic scene,
+    dynamic selectedShape,
+  ) {
+    final canvasPoint = _toCanvasPoint(details.localPosition);
+
+    if (_isPenHandleDrag) {
+      ref.read(activePenDrawingProvider.notifier).updateLastHandle(canvasPoint);
+      return;
+    }
+
+    if (_editNodeIndex >= 0 && scene != null && selectedShape != null) {
+      final layerId = ref.read(activeLayerIdProvider);
+      if (layerId == null) return;
+
+      final t = _editDragStartTransform!;
+      final delta = canvasPoint - _editDragStartCanvas;
+
+      ref.read(vecDocumentStateProvider.notifier).updateShapeNoHistory(
+            scene.id,
+            layerId,
+            selectedShape.id,
+            (s) => s.maybeMap(
+              path: (pathS) {
+                final oldNode = pathS.nodes[_editNodeIndex];
+                final oldCanvas = SelectToolHandler.localToCanvas(
+                    t, Offset(oldNode.position.x, oldNode.position.y));
+                final newCanvas = oldCanvas + delta;
+                final newLocal = SelectToolHandler.canvasToLocal(t, newCanvas);
+                final updatedNodes = List<VecPathNode>.from(pathS.nodes);
+                updatedNodes[_editNodeIndex] = oldNode.copyWith(
+                  position: VecPoint(x: newLocal.dx, y: newLocal.dy),
+                );
+                return pathS.copyWith(nodes: updatedNodes);
+              },
+              orElse: () => s,
+            ),
+          );
+    }
+  }
+
+  void _handlePenPanEnd(dynamic scene, dynamic selectedShape) {
+    if (_editNodeIndex >= 0 && scene != null && selectedShape != null) {
+      ref.read(vecDocumentStateProvider.notifier).commitCurrentState();
+    }
+    setState(() {
+      _isPenHandleDrag = false;
+      _editNodeIndex = -1;
+    });
+  }
+
+  void _updateHoverNode(dynamic selectedShape, Offset screenPos, double zoom) {
+    final pathShape =
+        selectedShape?.maybeMap(path: (s) => s, orElse: () => null);
+    if (pathShape == null) {
+      if (_hoverNodeIndex != -1) setState(() => _hoverNodeIndex = -1);
+      return;
+    }
+    final canvasPoint = _toCanvasPoint(screenPos);
+    final nodeIdx =
+        PathEditOverlayPainter.hitTestNode(pathShape, canvasPoint, zoom);
+    if (nodeIdx != _hoverNodeIndex) {
+      setState(() => _hoverNodeIndex = nodeIdx);
+    }
+  }
+
+  void _updateHoverCorner(
+      dynamic displaySelectedShape, double zoom, Offset screenPos) {
+    final rectShape = displaySelectedShape?.maybeMap(
+        rectangle: (r) => r, orElse: () => null);
+    if (rectShape == null) {
+      if (_hoverCornerIndex != -1) setState(() => _hoverCornerIndex = -1);
+      return;
+    }
+    final canvasPoint = _toCanvasPoint(screenPos);
+    final idx = CornerRadiusOverlayPainter.hitTestHandle(rectShape, zoom, canvasPoint);
+    if (idx != _hoverCornerIndex) setState(() => _hoverCornerIndex = idx);
   }
 
   // ===========================================================================
@@ -528,6 +1113,11 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
   MouseCursor _currentCursor(VecTool activeTool, dynamic selectedShape) {
     if (activeTool == VecTool.select) {
       if (selectedShape != null) {
+        // Corner-radius drag/hover takes priority
+        if (_selectDragMode == _SelectDragMode.cornerRadius ||
+            _hoverCornerIndex >= 0) {
+          return SystemMouseCursors.precise;
+        }
         if (_selectDragMode == _SelectDragMode.move ||
             _hoverHandleIndex == -3) {
           return SystemMouseCursors.move;
@@ -705,6 +1295,173 @@ class _CanvasBackgroundPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _CanvasBackgroundPainter old) =>
       old.bgColor != bgColor || old.dotColor != dotColor;
+}
+
+// =============================================================================
+// Marquee (rubber-band) selection rect
+// =============================================================================
+
+class _MarqueePainter extends CustomPainter {
+  const _MarqueePainter({
+    required this.start,
+    required this.end,
+    required this.color,
+    required this.zoom,
+  });
+
+  final Offset start;
+  final Offset end;
+  final Color color;
+  final double zoom;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Rect.fromPoints(start, end);
+    final strokeW = 1.0 / zoom;
+    final fillPaint = Paint()
+      ..color = color.withAlpha(30)
+      ..style = PaintingStyle.fill;
+    final strokePaint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeW;
+
+    canvas.drawRect(rect, fillPaint);
+
+    // Dashed outline
+    final path = Path()..addRect(rect);
+    final dashed = Path();
+    const dash = 6.0;
+    const gap = 4.0;
+    for (final m in path.computeMetrics()) {
+      var d = 0.0;
+      while (d < m.length) {
+        final end = (d + dash / zoom).clamp(0.0, m.length);
+        dashed.addPath(m.extractPath(d, end), Offset.zero);
+        d += (dash + gap) / zoom;
+      }
+    }
+    canvas.drawPath(dashed, strokePaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _MarqueePainter old) =>
+      old.start != start || old.end != end;
+}
+
+// =============================================================================
+// Multi-selection bounding box overlay (shown when >1 shapes selected)
+// =============================================================================
+
+class _MultiSelectionPainter extends CustomPainter {
+  const _MultiSelectionPainter({
+    required this.scene,
+    required this.selectedIds,
+    required this.color,
+    required this.zoom,
+  });
+
+  final dynamic scene;
+  final List<String> selectedIds;
+  final Color color;
+  final double zoom;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (scene == null || selectedIds.isEmpty) return;
+
+    double? minX, minY, maxX, maxY;
+
+    for (final layer in scene.layers) {
+      for (final shape in layer.shapes) {
+        if (!selectedIds.contains(shape.id)) continue;
+        final t = shape.data.transform;
+        minX = minX == null ? t.x : math.min(minX, t.x);
+        minY = minY == null ? t.y : math.min(minY, t.y);
+        maxX = maxX == null ? t.x + t.width : math.max(maxX, t.x + t.width);
+        maxY = maxY == null ? t.y + t.height : math.max(maxY, t.y + t.height);
+      }
+    }
+
+    if (minX == null) return;
+
+    final rect = Rect.fromLTRB(minX, minY!, maxX!, maxY!);
+    final strokeW = 1.5 / zoom;
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeW;
+
+    canvas.drawRect(rect, paint);
+
+    // Corner ticks
+    const tick = 6.0;
+    final t = tick / zoom;
+    final corners = [
+      [rect.topLeft, Offset(t, 0), Offset(0, t)],
+      [rect.topRight, Offset(-t, 0), Offset(0, t)],
+      [rect.bottomLeft, Offset(t, 0), Offset(0, -t)],
+      [rect.bottomRight, Offset(-t, 0), Offset(0, -t)],
+    ];
+    for (final c in corners) {
+      final p = c[0] as Offset;
+      canvas.drawLine(p, p + (c[1] as Offset), paint);
+      canvas.drawLine(p, p + (c[2] as Offset), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _MultiSelectionPainter old) =>
+      old.selectedIds != selectedIds || old.scene != scene;
+}
+
+// =============================================================================
+// Group outline — dashed rect around the active group
+// =============================================================================
+
+class _GroupOutlinePainter extends CustomPainter {
+  const _GroupOutlinePainter({
+    required this.groupTransform,
+    required this.color,
+    required this.zoom,
+  });
+
+  final dynamic groupTransform;
+  final Color color;
+  final double zoom;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final t = groupTransform;
+    if (t == null) return;
+    final rect = Rect.fromLTWH(t.x, t.y, t.width, t.height);
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5 / zoom;
+
+    // Dashed path
+    final path = Path()..addRect(rect);
+    const dashLen = 6.0;
+    const gapLen = 4.0;
+    final metrics = path.computeMetrics();
+    final dashed = Path();
+    for (final metric in metrics) {
+      var dist = 0.0;
+      while (dist < metric.length) {
+        final end = (dist + dashLen / zoom).clamp(0.0, metric.length);
+        dashed.addPath(metric.extractPath(dist, end), Offset.zero);
+        dist += (dashLen + gapLen) / zoom;
+      }
+    }
+    canvas.drawPath(dashed, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _GroupOutlinePainter old) =>
+      old.groupTransform != groupTransform ||
+      old.color != color ||
+      old.zoom != zoom;
 }
 
 // =============================================================================

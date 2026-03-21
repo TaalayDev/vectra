@@ -40,7 +40,7 @@ final activeLayerProvider = AutoDisposeProvider<VecLayer?>.internal(
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef ActiveLayerRef = AutoDisposeProviderRef<VecLayer?>;
-String _$selectedShapeHash() => r'0ead7f4a439445e7a2c6853a7933437a915c19f4';
+String _$selectedShapeHash() => r'e02c070e4403461874c11711b8e8f2031c689e43';
 
 /// See also [selectedShape].
 @ProviderFor(selectedShape)
@@ -244,5 +244,24 @@ final isPlayingProvider = AutoDisposeNotifierProvider<IsPlaying, bool>.internal(
 );
 
 typedef _$IsPlaying = AutoDisposeNotifier<bool>;
+String _$activeGroupIdHash() => r'7ab40fa79d27f7c9ba489e4b4ad01ff57a076aaf';
+
+/// The ID of the group shape currently being edited in isolate mode.
+/// Null when not in group-edit mode.
+///
+/// Copied from [ActiveGroupId].
+@ProviderFor(ActiveGroupId)
+final activeGroupIdProvider =
+    AutoDisposeNotifierProvider<ActiveGroupId, String?>.internal(
+      ActiveGroupId.new,
+      name: r'activeGroupIdProvider',
+      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+          ? null
+          : _$activeGroupIdHash,
+      dependencies: null,
+      allTransitiveDependencies: null,
+    );
+
+typedef _$ActiveGroupId = AutoDisposeNotifier<String?>;
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member, deprecated_member_use_from_same_package

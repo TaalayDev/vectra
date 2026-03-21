@@ -12,6 +12,17 @@ part 'vec_shape.g.dart';
 
 enum VecCornerStyle { round, inverted, chamfer }
 
+/// Which boolean / structural operation a [VecCompoundShape] performs.
+enum PathfinderOp {
+  unite,
+  minusFront,
+  intersect,
+  exclude,
+  divide,
+  trim,
+  outline,
+}
+
 enum VecTextAlign { left, center, right, justify }
 
 /// Common properties shared by all shape variants.
@@ -98,6 +109,15 @@ class VecShape with _$VecShape {
     @Default(VecLoopType.loop) VecLoopType loopType,
     @Default(0) int firstFrame,
   }) = VecSymbolInstanceShape;
+
+  /// A live pathfinder compound — remembers its inputs and the operation.
+  /// Rendering recomputes the boolean result from [inputs] each frame.
+  /// Call [expandCompound] in document_provider to flatten to a [VecPathShape].
+  const factory VecShape.compound({
+    required VecShapeData data,
+    required PathfinderOp op,
+    required List<VecShape> inputs,
+  }) = VecCompoundShape;
 
   factory VecShape.fromJson(Map<String, dynamic> json) =>
       _$VecShapeFromJson(json);
