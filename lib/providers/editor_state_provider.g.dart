@@ -209,6 +209,26 @@ final selectedShapeIdProvider =
     );
 
 typedef _$SelectedShapeId = AutoDisposeNotifier<String?>;
+String _$selectedShapeIdsHash() => r'893d0fde58f58cdfb1efc9c56db1785831abdf3a';
+
+/// Multi-selection: ordered list of selected shape IDs.
+/// The last entry is considered the "primary" selected shape for the
+/// Properties Panel. Kept in sync with [SelectedShapeId] by the canvas.
+///
+/// Copied from [SelectedShapeIds].
+@ProviderFor(SelectedShapeIds)
+final selectedShapeIdsProvider =
+    AutoDisposeNotifierProvider<SelectedShapeIds, List<String>>.internal(
+      SelectedShapeIds.new,
+      name: r'selectedShapeIdsProvider',
+      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+          ? null
+          : _$selectedShapeIdsHash,
+      dependencies: null,
+      allTransitiveDependencies: null,
+    );
+
+typedef _$SelectedShapeIds = AutoDisposeNotifier<List<String>>;
 String _$isPlayingHash() => r'3f76a99475e2acd6f86181558f9645b2762950f4';
 
 /// See also [IsPlaying].

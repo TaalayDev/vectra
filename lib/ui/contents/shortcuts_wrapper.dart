@@ -36,6 +36,7 @@ class ShortcutsWrapper extends StatefulWidget {
     this.onEscape,
     this.onEnter,
     this.onToolSwitch,
+    this.onNudge,
     this.currentBrushSize = 1,
     this.maxBrushSize = 10,
     this.maxLayers = 10,
@@ -87,6 +88,10 @@ class ShortcutsWrapper extends StatefulWidget {
   final VoidCallback? onEscape;
   final VoidCallback? onEnter;
   final void Function(String key)? onToolSwitch;
+
+  /// Called when Arrow keys are pressed while the select tool is active.
+  /// [dx] and [dy] are the pixel offset to apply (1 or 10 px).
+  final void Function(double dx, double dy)? onNudge;
 
   // State
   final int currentBrushSize;
@@ -206,6 +211,27 @@ class _ShortcutsWrapperState extends State<ShortcutsWrapper> {
       };
       if (toolKeys.contains(event.logicalKey)) {
         widget.onToolSwitch?.call(event.logicalKey.keyLabel);
+      }
+    }
+
+    // Handle Arrow keys for nudging selected shapes
+    if ((event is KeyDownEvent || event is KeyRepeatEvent) &&
+        !HardwareKeyboard.instance.isControlPressed &&
+        !HardwareKeyboard.instance.isMetaPressed) {
+      final shift = HardwareKeyboard.instance.isShiftPressed;
+      final step = shift ? 10.0 : 1.0;
+      if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+        widget.onNudge?.call(-step, 0);
+        return;
+      } else if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+        widget.onNudge?.call(step, 0);
+        return;
+      } else if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+        widget.onNudge?.call(0, -step);
+        return;
+      } else if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+        widget.onNudge?.call(0, step);
+        return;
       }
     }
 

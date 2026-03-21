@@ -290,6 +290,34 @@ class VecDocumentState extends _$VecDocumentState {
     }));
   }
 
+  /// Updates shape state without adding to undo history.
+  /// Use this during live drag operations; call [updateShape] on drag end
+  /// to commit a single undo-able step.
+  void updateShapeNoHistory(
+    String sceneId,
+    String layerId,
+    String shapeId,
+    VecShape Function(VecShape) updater,
+  ) {
+    final newDoc = _withLayer(sceneId, layerId, (layer) {
+      return layer.copyWith(
+        shapes: [
+          for (final s in layer.shapes)
+            if (s.id == shapeId) updater(s) else s,
+        ],
+      );
+    });
+    state = newDoc;
+    _service.markDirty();
+  }
+
+  /// Commits the current in-memory state to undo history.
+  /// Call after a series of [updateShapeNoHistory] calls to create one
+  /// undo-able step for the entire drag operation.
+  void commitCurrentState() {
+    _commit(state);
+  }
+
   void removeShape(String sceneId, String layerId, String shapeId) {
     _commit(_withLayer(
       sceneId,

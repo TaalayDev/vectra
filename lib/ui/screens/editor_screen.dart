@@ -101,6 +101,26 @@ class EditorScreen extends HookConsumerWidget {
             ref.read(activeToolProvider.notifier).set(tool);
           }
         },
+        onNudge: (dx, dy) {
+          final selectedId = ref.read(selectedShapeIdProvider);
+          if (selectedId == null) return;
+          final scene = ref.read(activeSceneProvider);
+          final layerId = ref.read(activeLayerIdProvider);
+          if (scene == null || layerId == null) return;
+          ref.read(vecDocumentStateProvider.notifier).updateShape(
+                scene.id,
+                layerId,
+                selectedId,
+                (shape) => shape.copyWith(
+                  data: shape.data.copyWith(
+                    transform: shape.transform.copyWith(
+                      x: shape.transform.x + dx,
+                      y: shape.transform.y + dy,
+                    ),
+                  ),
+                ),
+              );
+        },
         onSelectAll: () {},
         onDeselectAll: () => ref.read(selectedShapeIdProvider.notifier).clear(),
         onCopy: () {},

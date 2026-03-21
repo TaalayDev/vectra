@@ -1,9 +1,13 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter/services.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import '../../../app/theme/theme.dart';
 import '../../../core/rendering/drawing_preview_painter.dart';
+import '../../../core/tools/select_tool_handler.dart';
 import '../../../data/models/vec_document.dart';
 import '../../../core/rendering/scene_painter.dart';
 import '../../../core/rendering/selection_overlay.dart';
@@ -11,6 +15,9 @@ import '../../../core/tools/drawing_tool_handler.dart';
 import '../../../providers/document_provider.dart';
 import '../../../providers/drawing_state_provider.dart';
 import '../../../providers/editor_state_provider.dart';
+
+// Describes what kind of select-tool drag is active.
+enum _SelectDragMode { none, move, resizeHandle, rotate }
 
 class EditorCanvas extends ConsumerStatefulWidget {
   const EditorCanvas({super.key, required this.theme});
@@ -22,9 +29,20 @@ class EditorCanvas extends ConsumerStatefulWidget {
 }
 
 class _EditorCanvasState extends ConsumerState<EditorCanvas> {
+  // General canvas state
   bool _isPanning = false;
   bool _didInitialFit = false;
   int _lastFitRequest = 0;
+
+  // Select-tool drag state
+  _SelectDragMode _selectDragMode = _SelectDragMode.none;
+  int _resizeHandleIndex = -1;
+  dynamic _dragStartTransform; // VecTransform captured at drag start
+  Offset _dragStartCanvasPoint = Offset.zero;
+  double _rotationStartAngle = 0.0; // direction from center to drag-start point
+
+  // Hover hit index for cursor
+  int _hoverHandleIndex = -1; // -2=rotate, 0-7=resize, -1=none, -3=body
 
   AppTheme get theme => widget.theme;
 
@@ -38,7 +56,6 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
     final size = context.size ?? Size.zero;
     final meta = ref.read(currentMetaProvider);
 
-    // Stage center in screen space
     final cx = size.width / 2 + panOffset.dx;
     final cy = size.height / 2 + panOffset.dy;
     final stageOriginX = cx - (meta.stageWidth * zoom) / 2;
@@ -71,17 +88,16 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
         activeTool == VecTool.ellipse ||
         activeTool == VecTool.text;
     final isPenTool = activeTool == VecTool.pen;
+    final isSelectTool = activeTool == VecTool.select;
 
     return LayoutBuilder(
       builder: (context, constraints) {
         final viewportSize = Size(constraints.maxWidth, constraints.maxHeight);
 
-        // Auto zoom-to-fit on first layout or on explicit fit request
         WidgetsBinding.instance.addPostFrameCallback((_) {
           _handleViewportChange(viewportSize, meta, fitRequest);
         });
 
-        // Compute stage position on screen
         final stageScreenW = meta.stageWidth * zoom;
         final stageScreenH = meta.stageHeight * zoom;
         final stageLeft = (viewportSize.width - stageScreenW) / 2 + panOffset.dx;
@@ -90,6 +106,9 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
         return Listener(
           onPointerHover: (event) {
             ref.read(cursorPositionProvider.notifier).set(event.localPosition);
+            if (isSelectTool && selectedShape != null) {
+              _updateHoverCursor(selectedShape.transform, zoom, event.localPosition);
+            }
           },
           onPointerSignal: (event) {
             if (event is PointerScrollEvent) {
@@ -99,14 +118,18 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
 
-            // --- Pan (middle-click drag or space+drag handled via _isPanning) ---
             onPanStart: (details) {
               if (_isPanning) return;
               if (isDrawingTool) {
                 final local = _toCanvasPoint(details.localPosition);
                 ref.read(activeDrawingProvider.notifier).start(local);
+                return;
+              }
+              if (isSelectTool) {
+                _handleSelectPanStart(details, scene, selectedShape, zoom);
               }
             },
+
             onPanUpdate: (details) {
               if (_isPanning) {
                 ref.read(canvasOffsetProvider.notifier).pan(details.delta);
@@ -115,16 +138,24 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
               if (isDrawingTool) {
                 final local = _toCanvasPoint(details.localPosition);
                 ref.read(activeDrawingProvider.notifier).update(local);
+                return;
+              }
+              if (isSelectTool && _selectDragMode != _SelectDragMode.none) {
+                _handleSelectPanUpdate(details, scene, selectedShape, zoom);
               }
             },
+
             onPanEnd: (details) {
               if (_isPanning) return;
               if (isDrawingTool) {
                 _finishDragDrawing(activeTool);
+                return;
+              }
+              if (isSelectTool && _selectDragMode != _SelectDragMode.none) {
+                _handleSelectPanEnd(scene, selectedShape);
               }
             },
 
-            // --- Tap for pen tool (add point) or select tool ---
             onTapDown: isPenTool
                 ? (details) {
                     final local = _toCanvasPoint(details.localPosition);
@@ -135,14 +166,15 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
                       ref.read(activePenDrawingProvider.notifier).addPoint(local);
                     }
                   }
-                : activeTool == VecTool.select
+                : isSelectTool
                     ? (details) {
                         final local = _toCanvasPoint(details.localPosition);
-                        _hitTestAndSelect(scene, local);
+                        final shiftHeld =
+                            HardwareKeyboard.instance.isShiftPressed;
+                        _handleSelectTap(scene, selectedShape, local, zoom, shiftHeld);
                       }
                     : null,
 
-            // --- Double-tap to close pen path ---
             onDoubleTap: isPenTool
                 ? () => _finishPenDrawing(closed: true)
                 : null,
@@ -150,14 +182,13 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
             child: MouseRegion(
               cursor: _isPanning
                   ? SystemMouseCursors.grab
-                  : _cursorForTool(activeTool),
+                  : _currentCursor(activeTool, selectedShape),
               child: SizedBox(
                 width: viewportSize.width,
                 height: viewportSize.height,
                 child: Stack(
                   clipBehavior: Clip.hardEdge,
                   children: [
-                    // Background pattern
                     Positioned.fill(
                       child: CustomPaint(
                         painter: _CanvasBackgroundPainter(
@@ -167,7 +198,6 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
                       ),
                     ),
 
-                    // Stage (positioned, clips overflow)
                     Positioned(
                       left: stageLeft,
                       top: stageTop,
@@ -192,7 +222,6 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
                       ),
                     ),
 
-                    // Stage border (drawn on top, not inside transform)
                     Positioned(
                       left: stageLeft,
                       top: stageTop,
@@ -242,7 +271,6 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
         child: Stack(
           clipBehavior: Clip.hardEdge,
           children: [
-            // Checkerboard + bg
             Positioned.fill(
               child: CustomPaint(
                 painter: _CheckerboardPainter(
@@ -253,7 +281,6 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
               ),
             ),
 
-            // Scene shapes
             if (scene != null)
               Positioned.fill(
                 child: ClipRect(
@@ -266,7 +293,6 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
                 ),
               ),
 
-            // Drawing preview (live shape being drawn)
             if (drawing != null || penDrawing != null)
               Positioned.fill(
                 child: CustomPaint(
@@ -280,7 +306,6 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
                 ),
               ),
 
-            // Selection overlay
             if (selectedShape != null)
               Positioned.fill(
                 child: CustomPaint(
@@ -299,13 +324,237 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
   }
 
   // ===========================================================================
+  // Select tool — tap (click to select)
+  // ===========================================================================
+
+  void _handleSelectTap(
+    dynamic scene,
+    dynamic selectedShape,
+    Offset canvasPoint,
+    double zoom,
+    bool shiftHeld,
+  ) {
+    // If a shape is selected, ignore taps that land on handles (pan will handle those)
+    if (selectedShape != null) {
+      final hitIndex = SelectToolHandler.hitTestHandles(
+          selectedShape.transform, zoom, canvasPoint);
+      if (hitIndex != -1) return; // Let panStart handle it
+      // Also ignore taps inside the body when it's already selected
+      if (SelectToolHandler.hitTestBody(selectedShape.transform, canvasPoint)) {
+        return;
+      }
+    }
+
+    _hitTestAndSelect(scene, canvasPoint, shiftHeld);
+  }
+
+  void _hitTestAndSelect(
+    dynamic scene,
+    Offset canvasPoint,
+    bool shiftHeld,
+  ) {
+    if (scene == null) {
+      ref.read(selectedShapeIdProvider.notifier).clear();
+      ref.read(selectedShapeIdsProvider.notifier).clear();
+      return;
+    }
+
+    final layers = List.from(scene.layers)
+      ..sort((a, b) => b.order.compareTo(a.order));
+
+    for (final layer in layers) {
+      if (!layer.visible || layer.locked) continue;
+      for (var i = layer.shapes.length - 1; i >= 0; i--) {
+        final shape = layer.shapes[i];
+        final t = shape.transform;
+        final hit = t.rotation == 0
+            ? Rect.fromLTWH(t.x, t.y, t.width, t.height).contains(canvasPoint)
+            : SelectToolHandler.hitTestBody(t, canvasPoint);
+
+        if (hit) {
+          if (shiftHeld) {
+            // Toggle in multi-select
+            final ids = ref.read(selectedShapeIdsProvider);
+            if (ids.contains(shape.id)) {
+              ref.read(selectedShapeIdsProvider.notifier).remove(shape.id);
+              final remaining = ref.read(selectedShapeIdsProvider);
+              ref.read(selectedShapeIdProvider.notifier)
+                  .set(remaining.isEmpty ? null : remaining.last);
+            } else {
+              ref.read(selectedShapeIdsProvider.notifier).add(shape.id);
+              ref.read(selectedShapeIdProvider.notifier).set(shape.id);
+            }
+          } else {
+            ref.read(selectedShapeIdProvider.notifier).set(shape.id);
+            ref.read(selectedShapeIdsProvider.notifier).setSingle(shape.id);
+          }
+          ref.read(activeLayerIdProvider.notifier).set(layer.id);
+          return;
+        }
+      }
+    }
+
+    // Tapped empty area — deselect
+    if (!shiftHeld) {
+      ref.read(selectedShapeIdProvider.notifier).clear();
+      ref.read(selectedShapeIdsProvider.notifier).clear();
+    }
+  }
+
+  // ===========================================================================
+  // Select tool — pan (drag to move/resize/rotate)
+  // ===========================================================================
+
+  void _handleSelectPanStart(
+    DragStartDetails details,
+    dynamic scene,
+    dynamic selectedShape,
+    double zoom,
+  ) {
+    if (selectedShape == null) return;
+    final canvasPoint = _toCanvasPoint(details.localPosition);
+    final t = selectedShape.transform;
+
+    final hitIndex =
+        SelectToolHandler.hitTestHandles(t, zoom, canvasPoint);
+
+    if (hitIndex == -2) {
+      // Rotation handle
+      final center = SelectToolHandler.localToCanvas(
+          t, Offset(t.width / 2, t.height / 2));
+      setState(() {
+        _selectDragMode = _SelectDragMode.rotate;
+        _dragStartTransform = t;
+        _dragStartCanvasPoint = canvasPoint;
+        _rotationStartAngle = (canvasPoint - center).direction;
+      });
+    } else if (hitIndex >= 0) {
+      // Resize handle
+      setState(() {
+        _selectDragMode = _SelectDragMode.resizeHandle;
+        _resizeHandleIndex = hitIndex;
+        _dragStartTransform = t;
+        _dragStartCanvasPoint = canvasPoint;
+      });
+    } else if (SelectToolHandler.hitTestBody(t, canvasPoint)) {
+      // Move shape
+      setState(() {
+        _selectDragMode = _SelectDragMode.move;
+        _dragStartTransform = t;
+        _dragStartCanvasPoint = canvasPoint;
+      });
+    }
+    // Otherwise: started on empty space — no drag
+  }
+
+  void _handleSelectPanUpdate(
+    DragUpdateDetails details,
+    dynamic scene,
+    dynamic selectedShape,
+    double zoom,
+  ) {
+    if (selectedShape == null || scene == null) return;
+    final layerId = ref.read(activeLayerIdProvider);
+    if (layerId == null) return;
+
+    final canvasPoint = _toCanvasPoint(details.localPosition);
+    final delta = canvasPoint - _dragStartCanvasPoint;
+    final start = _dragStartTransform!;
+
+    dynamic newTransform;
+
+    switch (_selectDragMode) {
+      case _SelectDragMode.move:
+        newTransform = start.copyWith(
+          x: start.x + delta.dx,
+          y: start.y + delta.dy,
+        );
+
+      case _SelectDragMode.resizeHandle:
+        newTransform = SelectToolHandler.applyResizeHandle(
+            start, _resizeHandleIndex, delta);
+
+      case _SelectDragMode.rotate:
+        final center = SelectToolHandler.localToCanvas(
+            start, Offset(start.width / 2, start.height / 2));
+        final currentAngle = (canvasPoint - center).direction;
+        final angleDeltaDeg =
+            (currentAngle - _rotationStartAngle) * 180 / math.pi;
+        newTransform = start.copyWith(
+          rotation: start.rotation + angleDeltaDeg,
+        );
+
+      case _SelectDragMode.none:
+        return;
+    }
+
+    ref.read(vecDocumentStateProvider.notifier).updateShapeNoHistory(
+          scene.id,
+          layerId,
+          selectedShape.id,
+          (s) => s.copyWith(data: s.data.copyWith(transform: newTransform)),
+        );
+  }
+
+  void _handleSelectPanEnd(dynamic scene, dynamic selectedShape) {
+    if (selectedShape != null && scene != null) {
+      final layerId = ref.read(activeLayerIdProvider);
+      if (layerId != null) {
+        // Commit final state as one undo-able entry
+        ref.read(vecDocumentStateProvider.notifier).commitCurrentState();
+      }
+    }
+    setState(() => _selectDragMode = _SelectDragMode.none);
+  }
+
+  // ===========================================================================
+  // Hover cursor update
+  // ===========================================================================
+
+  void _updateHoverCursor(dynamic transform, double zoom, Offset screenPos) {
+    if (transform == null) return;
+    final canvasPoint = _toCanvasPoint(screenPos);
+    final hitIndex =
+        SelectToolHandler.hitTestHandles(transform, zoom, canvasPoint);
+    final bodyHit = hitIndex == -1
+        ? SelectToolHandler.hitTestBody(transform, canvasPoint)
+        : false;
+    final newIndex = bodyHit ? -3 : hitIndex;
+    if (newIndex != _hoverHandleIndex) {
+      setState(() => _hoverHandleIndex = newIndex);
+    }
+  }
+
+  MouseCursor _currentCursor(VecTool activeTool, dynamic selectedShape) {
+    if (activeTool == VecTool.select) {
+      if (selectedShape != null) {
+        if (_selectDragMode == _SelectDragMode.move ||
+            _hoverHandleIndex == -3) {
+          return SystemMouseCursors.move;
+        }
+        if (_selectDragMode == _SelectDragMode.rotate ||
+            _hoverHandleIndex == -2) {
+          return SystemMouseCursors.grab;
+        }
+        final handleIdx = _selectDragMode == _SelectDragMode.resizeHandle
+            ? _resizeHandleIndex
+            : _hoverHandleIndex;
+        if (handleIdx >= 0) {
+          return SelectToolHandler.cursorForHandle(handleIdx);
+        }
+      }
+      return SystemMouseCursors.basic;
+    }
+    return _cursorForTool(activeTool);
+  }
+
+  // ===========================================================================
   // Viewport change → auto zoom-to-fit
   // ===========================================================================
 
   void _handleViewportChange(Size viewportSize, VecMeta meta, int fitRequest) {
     if (viewportSize.width <= 0 || viewportSize.height <= 0) return;
 
-    // Initial fit
     if (!_didInitialFit) {
       _didInitialFit = true;
       _lastFitRequest = fitRequest;
@@ -313,7 +562,6 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
       return;
     }
 
-    // Explicit zoom-to-fit request (shortcut or button)
     if (fitRequest != _lastFitRequest) {
       _lastFitRequest = fitRequest;
       _fitToViewport(viewportSize, meta);
@@ -322,11 +570,11 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
 
   void _fitToViewport(Size viewportSize, VecMeta meta) {
     ref.read(zoomLevelProvider.notifier).zoomToFit(
-      viewportSize.width,
-      viewportSize.height,
-      meta.stageWidth,
-      meta.stageHeight,
-    );
+          viewportSize.width,
+          viewportSize.height,
+          meta.stageWidth,
+          meta.stageHeight,
+        );
     ref.read(canvasOffsetProvider.notifier).reset();
   }
 
@@ -340,16 +588,12 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
     final oldZoom = ref.read(zoomLevelProvider);
     final panOffset = ref.read(canvasOffsetProvider);
 
-    // Zoom toward pointer position
     final pointerLocal = event.localPosition;
-
-    // How much to zoom
     final delta = -event.scrollDelta.dy;
     final zoomFactor = delta > 0 ? 1.1 : 1 / 1.1;
     final newZoom = (oldZoom * zoomFactor).clamp(0.01, 64.0);
     zoomNotifier.set(newZoom);
 
-    // Adjust pan so the point under cursor stays fixed
     final viewCenter = Offset(viewportSize.width / 2, viewportSize.height / 2);
     final pointerFromCenter = pointerLocal - viewCenter - panOffset;
     final scale = newZoom / oldZoom;
@@ -428,36 +672,7 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
 
     ref.read(vecDocumentStateProvider.notifier).addShape(scene.id, layerId, shape);
     ref.read(selectedShapeIdProvider.notifier).set(shape.id);
-  }
-
-  // ===========================================================================
-  // Select tool hit testing
-  // ===========================================================================
-
-  void _hitTestAndSelect(dynamic scene, Offset canvasPoint) {
-    if (scene == null) {
-      ref.read(selectedShapeIdProvider.notifier).clear();
-      return;
-    }
-
-    // Walk layers top-to-bottom, shapes last-to-first (topmost wins)
-    final layers = List.from(scene.layers)..sort((a, b) => b.order.compareTo(a.order));
-    for (final layer in layers) {
-      if (!layer.visible || layer.locked) continue;
-      for (var i = layer.shapes.length - 1; i >= 0; i--) {
-        final shape = layer.shapes[i];
-        final t = shape.transform;
-        final rect = Rect.fromLTWH(t.x, t.y, t.width, t.height);
-        if (rect.contains(canvasPoint)) {
-          ref.read(selectedShapeIdProvider.notifier).set(shape.id);
-          ref.read(activeLayerIdProvider.notifier).set(layer.id);
-          return;
-        }
-      }
-    }
-
-    // Tapped empty area — deselect
-    ref.read(selectedShapeIdProvider.notifier).clear();
+    ref.read(selectedShapeIdsProvider.notifier).setSingle(shape.id);
   }
 }
 
@@ -473,7 +688,8 @@ class _CanvasBackgroundPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), Paint()..color = bgColor);
+    canvas.drawRect(
+        Rect.fromLTWH(0, 0, size.width, size.height), Paint()..color = bgColor);
 
     const spacing = 20.0;
     const dotRadius = 1.0;

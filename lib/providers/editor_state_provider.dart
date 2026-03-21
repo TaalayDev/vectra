@@ -124,6 +124,24 @@ class SelectedShapeId extends _$SelectedShapeId {
   void clear() => state = null;
 }
 
+/// Multi-selection: ordered list of selected shape IDs.
+/// The last entry is considered the "primary" selected shape for the
+/// Properties Panel. Kept in sync with [SelectedShapeId] by the canvas.
+@riverpod
+class SelectedShapeIds extends _$SelectedShapeIds {
+  @override
+  List<String> build() => const [];
+
+  void setSingle(String id) => state = [id];
+  void add(String id) {
+    if (!state.contains(id)) state = [...state, id];
+  }
+  void remove(String id) =>
+      state = state.where((s) => s != id).toList(growable: false);
+  void setAll(List<String> ids) => state = List.unmodifiable(ids);
+  void clear() => state = const [];
+}
+
 @riverpod
 class IsPlaying extends _$IsPlaying {
   @override

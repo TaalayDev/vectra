@@ -3,6 +3,7 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import '../../../app/theme/theme.dart';
 import '../../../data/models/vec_shape.dart';
+import '../../../providers/document_provider.dart';
 import '../../../providers/editor_state_provider.dart';
 import '../common/panel_header.dart';
 import 'properties_sections.dart';
@@ -30,12 +31,18 @@ class PropertiesPanel extends ConsumerWidget {
             theme: theme,
           ),
           Expanded(
-            child: shape == null ? _buildEmptyState() : _buildSections(shape),
+            child: shape == null
+                ? _buildEmptyState()
+                : _buildSections(context, ref, shape),
           ),
         ],
       ),
     );
   }
+
+  // ---------------------------------------------------------------------------
+  // Empty state
+  // ---------------------------------------------------------------------------
 
   Widget _buildEmptyState() {
     return Center(
@@ -50,10 +57,7 @@ class PropertiesPanel extends ConsumerWidget {
           const SizedBox(height: 8),
           Text(
             'No selection',
-            style: TextStyle(
-              fontSize: 12,
-              color: theme.textDisabled,
-            ),
+            style: TextStyle(fontSize: 12, color: theme.textDisabled),
           ),
           const SizedBox(height: 4),
           Text(
@@ -69,24 +73,72 @@ class PropertiesPanel extends ConsumerWidget {
     );
   }
 
-  Widget _buildSections(VecShape shape) {
+  // ---------------------------------------------------------------------------
+  // Sections with real callbacks
+  // ---------------------------------------------------------------------------
+
+  Widget _buildSections(BuildContext context, WidgetRef ref, VecShape shape) {
+    final scene = ref.read(activeSceneProvider);
+    final layerId = ref.read(activeLayerIdProvider);
+    final docNotifier = ref.read(vecDocumentStateProvider.notifier);
+
+    if (scene == null || layerId == null) return const SizedBox.shrink();
+
+    // Committed update — goes to undo history
+    void onUpdate(VecShape Function(VecShape) updater) {
+      docNotifier.updateShape(scene.id, layerId, shape.id, updater);
+    }
+
+    // Live update — no undo entry (used during slider drag)
+    void onLiveUpdate(VecShape Function(VecShape) updater) {
+      docNotifier.updateShapeNoHistory(scene.id, layerId, shape.id, updater);
+    }
+
+    // Commit current state after live drag ends
+    void onCommit() {
+      docNotifier.commitCurrentState();
+    }
+
     return ListView(
       padding: const EdgeInsets.symmetric(vertical: 4),
       children: [
-        TransformSection(transform: shape.transform, theme: theme),
+        TransformSection(
+          transform: shape.transform,
+          opacity: shape.opacity,
+          theme: theme,
+          onUpdate: onUpdate,
+          onLiveUpdate: onLiveUpdate,
+          onCommit: onCommit,
+        ),
         Divider(height: 1, color: theme.divider.withAlpha(60)),
-        FillSection(fills: shape.fills, theme: theme),
+        FillSection(
+          fills: shape.fills,
+          theme: theme,
+          onUpdate: onUpdate,
+          onLiveUpdate: onLiveUpdate,
+          onCommit: onCommit,
+        ),
         Divider(height: 1, color: theme.divider.withAlpha(60)),
-        StrokeSection(strokes: shape.strokes, theme: theme),
+        StrokeSection(
+          strokes: shape.strokes,
+          theme: theme,
+          onUpdate: onUpdate,
+          onLiveUpdate: onLiveUpdate,
+          onCommit: onCommit,
+        ),
         Divider(height: 1, color: theme.divider.withAlpha(60)),
         BlendSection(
-          opacity: shape.opacity,
           blendMode: shape.blendMode,
           theme: theme,
+          onUpdate: onUpdate,
         ),
       ],
     );
   }
+
+  // ---------------------------------------------------------------------------
+  // Helpers
+  // ---------------------------------------------------------------------------
 
   String _shapeTypeName(VecShape shape) {
     return shape.map(

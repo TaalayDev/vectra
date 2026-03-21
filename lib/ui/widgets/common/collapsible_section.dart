@@ -10,12 +10,16 @@ class CollapsibleSection extends HookWidget {
     required this.content,
     required this.theme,
     this.initiallyExpanded = true,
+    this.action,
   });
 
   final String title;
   final Widget content;
   final AppTheme theme;
   final bool initiallyExpanded;
+
+  /// Optional widget shown at the right of the section header (e.g. a + button).
+  final Widget? action;
 
   @override
   Widget build(BuildContext context) {
@@ -50,6 +54,8 @@ class CollapsibleSection extends HookWidget {
                     color: theme.textSecondary,
                   ),
                 ),
+                const Spacer(),
+                if (action != null) action!,
               ],
             ),
           ),
