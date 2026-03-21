@@ -123,6 +123,7 @@ class EditorScreen extends HookConsumerWidget {
           final tool = switch (key) {
             'V' => VecTool.select,
             'P' => VecTool.pen,
+            'L' => VecTool.line,
             'R' => VecTool.rectangle,
             'E' => VecTool.ellipse,
             'T' => VecTool.text,

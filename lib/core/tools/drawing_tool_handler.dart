@@ -30,6 +30,37 @@ class DrawingToolHandler {
     );
   }
 
+  /// Creates a 2-node line (open path) from a drag. No fill, stroke only.
+  VecShape createLine(DrawingState drawing) {
+    final left = drawing.left;
+    final top = drawing.top;
+    final w = drawing.width < 1 ? 1.0 : drawing.width;
+    final h = drawing.height < 1 ? 1.0 : drawing.height;
+
+    final startLocal = VecPoint(
+      x: drawing.startPoint.dx - left,
+      y: drawing.startPoint.dy - top,
+    );
+    final endLocal = VecPoint(
+      x: drawing.currentPoint.dx - left,
+      y: drawing.currentPoint.dy - top,
+    );
+
+    return VecShape.path(
+      data: VecShapeData(
+        id: _uuid.v4(),
+        transform: VecTransform(x: left, y: top, width: w, height: h),
+        fills: const [],
+        strokes: _defaultStrokes,
+      ),
+      nodes: [
+        VecPathNode(position: startLocal, type: VecNodeType.corner),
+        VecPathNode(position: endLocal, type: VecNodeType.corner),
+      ],
+      isClosed: false,
+    );
+  }
+
   /// Creates a text shape from a drag region.
   VecShape createText(DrawingState drawing) {
     return VecShape.text(

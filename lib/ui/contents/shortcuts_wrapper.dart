@@ -209,6 +209,7 @@ class _ShortcutsWrapperState extends State<ShortcutsWrapper> {
       final toolKeys = {
         LogicalKeyboardKey.keyV,
         LogicalKeyboardKey.keyP,
+        LogicalKeyboardKey.keyL,
         LogicalKeyboardKey.keyR,
         LogicalKeyboardKey.keyE,
         LogicalKeyboardKey.keyT,

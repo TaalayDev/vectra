@@ -34,12 +34,57 @@ class DrawingPreviewPainter extends CustomPainter {
       case VecTool.pen:
         if (penDrawing != null) _paintPenPreview(canvas);
         break;
+      case VecTool.line:
+        if (drawing != null) _paintLinePreview(canvas);
+        break;
       case VecTool.text:
         if (drawing != null) _paintTextPreview(canvas);
         break;
       default:
         break;
     }
+  }
+
+  void _paintLinePreview(Canvas canvas) {
+    final d = drawing!;
+    canvas.drawLine(d.startPoint, d.currentPoint, _strokePaint);
+    _drawNodeDot(canvas, d.startPoint);
+    _drawNodeDot(canvas, d.currentPoint);
+
+    // Length hint bubble
+    final dx = d.currentPoint.dx - d.startPoint.dx;
+    final dy = d.currentPoint.dy - d.startPoint.dy;
+    final len = math.sqrt(dx * dx + dy * dy);
+    if (len < 4) return;
+
+    final mid = (d.startPoint + d.currentPoint) / 2;
+    // Perpendicular offset so the bubble doesn't overlap the line
+    final perpX = -dy / len;
+    final perpY = dx / len;
+    final bubbleCenter = Offset(mid.dx + perpX * 18, mid.dy + perpY * 18);
+
+    final text = '${len.round()}';
+    final tp = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: TextStyle(
+          fontSize: 10,
+          color: Colors.white,
+          fontWeight: FontWeight.w600,
+          fontFeatures: const [FontFeature.tabularFigures()],
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+
+    final pillW = tp.width + 12;
+    final pillH = tp.height + 6;
+    final pillRect = RRect.fromRectAndRadius(
+      Rect.fromCenter(center: bubbleCenter, width: pillW, height: pillH),
+      const Radius.circular(4),
+    );
+    canvas.drawRRect(pillRect, Paint()..color = strokeColor.withAlpha(200));
+    tp.paint(canvas, Offset(pillRect.left + 6, pillRect.top + 3));
   }
 
   void _paintRectanglePreview(Canvas canvas) {

@@ -13,7 +13,7 @@ part 'editor_state_provider.g.dart';
 // Enums
 // ---------------------------------------------------------------------------
 
-enum VecTool { select, pen, rectangle, ellipse, text, width }
+enum VecTool { select, pen, line, rectangle, ellipse, text, width }
 
 // ---------------------------------------------------------------------------
 // UI state providers

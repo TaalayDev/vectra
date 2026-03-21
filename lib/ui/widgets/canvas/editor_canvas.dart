@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import '../../../app/theme/theme.dart';
+import '../../../core/rendering/bend_handle_overlay.dart';
 import '../../../core/rendering/corner_radius_overlay.dart';
 import '../../../core/rendering/drawing_preview_painter.dart';
 import '../../../core/rendering/path_edit_overlay.dart';
@@ -22,7 +23,7 @@ import '../../../providers/drawing_state_provider.dart';
 import '../../../providers/editor_state_provider.dart';
 
 // Describes what kind of select-tool drag is active.
-enum _SelectDragMode { none, move, resizeHandle, rotate, cornerRadius }
+enum _SelectDragMode { none, move, resizeHandle, rotate, cornerRadius, bend }
 
 class EditorCanvas extends ConsumerStatefulWidget {
   const EditorCanvas({super.key, required this.theme});
@@ -73,6 +74,12 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
   Set<int> _cornersBeingDragged = const {};
   String? _cornerEditShapeId; // shape ID last used to set _selectedCorners
 
+  // Bend handle editing (2-node line shape, single selection)
+  bool _hoverBendHandle = false;
+  Offset _bendHandleAtDragStart = Offset.zero;
+  Offset _bendStartLocalPos = Offset.zero; // node[0] position at drag start
+  Offset _bendEndLocalPos = Offset.zero;   // node[1] position at drag start
+
   AppTheme get theme => widget.theme;
 
   // ===========================================================================
@@ -117,7 +124,8 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
 
     final isDrawingTool = activeTool == VecTool.rectangle ||
         activeTool == VecTool.ellipse ||
-        activeTool == VecTool.text;
+        activeTool == VecTool.text ||
+        activeTool == VecTool.line;
     final isPenTool = activeTool == VecTool.pen;
     final isSelectTool = activeTool == VecTool.select;
 
@@ -171,6 +179,7 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
             }
             if (isSelectTool && selectedShapeIds.length == 1) {
               _updateHoverCorner(displaySelectedShape, zoom, event.localPosition);
+              _updateHoverBend(displaySelectedShape, zoom, event.localPosition);
             }
             if (isPenTool && penDrawing == null && selectedShape != null) {
               _updateHoverNode(selectedShape, event.localPosition, zoom);
@@ -481,6 +490,29 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
                 );
               }),
 
+            // Bend handle — 2-node open path (line), single selection, select tool
+            if (selectedShapeIds.length == 1 &&
+                displaySelectedShape != null &&
+                activeTool == VecTool.select)
+              Builder(builder: (ctx) {
+                final lineShape = displaySelectedShape.maybeMap(
+                  path: (p) =>
+                      p.nodes.length == 2 && !p.isClosed ? p : null,
+                  orElse: () => null,
+                );
+                if (lineShape == null) return const SizedBox.shrink();
+                return Positioned.fill(
+                  child: CustomPaint(
+                    painter: BendHandleOverlayPainter(
+                      shape: lineShape,
+                      zoom: zoom,
+                      isHovered: _hoverBendHandle,
+                      color: theme.selectionOutline,
+                    ),
+                  ),
+                );
+              }),
+
             // Marquee (rubber-band) selection rect
             if (_isMarqueeDrag)
               Positioned.fill(
@@ -561,6 +593,20 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
           });
           return;
         }
+      }
+    }
+
+    // Bend handle tap (2-node line, single selection, no group-edit)
+    if (displaySelectedShape != null &&
+        activeGroupId == null &&
+        ref.read(selectedShapeIdsProvider).length == 1) {
+      final lineShape = displaySelectedShape.maybeMap(
+        path: (p) => p.nodes.length == 2 && !p.isClosed ? p : null,
+        orElse: () => null,
+      );
+      if (lineShape != null &&
+          BendHandleOverlayPainter.hitTestHandle(lineShape, zoom, canvasPoint) == 0) {
+        return; // panStart will handle the drag
       }
     }
 
@@ -759,6 +805,32 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
       }
     }
 
+    // Bend handle drag (2-node open path, no group-edit)
+    if (activeGroup == null) {
+      final lineShape = displaySelectedShape.maybeMap(
+        path: (p) => p.nodes.length == 2 && !p.isClosed ? p : null,
+        orElse: () => null,
+      );
+      if (lineShape != null) {
+        final hit = BendHandleOverlayPainter.hitTestHandle(lineShape, zoom, canvasPoint);
+        if (hit == 0) {
+          final n0 = lineShape.nodes[0];
+          final n1 = lineShape.nodes[1];
+          final canvasBendPos =
+              BendHandleOverlayPainter.bendHandleCanvasPos(lineShape)!;
+          setState(() {
+            _selectDragMode = _SelectDragMode.bend;
+            _dragStartCanvasPoint = canvasPoint;
+            _dragStartTransform = t;
+            _bendHandleAtDragStart = canvasBendPos;
+            _bendStartLocalPos = Offset(n0.position.x, n0.position.y);
+            _bendEndLocalPos = Offset(n1.position.x, n1.position.y);
+          });
+          return;
+        }
+      }
+    }
+
     final hitIndex = SelectToolHandler.hitTestHandles(t, zoom, canvasPoint);
 
     if (hitIndex == -2) {
@@ -885,6 +957,39 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
               selectedShape.id,
               (s) => s.maybeMap(
                 rectangle: (r) => r.copyWith(cornerRadii: newRadii),
+                orElse: () => s,
+              ),
+            );
+        return;
+
+      case _SelectDragMode.bend:
+        // New bend handle canvas position = original position + drag delta
+        final newBendCanvas = _bendHandleAtDragStart + delta;
+        // Convert to shape-local space
+        final h = SelectToolHandler.canvasToLocal(start, newBendCanvas);
+        // Symmetric quadratic-to-cubic: C1 = (4H - end) / 3, C2 = (4H - start) / 3
+        final h4 = Offset(h.dx * 4, h.dy * 4);
+        final c1 = (h4 - _bendEndLocalPos) / 3.0;
+        final c2 = (h4 - _bendStartLocalPos) / 3.0;
+        ref.read(vecDocumentStateProvider.notifier).updateShapeNoHistory(
+              scene.id,
+              layerId,
+              selectedShape.id,
+              (s) => s.maybeMap(
+                path: (pathS) {
+                  final n0 = pathS.nodes[0];
+                  final n1 = pathS.nodes[1];
+                  return pathS.copyWith(nodes: [
+                    n0.copyWith(
+                      handleOut: VecPoint(x: c1.dx, y: c1.dy),
+                      type: VecNodeType.smooth,
+                    ),
+                    n1.copyWith(
+                      handleIn: VecPoint(x: c2.dx, y: c2.dy),
+                      type: VecNodeType.smooth,
+                    ),
+                  ]);
+                },
                 orElse: () => s,
               ),
             );
@@ -1092,6 +1197,20 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
     if (idx != _hoverCornerIndex) setState(() => _hoverCornerIndex = idx);
   }
 
+  void _updateHoverBend(dynamic displaySelectedShape, double zoom, Offset screenPos) {
+    final lineShape = displaySelectedShape?.maybeMap(
+      path: (p) => p.nodes.length == 2 && !p.isClosed ? p : null,
+      orElse: () => null,
+    );
+    if (lineShape == null) {
+      if (_hoverBendHandle) setState(() => _hoverBendHandle = false);
+      return;
+    }
+    final canvasPoint = _toCanvasPoint(screenPos);
+    final hit = BendHandleOverlayPainter.hitTestHandle(lineShape, zoom, canvasPoint) == 0;
+    if (hit != _hoverBendHandle) setState(() => _hoverBendHandle = hit);
+  }
+
   // ===========================================================================
   // Hover cursor update
   // ===========================================================================
@@ -1113,7 +1232,11 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
   MouseCursor _currentCursor(VecTool activeTool, dynamic selectedShape) {
     if (activeTool == VecTool.select) {
       if (selectedShape != null) {
-        // Corner-radius drag/hover takes priority
+        // Bend handle drag/hover
+        if (_selectDragMode == _SelectDragMode.bend || _hoverBendHandle) {
+          return SystemMouseCursors.precise;
+        }
+        // Corner-radius drag/hover
         if (_selectDragMode == _SelectDragMode.cornerRadius ||
             _hoverCornerIndex >= 0) {
           return SystemMouseCursors.precise;
@@ -1208,6 +1331,8 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
         return SystemMouseCursors.basic;
       case VecTool.pen:
         return SystemMouseCursors.precise;
+      case VecTool.line:
+        return SystemMouseCursors.precise;
       case VecTool.rectangle:
       case VecTool.ellipse:
         return SystemMouseCursors.precise;
@@ -1224,11 +1349,22 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
 
   void _finishDragDrawing(VecTool tool) {
     final drawingState = ref.read(activeDrawingProvider.notifier).finish();
-    if (drawingState == null || drawingState.width < 2 || drawingState.height < 2) return;
+    if (drawingState == null) return;
 
     const handler = DrawingToolHandler();
-    late final dynamic shape;
 
+    // Line only needs length in any axis ≥ 2px; auto-switches to select tool
+    if (tool == VecTool.line) {
+      if (drawingState.width < 2 && drawingState.height < 2) return;
+      final shape = handler.createLine(drawingState);
+      _addShapeToActiveLayer(shape);
+      ref.read(activeToolProvider.notifier).set(VecTool.select);
+      return;
+    }
+
+    if (drawingState.width < 2 || drawingState.height < 2) return;
+
+    late final dynamic shape;
     switch (tool) {
       case VecTool.rectangle:
         shape = handler.createRectangle(drawingState);

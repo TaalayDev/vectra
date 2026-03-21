@@ -13,6 +13,7 @@ class ToolButtonGroup extends ConsumerWidget {
   static const _tools = [
     (VecTool.select, Icons.near_me_outlined, 'Select (V)'),
     (VecTool.pen, Icons.mode_edit_outline, 'Pen (P)'),
+    (VecTool.line, Icons.horizontal_rule, 'Line (L)'),
     (VecTool.rectangle, Icons.rectangle_outlined, 'Rectangle (R)'),
     (VecTool.ellipse, Icons.circle_outlined, 'Ellipse (E)'),
     (VecTool.text, Icons.text_fields, 'Text (T)'),
