@@ -134,8 +134,8 @@ class SelectToolHandler {
     final canvasDx = dx * cosA - dy * sinA;
     final canvasDy = dx * sinA + dy * cosA;
 
-    final newW = math.max(4.0, start.width + dw);
-    final newH = math.max(4.0, start.height + dh);
+    final newW = dw != 0 ? math.max(1.0, start.width + dw) : start.width;
+    final newH = dh != 0 ? math.max(1.0, start.height + dh) : start.height;
 
     // Clamp dw/dh if size was clamped (prevents position jumping)
     final actualDw = newW - start.width;

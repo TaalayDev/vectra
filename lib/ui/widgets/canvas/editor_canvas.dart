@@ -1019,7 +1019,48 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
             scene.id,
             layerId,
             selectedShape.id,
-            (s) => s.copyWith(data: s.data.copyWith(transform: newCanvasTransform)),
+            (s) {
+              // For path shapes during resize: scale node positions proportionally
+              if (_selectDragMode == _SelectDragMode.resizeHandle) {
+                return s.maybeMap(
+                  path: (pathS) {
+                    final scX = start.width > 0
+                        ? newCanvasTransform.width / start.width
+                        : 1.0;
+                    final scY = start.height > 0
+                        ? newCanvasTransform.height / start.height
+                        : 1.0;
+                    final scaledNodes = pathS.nodes.map((n) {
+                      return n.copyWith(
+                        position: VecPoint(
+                          x: n.position.x * scX,
+                          y: n.position.y * scY,
+                        ),
+                        handleOut: n.handleOut == null
+                            ? null
+                            : VecPoint(
+                                x: n.handleOut!.x * scX,
+                                y: n.handleOut!.y * scY,
+                              ),
+                        handleIn: n.handleIn == null
+                            ? null
+                            : VecPoint(
+                                x: n.handleIn!.x * scX,
+                                y: n.handleIn!.y * scY,
+                              ),
+                      );
+                    }).toList();
+                    return pathS.copyWith(
+                      data: pathS.data.copyWith(transform: newCanvasTransform),
+                      nodes: scaledNodes,
+                    );
+                  },
+                  orElse: () =>
+                      s.copyWith(data: s.data.copyWith(transform: newCanvasTransform)),
+                );
+              }
+              return s.copyWith(data: s.data.copyWith(transform: newCanvasTransform));
+            },
           );
     }
   }
