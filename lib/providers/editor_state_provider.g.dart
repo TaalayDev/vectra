@@ -73,7 +73,7 @@ final activeToolProvider =
     );
 
 typedef _$ActiveTool = AutoDisposeNotifier<VecTool>;
-String _$zoomLevelHash() => r'431ccedf63edf71d7e6e61fd3371fa8a66be3d4c';
+String _$zoomLevelHash() => r'841cf64d5796ef948f42730a29bbe697b3eeeae4';
 
 /// See also [ZoomLevel].
 @ProviderFor(ZoomLevel)
@@ -89,6 +89,58 @@ final zoomLevelProvider =
     );
 
 typedef _$ZoomLevel = AutoDisposeNotifier<double>;
+String _$undoAvailabilityHash() => r'f6e1d7f6aa75f3f5a877d00909343f23da1b08b8';
+
+/// Undo / redo availability flags — updated by VecDocumentState after every commit.
+///
+/// Copied from [UndoAvailability].
+@ProviderFor(UndoAvailability)
+final undoAvailabilityProvider =
+    NotifierProvider<UndoAvailability, ({bool canUndo, bool canRedo})>.internal(
+      UndoAvailability.new,
+      name: r'undoAvailabilityProvider',
+      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+          ? null
+          : _$undoAvailabilityHash,
+      dependencies: null,
+      allTransitiveDependencies: null,
+    );
+
+typedef _$UndoAvailability = Notifier<({bool canUndo, bool canRedo})>;
+String _$fitRequestHash() => r'a19e16965a48446f29f546408259ce3898a82b12';
+
+/// Incremented to request a zoom-to-fit from the canvas.
+///
+/// Copied from [FitRequest].
+@ProviderFor(FitRequest)
+final fitRequestProvider =
+    AutoDisposeNotifierProvider<FitRequest, int>.internal(
+      FitRequest.new,
+      name: r'fitRequestProvider',
+      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+          ? null
+          : _$fitRequestHash,
+      dependencies: null,
+      allTransitiveDependencies: null,
+    );
+
+typedef _$FitRequest = AutoDisposeNotifier<int>;
+String _$canvasOffsetHash() => r'31543d2c9b634e6d285dbea093d98da0ff55111c';
+
+/// See also [CanvasOffset].
+@ProviderFor(CanvasOffset)
+final canvasOffsetProvider =
+    AutoDisposeNotifierProvider<CanvasOffset, Offset>.internal(
+      CanvasOffset.new,
+      name: r'canvasOffsetProvider',
+      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+          ? null
+          : _$canvasOffsetHash,
+      dependencies: null,
+      allTransitiveDependencies: null,
+    );
+
+typedef _$CanvasOffset = AutoDisposeNotifier<Offset>;
 String _$cursorPositionHash() => r'e77b01083c7d5cebe6e03910d94d5bdab3f07d9d';
 
 /// See also [CursorPosition].

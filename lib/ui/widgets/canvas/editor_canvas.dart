@@ -12,15 +12,54 @@ import '../../../providers/document_provider.dart';
 import '../../../providers/drawing_state_provider.dart';
 import '../../../providers/editor_state_provider.dart';
 
-class EditorCanvas extends ConsumerWidget {
+class EditorCanvas extends ConsumerStatefulWidget {
   const EditorCanvas({super.key, required this.theme});
 
   final AppTheme theme;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<EditorCanvas> createState() => _EditorCanvasState();
+}
+
+class _EditorCanvasState extends ConsumerState<EditorCanvas> {
+  bool _isPanning = false;
+  bool _didInitialFit = false;
+  int _lastFitRequest = 0;
+
+  AppTheme get theme => widget.theme;
+
+  // ===========================================================================
+  // Coordinate conversion — screen point → canvas point
+  // ===========================================================================
+
+  Offset _toCanvasPoint(Offset screenLocal) {
+    final zoom = ref.read(zoomLevelProvider);
+    final panOffset = ref.read(canvasOffsetProvider);
+    final size = context.size ?? Size.zero;
+    final meta = ref.read(currentMetaProvider);
+
+    // Stage center in screen space
+    final cx = size.width / 2 + panOffset.dx;
+    final cy = size.height / 2 + panOffset.dy;
+    final stageOriginX = cx - (meta.stageWidth * zoom) / 2;
+    final stageOriginY = cy - (meta.stageHeight * zoom) / 2;
+
+    return Offset(
+      (screenLocal.dx - stageOriginX) / zoom,
+      (screenLocal.dy - stageOriginY) / zoom,
+    );
+  }
+
+  // ===========================================================================
+  // Build
+  // ===========================================================================
+
+  @override
+  Widget build(BuildContext context) {
     final meta = ref.watch(currentMetaProvider);
     final zoom = ref.watch(zoomLevelProvider);
+    final panOffset = ref.watch(canvasOffsetProvider);
+    final fitRequest = ref.watch(fitRequestProvider);
     final scene = ref.watch(activeSceneProvider);
     final selectedShapeId = ref.watch(selectedShapeIdProvider);
     final selectedShape = ref.watch(selectedShapeProvider);
@@ -33,146 +72,297 @@ class EditorCanvas extends ConsumerWidget {
         activeTool == VecTool.text;
     final isPenTool = activeTool == VecTool.pen;
 
-    return Listener(
-      onPointerHover: (event) {
-        ref.read(cursorPositionProvider.notifier).set(event.localPosition);
-      },
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final viewportSize = Size(constraints.maxWidth, constraints.maxHeight);
 
-        // --- Drag for rectangle / ellipse / text tools ---
-        onPanStart: isDrawingTool
-            ? (details) {
-                final local = _toCanvasPoint(details.localPosition, meta, zoom, context);
+        // Auto zoom-to-fit on first layout or on explicit fit request
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _handleViewportChange(viewportSize, meta, fitRequest);
+        });
+
+        // Compute stage position on screen
+        final stageScreenW = meta.stageWidth * zoom;
+        final stageScreenH = meta.stageHeight * zoom;
+        final stageLeft = (viewportSize.width - stageScreenW) / 2 + panOffset.dx;
+        final stageTop = (viewportSize.height - stageScreenH) / 2 + panOffset.dy;
+
+        return Listener(
+          onPointerHover: (event) {
+            ref.read(cursorPositionProvider.notifier).set(event.localPosition);
+          },
+          onPointerSignal: (event) {
+            if (event is PointerScrollEvent) {
+              _handleScrollZoom(event, viewportSize);
+            }
+          },
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+
+            // --- Pan (middle-click drag or space+drag handled via _isPanning) ---
+            onPanStart: (details) {
+              if (_isPanning) return;
+              if (isDrawingTool) {
+                final local = _toCanvasPoint(details.localPosition);
                 ref.read(activeDrawingProvider.notifier).start(local);
               }
-            : null,
-        onPanUpdate: isDrawingTool
-            ? (details) {
-                final local = _toCanvasPoint(details.localPosition, meta, zoom, context);
+            },
+            onPanUpdate: (details) {
+              if (_isPanning) {
+                ref.read(canvasOffsetProvider.notifier).pan(details.delta);
+                return;
+              }
+              if (isDrawingTool) {
+                final local = _toCanvasPoint(details.localPosition);
                 ref.read(activeDrawingProvider.notifier).update(local);
               }
-            : null,
-        onPanEnd: isDrawingTool
-            ? (_) => _finishDragDrawing(ref, activeTool)
-            : null,
-
-        // --- Tap for pen tool (add point) or select tool ---
-        onTapDown: isPenTool
-            ? (details) {
-                final local = _toCanvasPoint(details.localPosition, meta, zoom, context);
-                final pen = ref.read(activePenDrawingProvider);
-                if (pen == null) {
-                  ref.read(activePenDrawingProvider.notifier).start(local);
-                } else {
-                  ref.read(activePenDrawingProvider.notifier).addPoint(local);
-                }
+            },
+            onPanEnd: (details) {
+              if (_isPanning) return;
+              if (isDrawingTool) {
+                _finishDragDrawing(activeTool);
               }
-            : activeTool == VecTool.select
+            },
+
+            // --- Tap for pen tool (add point) or select tool ---
+            onTapDown: isPenTool
                 ? (details) {
-                    // Simple select: hit-test shapes under tap
-                    final local = _toCanvasPoint(details.localPosition, meta, zoom, context);
-                    _hitTestAndSelect(ref, scene, local);
+                    final local = _toCanvasPoint(details.localPosition);
+                    final pen = ref.read(activePenDrawingProvider);
+                    if (pen == null) {
+                      ref.read(activePenDrawingProvider.notifier).start(local);
+                    } else {
+                      ref.read(activePenDrawingProvider.notifier).addPoint(local);
+                    }
                   }
+                : activeTool == VecTool.select
+                    ? (details) {
+                        final local = _toCanvasPoint(details.localPosition);
+                        _hitTestAndSelect(scene, local);
+                      }
+                    : null,
+
+            // --- Double-tap to close pen path ---
+            onDoubleTap: isPenTool
+                ? () => _finishPenDrawing(closed: true)
                 : null,
 
-        // --- Double-tap to close pen path ---
-        onDoubleTap: isPenTool
-            ? () => _finishPenDrawing(ref, closed: true)
-            : null,
-
-        child: MouseRegion(
-          cursor: _cursorForTool(activeTool),
-          child: Container(
-            color: theme.canvasBackground,
-            child: Center(
-              child: Transform.scale(
-                scale: zoom,
-                child: SizedBox(
-                  width: meta.stageWidth,
-                  height: meta.stageHeight,
-                  child: Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      // Checkerboard + bg
-                      Positioned.fill(
-                        child: CustomPaint(
-                          painter: _CheckerboardPainter(
-                            color1: theme.gridBackground,
-                            color2: theme.gridLine.withAlpha(30),
-                          ),
-                          child: ColoredBox(color: meta.backgroundColor.toFlutterColor()),
+            child: MouseRegion(
+              cursor: _isPanning
+                  ? SystemMouseCursors.grab
+                  : _cursorForTool(activeTool),
+              child: SizedBox(
+                width: viewportSize.width,
+                height: viewportSize.height,
+                child: Stack(
+                  clipBehavior: Clip.hardEdge,
+                  children: [
+                    // Background pattern
+                    Positioned.fill(
+                      child: CustomPaint(
+                        painter: _CanvasBackgroundPainter(
+                          bgColor: theme.canvasBackground,
+                          dotColor: theme.gridLine.withAlpha(60),
                         ),
                       ),
+                    ),
 
-                      // Scene shapes
-                      if (scene != null)
-                        Positioned.fill(
-                          child: ClipRect(
-                            child: CustomPaint(
-                              painter: ScenePainter(
-                                scene: scene,
-                                selectedShapeId: selectedShapeId,
-                              ),
+                    // Stage (positioned, clips overflow)
+                    Positioned(
+                      left: stageLeft,
+                      top: stageTop,
+                      width: stageScreenW,
+                      height: stageScreenH,
+                      child: ClipRect(
+                        child: OverflowBox(
+                          alignment: Alignment.topLeft,
+                          maxWidth: meta.stageWidth,
+                          maxHeight: meta.stageHeight,
+                          child: _buildStage(
+                            meta: meta,
+                            zoom: zoom,
+                            scene: scene,
+                            selectedShapeId: selectedShapeId,
+                            selectedShape: selectedShape,
+                            activeTool: activeTool,
+                            drawing: drawing,
+                            penDrawing: penDrawing,
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    // Stage border (drawn on top, not inside transform)
+                    Positioned(
+                      left: stageLeft,
+                      top: stageTop,
+                      width: stageScreenW,
+                      height: stageScreenH,
+                      child: IgnorePointer(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                              color: theme.divider.withAlpha(100),
+                              width: 1,
                             ),
                           ),
                         ),
-
-                      // Drawing preview (live shape being drawn)
-                      if (drawing != null || penDrawing != null)
-                        Positioned.fill(
-                          child: CustomPaint(
-                            painter: DrawingPreviewPainter(
-                              tool: activeTool,
-                              drawing: drawing,
-                              penDrawing: penDrawing,
-                              previewColor: theme.primaryColor,
-                              strokeColor: theme.selectionOutline,
-                            ),
-                          ),
-                        ),
-
-                      // Selection overlay
-                      if (selectedShape != null)
-                        Positioned.fill(
-                          child: CustomPaint(
-                            painter: SelectionOverlayPainter(
-                              shape: selectedShape,
-                              selectionColor: theme.selectionOutline,
-                              handleColor: theme.onPrimary,
-                              zoom: zoom,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
           ),
+        );
+      },
+    );
+  }
+
+  // ===========================================================================
+  // Stage widget
+  // ===========================================================================
+
+  Widget _buildStage({
+    required VecMeta meta,
+    required double zoom,
+    required dynamic scene,
+    required String? selectedShapeId,
+    required dynamic selectedShape,
+    required VecTool activeTool,
+    required dynamic drawing,
+    required dynamic penDrawing,
+  }) {
+    return Transform.scale(
+      scale: zoom,
+      alignment: Alignment.topLeft,
+      child: SizedBox(
+        width: meta.stageWidth,
+        height: meta.stageHeight,
+        child: Stack(
+          clipBehavior: Clip.hardEdge,
+          children: [
+            // Checkerboard + bg
+            Positioned.fill(
+              child: CustomPaint(
+                painter: _CheckerboardPainter(
+                  color1: theme.gridBackground,
+                  color2: theme.gridLine.withAlpha(30),
+                ),
+                child: ColoredBox(color: meta.backgroundColor.toFlutterColor()),
+              ),
+            ),
+
+            // Scene shapes
+            if (scene != null)
+              Positioned.fill(
+                child: ClipRect(
+                  child: CustomPaint(
+                    painter: ScenePainter(
+                      scene: scene,
+                      selectedShapeId: selectedShapeId,
+                    ),
+                  ),
+                ),
+              ),
+
+            // Drawing preview (live shape being drawn)
+            if (drawing != null || penDrawing != null)
+              Positioned.fill(
+                child: CustomPaint(
+                  painter: DrawingPreviewPainter(
+                    tool: activeTool,
+                    drawing: drawing,
+                    penDrawing: penDrawing,
+                    previewColor: theme.primaryColor,
+                    strokeColor: theme.selectionOutline,
+                  ),
+                ),
+              ),
+
+            // Selection overlay
+            if (selectedShape != null)
+              Positioned.fill(
+                child: CustomPaint(
+                  painter: SelectionOverlayPainter(
+                    shape: selectedShape,
+                    selectionColor: theme.selectionOutline,
+                    handleColor: theme.onPrimary,
+                    zoom: zoom,
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );
   }
 
   // ===========================================================================
-  // Coordinate conversion — screen point → canvas point
+  // Viewport change → auto zoom-to-fit
   // ===========================================================================
 
-  Offset _toCanvasPoint(Offset screenLocal, VecMeta meta, double zoom, BuildContext context) {
-    final size = context.size ?? Size.zero;
-    // Center of the canvas widget
-    final cx = size.width / 2;
-    final cy = size.height / 2;
-    // Stage origin on screen
-    final stageOriginX = cx - (meta.stageWidth * zoom) / 2;
-    final stageOriginY = cy - (meta.stageHeight * zoom) / 2;
-    // Convert to canvas coordinates
-    return Offset(
-      (screenLocal.dx - stageOriginX) / zoom,
-      (screenLocal.dy - stageOriginY) / zoom,
-    );
+  void _handleViewportChange(Size viewportSize, VecMeta meta, int fitRequest) {
+    if (viewportSize.width <= 0 || viewportSize.height <= 0) return;
+
+    // Initial fit
+    if (!_didInitialFit) {
+      _didInitialFit = true;
+      _lastFitRequest = fitRequest;
+      _fitToViewport(viewportSize, meta);
+      return;
+    }
+
+    // Explicit zoom-to-fit request (shortcut or button)
+    if (fitRequest != _lastFitRequest) {
+      _lastFitRequest = fitRequest;
+      _fitToViewport(viewportSize, meta);
+    }
   }
+
+  void _fitToViewport(Size viewportSize, VecMeta meta) {
+    ref.read(zoomLevelProvider.notifier).zoomToFit(
+      viewportSize.width,
+      viewportSize.height,
+      meta.stageWidth,
+      meta.stageHeight,
+    );
+    ref.read(canvasOffsetProvider.notifier).reset();
+  }
+
+  // ===========================================================================
+  // Scroll-to-zoom
+  // ===========================================================================
+
+  void _handleScrollZoom(PointerScrollEvent event, Size viewportSize) {
+    final zoomNotifier = ref.read(zoomLevelProvider.notifier);
+    final panNotifier = ref.read(canvasOffsetProvider.notifier);
+    final oldZoom = ref.read(zoomLevelProvider);
+    final panOffset = ref.read(canvasOffsetProvider);
+
+    // Zoom toward pointer position
+    final pointerLocal = event.localPosition;
+
+    // How much to zoom
+    final delta = -event.scrollDelta.dy;
+    final zoomFactor = delta > 0 ? 1.1 : 1 / 1.1;
+    final newZoom = (oldZoom * zoomFactor).clamp(0.01, 64.0);
+    zoomNotifier.set(newZoom);
+
+    // Adjust pan so the point under cursor stays fixed
+    final viewCenter = Offset(viewportSize.width / 2, viewportSize.height / 2);
+    final pointerFromCenter = pointerLocal - viewCenter - panOffset;
+    final scale = newZoom / oldZoom;
+    final newPan = panOffset - pointerFromCenter * (scale - 1);
+    panNotifier.set(newPan);
+  }
+
+  // ===========================================================================
+  // Pan mode (called from ShortcutsWrapper space key)
+  // ===========================================================================
+
+  void startPan() => setState(() => _isPanning = true);
+  void endPan() => setState(() => _isPanning = false);
 
   // ===========================================================================
   // Tool cursors
@@ -198,12 +388,12 @@ class EditorCanvas extends ConsumerWidget {
   // Finish drawing
   // ===========================================================================
 
-  void _finishDragDrawing(WidgetRef ref, VecTool tool) {
+  void _finishDragDrawing(VecTool tool) {
     final drawingState = ref.read(activeDrawingProvider.notifier).finish();
     if (drawingState == null || drawingState.width < 2 || drawingState.height < 2) return;
 
     const handler = DrawingToolHandler();
-    late final shape;
+    late final dynamic shape;
 
     switch (tool) {
       case VecTool.rectangle:
@@ -219,19 +409,19 @@ class EditorCanvas extends ConsumerWidget {
         return;
     }
 
-    _addShapeToActiveLayer(ref, shape);
+    _addShapeToActiveLayer(shape);
   }
 
-  void _finishPenDrawing(WidgetRef ref, {bool closed = false}) {
+  void _finishPenDrawing({bool closed = false}) {
     final penState = ref.read(activePenDrawingProvider.notifier).finish();
     if (penState == null || penState.points.length < 2) return;
 
     const handler = DrawingToolHandler();
     final shape = handler.createPath(penState, closed: closed);
-    _addShapeToActiveLayer(ref, shape);
+    _addShapeToActiveLayer(shape);
   }
 
-  void _addShapeToActiveLayer(WidgetRef ref, dynamic shape) {
+  void _addShapeToActiveLayer(dynamic shape) {
     final scene = ref.read(activeSceneProvider);
     final layerId = ref.read(activeLayerIdProvider);
     if (scene == null || layerId == null) return;
@@ -244,7 +434,7 @@ class EditorCanvas extends ConsumerWidget {
   // Select tool hit testing
   // ===========================================================================
 
-  void _hitTestAndSelect(WidgetRef ref, dynamic scene, Offset canvasPoint) {
+  void _hitTestAndSelect(dynamic scene, Offset canvasPoint) {
     if (scene == null) {
       ref.read(selectedShapeIdProvider.notifier).clear();
       return;
@@ -272,7 +462,37 @@ class EditorCanvas extends ConsumerWidget {
 }
 
 // =============================================================================
-// Checkerboard
+// Canvas background — dot grid
+// =============================================================================
+
+class _CanvasBackgroundPainter extends CustomPainter {
+  _CanvasBackgroundPainter({required this.bgColor, required this.dotColor});
+
+  final Color bgColor;
+  final Color dotColor;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), Paint()..color = bgColor);
+
+    const spacing = 20.0;
+    const dotRadius = 1.0;
+    final dotPaint = Paint()..color = dotColor;
+
+    for (var y = spacing; y < size.height; y += spacing) {
+      for (var x = spacing; x < size.width; x += spacing) {
+        canvas.drawCircle(Offset(x, y), dotRadius, dotPaint);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _CanvasBackgroundPainter old) =>
+      old.bgColor != bgColor || old.dotColor != dotColor;
+}
+
+// =============================================================================
+// Checkerboard (used inside stage for transparent bg)
 // =============================================================================
 
 class _CheckerboardPainter extends CustomPainter {

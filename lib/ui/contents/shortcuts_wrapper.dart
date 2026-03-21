@@ -33,6 +33,9 @@ class ShortcutsWrapper extends StatefulWidget {
     this.onCut,
     this.onDuplicate,
     this.onCtrlEnter,
+    this.onEscape,
+    this.onEnter,
+    this.onToolSwitch,
     this.currentBrushSize = 1,
     this.maxBrushSize = 10,
     this.maxLayers = 10,
@@ -81,6 +84,9 @@ class ShortcutsWrapper extends StatefulWidget {
   final VoidCallback? onCut;
   final VoidCallback? onDuplicate;
   final VoidCallback? onCtrlEnter;
+  final VoidCallback? onEscape;
+  final VoidCallback? onEnter;
+  final void Function(String key)? onToolSwitch;
 
   // State
   final int currentBrushSize;
@@ -170,6 +176,36 @@ class _ShortcutsWrapperState extends State<ShortcutsWrapper> {
       } else if (event is KeyUpEvent && _isSpacePressed) {
         _isSpacePressed = false;
         widget.onPanEnd?.call();
+      }
+    }
+
+    // Handle Escape key
+    if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.escape) {
+      widget.onEscape?.call();
+    }
+
+    // Handle Enter key (without modifiers — Ctrl+Enter is in shortcuts map)
+    if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.enter) {
+      if (!HardwareKeyboard.instance.isControlPressed &&
+          !HardwareKeyboard.instance.isMetaPressed) {
+        widget.onEnter?.call();
+      }
+    }
+
+    // Handle tool switch keys (V, P, R, E, T) — only when no modifier is held
+    if (event is KeyDownEvent &&
+        !HardwareKeyboard.instance.isControlPressed &&
+        !HardwareKeyboard.instance.isMetaPressed &&
+        !HardwareKeyboard.instance.isShiftPressed) {
+      final toolKeys = {
+        LogicalKeyboardKey.keyV,
+        LogicalKeyboardKey.keyP,
+        LogicalKeyboardKey.keyR,
+        LogicalKeyboardKey.keyE,
+        LogicalKeyboardKey.keyT,
+      };
+      if (toolKeys.contains(event.logicalKey)) {
+        widget.onToolSwitch?.call(event.logicalKey.keyLabel);
       }
     }
 

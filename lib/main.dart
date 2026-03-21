@@ -39,11 +39,11 @@ Future<void> initWindowManager() async {
   const windowOptions = WindowOptions(
     size: size,
     center: true,
-    fullScreen: true,
+    fullScreen: false,
     backgroundColor: Color.fromARGB(255, 255, 255, 255),
     skipTaskbar: false,
     titleBarStyle: TitleBarStyle.normal,
-    title: 'Picell',
+    title: 'Vectra',
   );
   windowManager.waitUntilReadyToShow(windowOptions, () async {
     await windowManager.show();

@@ -37,6 +37,16 @@ class VecShapeData with _$VecShapeData {
 class VecShape with _$VecShape {
   const VecShape._();
 
+  // Convenience getters so callers can write `shape.id` instead of `shape.data.id`.
+  String get id => data.id;
+  VecTransform get transform => data.transform;
+  List<VecFill> get fills => data.fills;
+  List<VecStroke> get strokes => data.strokes;
+  double get opacity => data.opacity;
+  VecBlendMode get blendMode => data.blendMode;
+  String? get clipMaskId => data.clipMaskId;
+  String? get name => data.name;
+
   const factory VecShape.path({
     required VecShapeData data,
     required List<VecPathNode> nodes,
@@ -93,14 +103,3 @@ class VecShape with _$VecShape {
       _$VecShapeFromJson(json);
 }
 
-/// Convenience getters so callers can write `shape.id` instead of `shape.data.id`.
-extension VecShapeExt on VecShape {
-  String get id => data.id;
-  VecTransform get transform => data.transform;
-  List<VecFill> get fills => data.fills;
-  List<VecStroke> get strokes => data.strokes;
-  double get opacity => data.opacity;
-  VecBlendMode get blendMode => data.blendMode;
-  String? get clipMaskId => data.clipMaskId;
-  String? get name => data.name;
-}

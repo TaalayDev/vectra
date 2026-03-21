@@ -11,6 +11,7 @@ import '../data/models/vec_symbol.dart';
 import '../data/models/vec_track.dart';
 import '../data/repositories/vec_file_repository.dart';
 import '../data/services/vec_document_service.dart';
+import 'editor_state_provider.dart';
 
 part 'document_provider.g.dart';
 
@@ -32,37 +33,142 @@ final vecDocumentServiceProvider = Provider<VecDocumentService>((ref) {
 });
 
 // ---------------------------------------------------------------------------
-// Document state
+// Document state with undo / redo
 // ---------------------------------------------------------------------------
 
-@riverpod
+@Riverpod(keepAlive: true)
 class VecDocumentState extends _$VecDocumentState {
+  static const _maxHistory = 50;
+
+  final List<VecDocument> _history = [];
+  int _cursor = -1;
+
+  bool get canUndo => _cursor > 0;
+  bool get canRedo => _cursor < _history.length - 1;
+
+  VecDocumentService get _service => ref.read(vecDocumentServiceProvider);
+
   @override
-  VecDocument build() => VecDocument.blank();
+  VecDocument build() {
+    final doc = VecDocument.blank();
+    _history.clear();
+    _history.add(doc);
+    _cursor = 0;
+    return doc;
+  }
 
-  VecDocumentService get _service =>
-      ref.read(vecDocumentServiceProvider);
+  // ===========================================================================
+  // History management
+  // ===========================================================================
 
-  // -- File operations ------------------------------------------------------
+  /// Commits a new document state to history and updates UI availability flags.
+  void _commit(VecDocument newState) {
+    // Drop any redo entries ahead of cursor
+    if (_cursor < _history.length - 1) {
+      _history.removeRange(_cursor + 1, _history.length);
+    }
+    _history.add(newState);
+    if (_history.length > _maxHistory) {
+      _history.removeAt(0);
+    }
+    _cursor = _history.length - 1;
+    state = newState;
+    _service.markDirty();
+    _notifyAvailability();
+  }
+
+  /// Clears history and resets to a fresh state (used on open / new).
+  void _resetHistory(VecDocument doc) {
+    _history.clear();
+    _history.add(doc);
+    _cursor = 0;
+    state = doc;
+    _notifyAvailability();
+  }
+
+  void _notifyAvailability() {
+    ref.read(undoAvailabilityProvider.notifier).update(
+          canUndo: canUndo,
+          canRedo: canRedo,
+        );
+  }
+
+  void undo() {
+    if (!canUndo) return;
+    _cursor--;
+    state = _history[_cursor];
+    _service.markDirty();
+    _notifyAvailability();
+  }
+
+  void redo() {
+    if (!canRedo) return;
+    _cursor++;
+    state = _history[_cursor];
+    _service.markDirty();
+    _notifyAvailability();
+  }
+
+  // ===========================================================================
+  // Private helpers — pure document transformations (no side effects)
+  // ===========================================================================
+
+  VecDocument _withScene(String sceneId, VecScene Function(VecScene) fn) {
+    return state.copyWith(
+      scenes: [
+        for (final s in state.scenes)
+          if (s.id == sceneId) fn(s) else s,
+      ],
+    );
+  }
+
+  VecDocument _withLayer(
+    String sceneId,
+    String layerId,
+    VecLayer Function(VecLayer) fn,
+  ) {
+    return _withScene(sceneId, (scene) {
+      return scene.copyWith(
+        layers: [
+          for (final l in scene.layers)
+            if (l.id == layerId) fn(l) else l,
+        ],
+      );
+    });
+  }
+
+  // ===========================================================================
+  // File operations
+  // ===========================================================================
 
   Future<void> openFile(String filePath) async {
-    state = await _service.openFile(filePath);
+    final doc = await _service.openFile(filePath);
+    _resetHistory(doc);
   }
 
   Future<void> save() async {
     final now = DateTime.now();
-    state = state.copyWith(
+    final saved = state.copyWith(
       meta: state.meta.copyWith(modifiedAt: now),
     );
-    await _service.save(state);
+    state = saved;
+    // Update the history entry at cursor too so undo doesn't undo modifiedAt
+    if (_cursor >= 0 && _cursor < _history.length) {
+      _history[_cursor] = saved;
+    }
+    await _service.save(saved);
   }
 
   Future<void> saveAs(String filePath) async {
     final now = DateTime.now();
-    state = state.copyWith(
+    final saved = state.copyWith(
       meta: state.meta.copyWith(modifiedAt: now),
     );
-    await _service.saveAs(state, filePath);
+    state = saved;
+    if (_cursor >= 0 && _cursor < _history.length) {
+      _history[_cursor] = saved;
+    }
+    await _service.saveAs(saved, filePath);
   }
 
   void newDocument({
@@ -72,52 +178,50 @@ class VecDocumentState extends _$VecDocumentState {
     int fps = 24,
     VecColor backgroundColor = VecColor.white,
   }) {
-    state = _service.createNew(
+    final doc = _service.createNew(
       name: name,
       stageWidth: stageWidth,
       stageHeight: stageHeight,
       fps: fps,
       backgroundColor: backgroundColor,
     );
+    _resetHistory(doc);
   }
 
-  // -- Meta -----------------------------------------------------------------
+  // ===========================================================================
+  // Meta
+  // ===========================================================================
 
   void updateMeta(VecMeta meta) {
-    state = state.copyWith(meta: meta);
-    _service.markDirty();
+    _commit(state.copyWith(meta: meta));
   }
 
-  // -- Scenes ---------------------------------------------------------------
+  // ===========================================================================
+  // Scenes
+  // ===========================================================================
 
   void addScene(VecScene scene) {
-    state = state.copyWith(scenes: [...state.scenes, scene]);
-    _service.markDirty();
+    _commit(state.copyWith(scenes: [...state.scenes, scene]));
   }
 
   void updateScene(String sceneId, VecScene Function(VecScene) updater) {
-    state = state.copyWith(
-      scenes: [
-        for (final s in state.scenes)
-          if (s.id == sceneId) updater(s) else s,
-      ],
-    );
-    _service.markDirty();
+    _commit(_withScene(sceneId, updater));
   }
 
   void removeScene(String sceneId) {
-    state = state.copyWith(
+    _commit(state.copyWith(
       scenes: state.scenes.where((s) => s.id != sceneId).toList(),
-    );
-    _service.markDirty();
+    ));
   }
 
-  // -- Layers (scoped to a scene) -------------------------------------------
+  // ===========================================================================
+  // Layers
+  // ===========================================================================
 
   void addLayer(String sceneId, {String? name}) {
     final layerId = _uuid.v4();
     final trackId = _uuid.v4();
-    updateScene(sceneId, (scene) {
+    _commit(_withScene(sceneId, (scene) {
       return scene.copyWith(
         layers: [
           ...scene.layers,
@@ -134,7 +238,7 @@ class VecDocumentState extends _$VecDocumentState {
           ],
         ),
       );
-    });
+    }));
   }
 
   void updateLayer(
@@ -142,18 +246,11 @@ class VecDocumentState extends _$VecDocumentState {
     String layerId,
     VecLayer Function(VecLayer) updater,
   ) {
-    updateScene(sceneId, (scene) {
-      return scene.copyWith(
-        layers: [
-          for (final l in scene.layers)
-            if (l.id == layerId) updater(l) else l,
-        ],
-      );
-    });
+    _commit(_withLayer(sceneId, layerId, updater));
   }
 
   void removeLayer(String sceneId, String layerId) {
-    updateScene(sceneId, (scene) {
+    _commit(_withScene(sceneId, (scene) {
       return scene.copyWith(
         layers: scene.layers.where((l) => l.id != layerId).toList(),
         timeline: scene.timeline.copyWith(
@@ -162,15 +259,19 @@ class VecDocumentState extends _$VecDocumentState {
               .toList(),
         ),
       );
-    });
+    }));
   }
 
-  // -- Shapes (scoped to a scene + layer) -----------------------------------
+  // ===========================================================================
+  // Shapes
+  // ===========================================================================
 
   void addShape(String sceneId, String layerId, VecShape shape) {
-    updateLayer(sceneId, layerId, (layer) {
-      return layer.copyWith(shapes: [...layer.shapes, shape]);
-    });
+    _commit(_withLayer(
+      sceneId,
+      layerId,
+      (l) => l.copyWith(shapes: [...l.shapes, shape]),
+    ));
   }
 
   void updateShape(
@@ -179,52 +280,55 @@ class VecDocumentState extends _$VecDocumentState {
     String shapeId,
     VecShape Function(VecShape) updater,
   ) {
-    updateLayer(sceneId, layerId, (layer) {
+    _commit(_withLayer(sceneId, layerId, (layer) {
       return layer.copyWith(
         shapes: [
           for (final s in layer.shapes)
             if (s.id == shapeId) updater(s) else s,
         ],
       );
-    });
+    }));
   }
 
   void removeShape(String sceneId, String layerId, String shapeId) {
-    updateLayer(sceneId, layerId, (layer) {
-      return layer.copyWith(
-        shapes: layer.shapes.where((s) => s.id != shapeId).toList(),
-      );
-    });
+    _commit(_withLayer(
+      sceneId,
+      layerId,
+      (l) => l.copyWith(
+        shapes: l.shapes.where((s) => s.id != shapeId).toList(),
+      ),
+    ));
   }
 
-  // -- Symbols --------------------------------------------------------------
+  // ===========================================================================
+  // Symbols
+  // ===========================================================================
 
   void addSymbol(VecSymbol symbol) {
-    state = state.copyWith(symbols: [...state.symbols, symbol]);
-    _service.markDirty();
+    _commit(state.copyWith(symbols: [...state.symbols, symbol]));
   }
 
   void updateSymbol(String symbolId, VecSymbol Function(VecSymbol) updater) {
-    state = state.copyWith(
+    _commit(state.copyWith(
       symbols: [
         for (final s in state.symbols)
           if (s.id == symbolId) updater(s) else s,
       ],
-    );
-    _service.markDirty();
+    ));
   }
 
   void removeSymbol(String symbolId) {
-    state = state.copyWith(
+    _commit(state.copyWith(
       symbols: state.symbols.where((s) => s.id != symbolId).toList(),
-    );
-    _service.markDirty();
+    ));
   }
 
-  // -- Keyframes (scoped to a scene + track) --------------------------------
+  // ===========================================================================
+  // Keyframes
+  // ===========================================================================
 
   void addKeyframe(String sceneId, String trackId, VecKeyframe keyframe) {
-    updateScene(sceneId, (scene) {
+    _commit(_withScene(sceneId, (scene) {
       return scene.copyWith(
         timeline: scene.timeline.copyWith(
           tracks: [
@@ -236,7 +340,7 @@ class VecDocumentState extends _$VecDocumentState {
           ],
         ),
       );
-    });
+    }));
   }
 
   void updateKeyframe(
@@ -245,7 +349,7 @@ class VecDocumentState extends _$VecDocumentState {
     int frame,
     VecKeyframe Function(VecKeyframe) updater,
   ) {
-    updateScene(sceneId, (scene) {
+    _commit(_withScene(sceneId, (scene) {
       return scene.copyWith(
         timeline: scene.timeline.copyWith(
           tracks: [
@@ -262,11 +366,11 @@ class VecDocumentState extends _$VecDocumentState {
           ],
         ),
       );
-    });
+    }));
   }
 
   void removeKeyframe(String sceneId, String trackId, int frame) {
-    updateScene(sceneId, (scene) {
+    _commit(_withScene(sceneId, (scene) {
       return scene.copyWith(
         timeline: scene.timeline.copyWith(
           tracks: [
@@ -281,7 +385,7 @@ class VecDocumentState extends _$VecDocumentState {
           ],
         ),
       );
-    });
+    }));
   }
 }
 

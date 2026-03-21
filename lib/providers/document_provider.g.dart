@@ -57,12 +57,12 @@ final symbolLibraryProvider = AutoDisposeProvider<List<VecSymbol>>.internal(
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef SymbolLibraryRef = AutoDisposeProviderRef<List<VecSymbol>>;
-String _$vecDocumentStateHash() => r'c050677b0954302817950bf6b3b34fbad1a3728a';
+String _$vecDocumentStateHash() => r'3f051c858854cfe15d4a0a8bab5f62f164ca1919';
 
 /// See also [VecDocumentState].
 @ProviderFor(VecDocumentState)
 final vecDocumentStateProvider =
-    AutoDisposeNotifierProvider<VecDocumentState, VecDocument>.internal(
+    NotifierProvider<VecDocumentState, VecDocument>.internal(
       VecDocumentState.new,
       name: r'vecDocumentStateProvider',
       debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
@@ -72,7 +72,7 @@ final vecDocumentStateProvider =
       allTransitiveDependencies: null,
     );
 
-typedef _$VecDocumentState = AutoDisposeNotifier<VecDocument>;
+typedef _$VecDocumentState = Notifier<VecDocument>;
 String _$activeSceneIndexHash() => r'3d2746efc1a6597bcee47a88dcc19e3de42da622';
 
 /// See also [ActiveSceneIndex].

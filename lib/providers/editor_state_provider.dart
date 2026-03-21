@@ -29,8 +29,8 @@ class ActiveTool extends _$ActiveTool {
 
 @riverpod
 class ZoomLevel extends _$ZoomLevel {
-  static const _min = 0.1;
-  static const _max = 32.0;
+  static const _min = 0.01;
+  static const _max = 64.0;
 
   @override
   double build() => 1.0;
@@ -38,8 +38,47 @@ class ZoomLevel extends _$ZoomLevel {
   void set(double value) => state = value.clamp(_min, _max);
   void zoomIn() => state = (state * 1.25).clamp(_min, _max);
   void zoomOut() => state = (state / 1.25).clamp(_min, _max);
-  void zoomFit() => state = 1.0;
   void zoom100() => state = 1.0;
+
+  /// Compute zoom so that stage fits inside the given viewport with padding.
+  void zoomToFit(double viewportWidth, double viewportHeight, double stageWidth, double stageHeight) {
+    if (stageWidth <= 0 || stageHeight <= 0) return;
+    const padding = 48.0;
+    final scaleX = (viewportWidth - padding * 2) / stageWidth;
+    final scaleY = (viewportHeight - padding * 2) / stageHeight;
+    state = scaleX.clamp(_min, _max) < scaleY.clamp(_min, _max)
+        ? scaleX.clamp(_min, _max)
+        : scaleY.clamp(_min, _max);
+  }
+}
+
+/// Undo / redo availability flags — updated by VecDocumentState after every commit.
+@Riverpod(keepAlive: true)
+class UndoAvailability extends _$UndoAvailability {
+  @override
+  ({bool canUndo, bool canRedo}) build() => (canUndo: false, canRedo: false);
+
+  void update({required bool canUndo, required bool canRedo}) =>
+      state = (canUndo: canUndo, canRedo: canRedo);
+}
+
+/// Incremented to request a zoom-to-fit from the canvas.
+@riverpod
+class FitRequest extends _$FitRequest {
+  @override
+  int build() => 0;
+
+  void request() => state++;
+}
+
+@riverpod
+class CanvasOffset extends _$CanvasOffset {
+  @override
+  Offset build() => Offset.zero;
+
+  void set(Offset value) => state = value;
+  void pan(Offset delta) => state = state + delta;
+  void reset() => state = Offset.zero;
 }
 
 @riverpod
