@@ -6,6 +6,8 @@ import '../data/models/vec_color.dart';
 import '../data/models/vec_document.dart';
 import '../data/models/vec_keyframe.dart';
 import '../data/models/vec_layer.dart';
+import '../data/models/vec_motion_path.dart';
+import '../data/models/vec_path_node.dart';
 import '../data/models/vec_scene.dart';
 import '../data/models/vec_shape.dart';
 import '../data/models/vec_symbol.dart';
@@ -655,6 +657,111 @@ class VecDocumentState extends _$VecDocumentState {
     }));
   }
 
+  // ===========================================================================
+  // Shape-level keyframes (Phase 4)
+  // ===========================================================================
+
+  /// Adds or replaces a keyframe for [shapeId] at [keyframe.frame].
+  /// Automatically creates a shape-level [VecTrack] if one doesn't exist yet.
+  void addKeyframeForShape(
+    String sceneId,
+    String layerId,
+    String shapeId,
+    VecKeyframe keyframe,
+  ) {
+    _commit(_withScene(sceneId, (scene) {
+      final existing = scene.timeline.tracks.where(
+        (t) => t.layerId == layerId && t.shapeId == shapeId,
+      ).firstOrNull;
+
+      late final List<VecTrack> newTracks;
+
+      if (existing != null) {
+        newTracks = [
+          for (final t in scene.timeline.tracks)
+            if (t.id == existing.id)
+              t.copyWith(
+                keyframes: [
+                  for (final k in t.keyframes)
+                    if (k.frame != keyframe.frame) k,
+                  keyframe,
+                ]..sort((a, b) => a.frame.compareTo(b.frame)),
+              )
+            else
+              t,
+        ];
+      } else {
+        newTracks = [
+          ...scene.timeline.tracks,
+          VecTrack(
+            id: _uuid.v4(),
+            layerId: layerId,
+            shapeId: shapeId,
+            keyframes: [keyframe],
+          ),
+        ];
+      }
+
+      return scene.copyWith(
+        timeline: scene.timeline.copyWith(tracks: newTracks),
+      );
+    }));
+  }
+
+  /// Removes the keyframe at [frame] from [shapeId]'s track (if any).
+  /// Applies [updater] to the keyframe at [frame] on [shapeId]'s track.
+  /// No-op if the track or keyframe doesn't exist.
+  void updateKeyframeForShape(
+    String sceneId,
+    String layerId,
+    String shapeId,
+    int frame,
+    VecKeyframe Function(VecKeyframe) updater,
+  ) {
+    _commit(_withScene(sceneId, (scene) {
+      return scene.copyWith(
+        timeline: scene.timeline.copyWith(
+          tracks: [
+            for (final t in scene.timeline.tracks)
+              if (t.layerId == layerId && t.shapeId == shapeId)
+                t.copyWith(
+                  keyframes: [
+                    for (final k in t.keyframes)
+                      if (k.frame == frame) updater(k) else k,
+                  ],
+                )
+              else
+                t,
+          ],
+        ),
+      );
+    }));
+  }
+
+  void removeKeyframeForShape(
+    String sceneId,
+    String layerId,
+    String shapeId,
+    int frame,
+  ) {
+    _commit(_withScene(sceneId, (scene) {
+      return scene.copyWith(
+        timeline: scene.timeline.copyWith(
+          tracks: [
+            for (final t in scene.timeline.tracks)
+              if (t.layerId == layerId && t.shapeId == shapeId)
+                t.copyWith(
+                  keyframes:
+                      t.keyframes.where((k) => k.frame != frame).toList(),
+                )
+              else
+                t,
+          ],
+        ),
+      );
+    }));
+  }
+
   void removeKeyframe(String sceneId, String trackId, int frame) {
     _commit(_withScene(sceneId, (scene) {
       return scene.copyWith(
@@ -672,6 +779,69 @@ class VecDocumentState extends _$VecDocumentState {
         ),
       );
     }));
+  }
+
+  // ===========================================================================
+  // Motion paths (Phase 4.3)
+  // ===========================================================================
+
+  /// Adds (or replaces) the motion path for [motionPath.shapeId] in [sceneId].
+  void addMotionPath(String sceneId, VecMotionPath motionPath) {
+    _commit(_withScene(sceneId, (scene) {
+      // Replace existing path for same shape, otherwise append.
+      final existing = scene.motionPaths.any((p) => p.shapeId == motionPath.shapeId);
+      return scene.copyWith(
+        motionPaths: existing
+            ? [
+                for (final p in scene.motionPaths)
+                  if (p.shapeId == motionPath.shapeId) motionPath else p,
+              ]
+            : [...scene.motionPaths, motionPath],
+      );
+    }));
+  }
+
+  void removeMotionPath(String sceneId, String motionPathId) {
+    _commit(_withScene(sceneId, (scene) {
+      return scene.copyWith(
+        motionPaths:
+            scene.motionPaths.where((p) => p.id != motionPathId).toList(),
+      );
+    }));
+  }
+
+  void updateMotionPath(
+    String sceneId,
+    String motionPathId,
+    VecMotionPath Function(VecMotionPath) updater,
+  ) {
+    _commit(_withScene(sceneId, (scene) {
+      return scene.copyWith(
+        motionPaths: [
+          for (final p in scene.motionPaths)
+            if (p.id == motionPathId) updater(p) else p,
+        ],
+      );
+    }));
+  }
+
+  /// Updates the nodes of a motion path without adding to undo history.
+  /// Use during live drag; call [commitCurrentState] on drag end.
+  void updateMotionPathNodesNoHistory(
+    String sceneId,
+    String motionPathId,
+    List<VecPathNode> nodes,
+  ) {
+    final newDoc = _withScene(sceneId, (scene) {
+      return scene.copyWith(
+        motionPaths: [
+          for (final p in scene.motionPaths)
+            if (p.id == motionPathId) p.copyWith(nodes: nodes) else p,
+        ],
+      );
+    });
+    state = newDoc;
+    _service.markDirty();
   }
 }
 

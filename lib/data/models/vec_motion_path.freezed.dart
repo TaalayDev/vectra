@@ -21,8 +21,10 @@ VecMotionPath _$VecMotionPathFromJson(Map<String, dynamic> json) {
 
 /// @nodoc
 mixin _$VecMotionPath {
-  String get guideLayerId => throw _privateConstructorUsedError;
-  String get attachedLayerId => throw _privateConstructorUsedError;
+  String get id => throw _privateConstructorUsedError;
+  String get shapeId => throw _privateConstructorUsedError;
+  List<VecPathNode> get nodes => throw _privateConstructorUsedError;
+  bool get isClosed => throw _privateConstructorUsedError;
   bool get orientToPath => throw _privateConstructorUsedError;
   bool get easeAlongPath => throw _privateConstructorUsedError;
 
@@ -44,8 +46,10 @@ abstract class $VecMotionPathCopyWith<$Res> {
   ) = _$VecMotionPathCopyWithImpl<$Res, VecMotionPath>;
   @useResult
   $Res call({
-    String guideLayerId,
-    String attachedLayerId,
+    String id,
+    String shapeId,
+    List<VecPathNode> nodes,
+    bool isClosed,
     bool orientToPath,
     bool easeAlongPath,
   });
@@ -66,21 +70,31 @@ class _$VecMotionPathCopyWithImpl<$Res, $Val extends VecMotionPath>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
-    Object? guideLayerId = null,
-    Object? attachedLayerId = null,
+    Object? id = null,
+    Object? shapeId = null,
+    Object? nodes = null,
+    Object? isClosed = null,
     Object? orientToPath = null,
     Object? easeAlongPath = null,
   }) {
     return _then(
       _value.copyWith(
-            guideLayerId: null == guideLayerId
-                ? _value.guideLayerId
-                : guideLayerId // ignore: cast_nullable_to_non_nullable
+            id: null == id
+                ? _value.id
+                : id // ignore: cast_nullable_to_non_nullable
                       as String,
-            attachedLayerId: null == attachedLayerId
-                ? _value.attachedLayerId
-                : attachedLayerId // ignore: cast_nullable_to_non_nullable
+            shapeId: null == shapeId
+                ? _value.shapeId
+                : shapeId // ignore: cast_nullable_to_non_nullable
                       as String,
+            nodes: null == nodes
+                ? _value.nodes
+                : nodes // ignore: cast_nullable_to_non_nullable
+                      as List<VecPathNode>,
+            isClosed: null == isClosed
+                ? _value.isClosed
+                : isClosed // ignore: cast_nullable_to_non_nullable
+                      as bool,
             orientToPath: null == orientToPath
                 ? _value.orientToPath
                 : orientToPath // ignore: cast_nullable_to_non_nullable
@@ -105,8 +119,10 @@ abstract class _$$VecMotionPathImplCopyWith<$Res>
   @override
   @useResult
   $Res call({
-    String guideLayerId,
-    String attachedLayerId,
+    String id,
+    String shapeId,
+    List<VecPathNode> nodes,
+    bool isClosed,
     bool orientToPath,
     bool easeAlongPath,
   });
@@ -126,21 +142,31 @@ class __$$VecMotionPathImplCopyWithImpl<$Res>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
-    Object? guideLayerId = null,
-    Object? attachedLayerId = null,
+    Object? id = null,
+    Object? shapeId = null,
+    Object? nodes = null,
+    Object? isClosed = null,
     Object? orientToPath = null,
     Object? easeAlongPath = null,
   }) {
     return _then(
       _$VecMotionPathImpl(
-        guideLayerId: null == guideLayerId
-            ? _value.guideLayerId
-            : guideLayerId // ignore: cast_nullable_to_non_nullable
+        id: null == id
+            ? _value.id
+            : id // ignore: cast_nullable_to_non_nullable
                   as String,
-        attachedLayerId: null == attachedLayerId
-            ? _value.attachedLayerId
-            : attachedLayerId // ignore: cast_nullable_to_non_nullable
+        shapeId: null == shapeId
+            ? _value.shapeId
+            : shapeId // ignore: cast_nullable_to_non_nullable
                   as String,
+        nodes: null == nodes
+            ? _value._nodes
+            : nodes // ignore: cast_nullable_to_non_nullable
+                  as List<VecPathNode>,
+        isClosed: null == isClosed
+            ? _value.isClosed
+            : isClosed // ignore: cast_nullable_to_non_nullable
+                  as bool,
         orientToPath: null == orientToPath
             ? _value.orientToPath
             : orientToPath // ignore: cast_nullable_to_non_nullable
@@ -158,19 +184,33 @@ class __$$VecMotionPathImplCopyWithImpl<$Res>
 @JsonSerializable()
 class _$VecMotionPathImpl implements _VecMotionPath {
   const _$VecMotionPathImpl({
-    required this.guideLayerId,
-    required this.attachedLayerId,
+    required this.id,
+    required this.shapeId,
+    final List<VecPathNode> nodes = const [],
+    this.isClosed = false,
     this.orientToPath = false,
     this.easeAlongPath = false,
-  });
+  }) : _nodes = nodes;
 
   factory _$VecMotionPathImpl.fromJson(Map<String, dynamic> json) =>
       _$$VecMotionPathImplFromJson(json);
 
   @override
-  final String guideLayerId;
+  final String id;
   @override
-  final String attachedLayerId;
+  final String shapeId;
+  final List<VecPathNode> _nodes;
+  @override
+  @JsonKey()
+  List<VecPathNode> get nodes {
+    if (_nodes is EqualUnmodifiableListView) return _nodes;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_nodes);
+  }
+
+  @override
+  @JsonKey()
+  final bool isClosed;
   @override
   @JsonKey()
   final bool orientToPath;
@@ -180,7 +220,7 @@ class _$VecMotionPathImpl implements _VecMotionPath {
 
   @override
   String toString() {
-    return 'VecMotionPath(guideLayerId: $guideLayerId, attachedLayerId: $attachedLayerId, orientToPath: $orientToPath, easeAlongPath: $easeAlongPath)';
+    return 'VecMotionPath(id: $id, shapeId: $shapeId, nodes: $nodes, isClosed: $isClosed, orientToPath: $orientToPath, easeAlongPath: $easeAlongPath)';
   }
 
   @override
@@ -188,10 +228,11 @@ class _$VecMotionPathImpl implements _VecMotionPath {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
             other is _$VecMotionPathImpl &&
-            (identical(other.guideLayerId, guideLayerId) ||
-                other.guideLayerId == guideLayerId) &&
-            (identical(other.attachedLayerId, attachedLayerId) ||
-                other.attachedLayerId == attachedLayerId) &&
+            (identical(other.id, id) || other.id == id) &&
+            (identical(other.shapeId, shapeId) || other.shapeId == shapeId) &&
+            const DeepCollectionEquality().equals(other._nodes, _nodes) &&
+            (identical(other.isClosed, isClosed) ||
+                other.isClosed == isClosed) &&
             (identical(other.orientToPath, orientToPath) ||
                 other.orientToPath == orientToPath) &&
             (identical(other.easeAlongPath, easeAlongPath) ||
@@ -202,8 +243,10 @@ class _$VecMotionPathImpl implements _VecMotionPath {
   @override
   int get hashCode => Object.hash(
     runtimeType,
-    guideLayerId,
-    attachedLayerId,
+    id,
+    shapeId,
+    const DeepCollectionEquality().hash(_nodes),
+    isClosed,
     orientToPath,
     easeAlongPath,
   );
@@ -224,8 +267,10 @@ class _$VecMotionPathImpl implements _VecMotionPath {
 
 abstract class _VecMotionPath implements VecMotionPath {
   const factory _VecMotionPath({
-    required final String guideLayerId,
-    required final String attachedLayerId,
+    required final String id,
+    required final String shapeId,
+    final List<VecPathNode> nodes,
+    final bool isClosed,
     final bool orientToPath,
     final bool easeAlongPath,
   }) = _$VecMotionPathImpl;
@@ -234,9 +279,13 @@ abstract class _VecMotionPath implements VecMotionPath {
       _$VecMotionPathImpl.fromJson;
 
   @override
-  String get guideLayerId;
+  String get id;
   @override
-  String get attachedLayerId;
+  String get shapeId;
+  @override
+  List<VecPathNode> get nodes;
+  @override
+  bool get isClosed;
   @override
   bool get orientToPath;
   @override

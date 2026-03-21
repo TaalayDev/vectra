@@ -10,6 +10,8 @@ class VecTrack with _$VecTrack {
   const factory VecTrack({
     required String id,
     required String layerId,
+    /// Null = layer-wide track. Non-null = shape-level track for this shapeId.
+    String? shapeId,
     @Default([]) List<VecKeyframe> keyframes,
   }) = _VecTrack;
 

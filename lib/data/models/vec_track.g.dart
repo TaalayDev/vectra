@@ -10,6 +10,7 @@ _$VecTrackImpl _$$VecTrackImplFromJson(Map<String, dynamic> json) =>
     _$VecTrackImpl(
       id: json['id'] as String,
       layerId: json['layerId'] as String,
+      shapeId: json['shapeId'] as String?,
       keyframes:
           (json['keyframes'] as List<dynamic>?)
               ?.map((e) => VecKeyframe.fromJson(e as Map<String, dynamic>))
@@ -21,5 +22,6 @@ Map<String, dynamic> _$$VecTrackImplToJson(_$VecTrackImpl instance) =>
     <String, dynamic>{
       'id': instance.id,
       'layerId': instance.layerId,
+      'shapeId': instance.shapeId,
       'keyframes': instance.keyframes,
     };

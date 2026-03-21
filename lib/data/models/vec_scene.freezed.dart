@@ -25,6 +25,7 @@ mixin _$VecScene {
   String get name => throw _privateConstructorUsedError;
   List<VecLayer> get layers => throw _privateConstructorUsedError;
   VecTimeline get timeline => throw _privateConstructorUsedError;
+  List<VecMotionPath> get motionPaths => throw _privateConstructorUsedError;
 
   /// Serializes this VecScene to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -46,6 +47,7 @@ abstract class $VecSceneCopyWith<$Res> {
     String name,
     List<VecLayer> layers,
     VecTimeline timeline,
+    List<VecMotionPath> motionPaths,
   });
 
   $VecTimelineCopyWith<$Res> get timeline;
@@ -70,6 +72,7 @@ class _$VecSceneCopyWithImpl<$Res, $Val extends VecScene>
     Object? name = null,
     Object? layers = null,
     Object? timeline = null,
+    Object? motionPaths = null,
   }) {
     return _then(
       _value.copyWith(
@@ -89,6 +92,10 @@ class _$VecSceneCopyWithImpl<$Res, $Val extends VecScene>
                 ? _value.timeline
                 : timeline // ignore: cast_nullable_to_non_nullable
                       as VecTimeline,
+            motionPaths: null == motionPaths
+                ? _value.motionPaths
+                : motionPaths // ignore: cast_nullable_to_non_nullable
+                      as List<VecMotionPath>,
           )
           as $Val,
     );
@@ -119,6 +126,7 @@ abstract class _$$VecSceneImplCopyWith<$Res>
     String name,
     List<VecLayer> layers,
     VecTimeline timeline,
+    List<VecMotionPath> motionPaths,
   });
 
   @override
@@ -143,6 +151,7 @@ class __$$VecSceneImplCopyWithImpl<$Res>
     Object? name = null,
     Object? layers = null,
     Object? timeline = null,
+    Object? motionPaths = null,
   }) {
     return _then(
       _$VecSceneImpl(
@@ -162,6 +171,10 @@ class __$$VecSceneImplCopyWithImpl<$Res>
             ? _value.timeline
             : timeline // ignore: cast_nullable_to_non_nullable
                   as VecTimeline,
+        motionPaths: null == motionPaths
+            ? _value._motionPaths
+            : motionPaths // ignore: cast_nullable_to_non_nullable
+                  as List<VecMotionPath>,
       ),
     );
   }
@@ -175,7 +188,9 @@ class _$VecSceneImpl implements _VecScene {
     required this.name,
     required final List<VecLayer> layers,
     required this.timeline,
-  }) : _layers = layers;
+    final List<VecMotionPath> motionPaths = const [],
+  }) : _layers = layers,
+       _motionPaths = motionPaths;
 
   factory _$VecSceneImpl.fromJson(Map<String, dynamic> json) =>
       _$$VecSceneImplFromJson(json);
@@ -194,10 +209,18 @@ class _$VecSceneImpl implements _VecScene {
 
   @override
   final VecTimeline timeline;
+  final List<VecMotionPath> _motionPaths;
+  @override
+  @JsonKey()
+  List<VecMotionPath> get motionPaths {
+    if (_motionPaths is EqualUnmodifiableListView) return _motionPaths;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_motionPaths);
+  }
 
   @override
   String toString() {
-    return 'VecScene(id: $id, name: $name, layers: $layers, timeline: $timeline)';
+    return 'VecScene(id: $id, name: $name, layers: $layers, timeline: $timeline, motionPaths: $motionPaths)';
   }
 
   @override
@@ -209,7 +232,11 @@ class _$VecSceneImpl implements _VecScene {
             (identical(other.name, name) || other.name == name) &&
             const DeepCollectionEquality().equals(other._layers, _layers) &&
             (identical(other.timeline, timeline) ||
-                other.timeline == timeline));
+                other.timeline == timeline) &&
+            const DeepCollectionEquality().equals(
+              other._motionPaths,
+              _motionPaths,
+            ));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -220,6 +247,7 @@ class _$VecSceneImpl implements _VecScene {
     name,
     const DeepCollectionEquality().hash(_layers),
     timeline,
+    const DeepCollectionEquality().hash(_motionPaths),
   );
 
   /// Create a copy of VecScene
@@ -242,6 +270,7 @@ abstract class _VecScene implements VecScene {
     required final String name,
     required final List<VecLayer> layers,
     required final VecTimeline timeline,
+    final List<VecMotionPath> motionPaths,
   }) = _$VecSceneImpl;
 
   factory _VecScene.fromJson(Map<String, dynamic> json) =
@@ -255,6 +284,8 @@ abstract class _VecScene implements VecScene {
   List<VecLayer> get layers;
   @override
   VecTimeline get timeline;
+  @override
+  List<VecMotionPath> get motionPaths;
 
   /// Create a copy of VecScene
   /// with the given fields replaced by the non-null parameter values.

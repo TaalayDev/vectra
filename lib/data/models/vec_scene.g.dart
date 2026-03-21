@@ -14,6 +14,11 @@ _$VecSceneImpl _$$VecSceneImplFromJson(Map<String, dynamic> json) =>
           .map((e) => VecLayer.fromJson(e as Map<String, dynamic>))
           .toList(),
       timeline: VecTimeline.fromJson(json['timeline'] as Map<String, dynamic>),
+      motionPaths:
+          (json['motionPaths'] as List<dynamic>?)
+              ?.map((e) => VecMotionPath.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          const [],
     );
 
 Map<String, dynamic> _$$VecSceneImplToJson(_$VecSceneImpl instance) =>
@@ -22,4 +27,5 @@ Map<String, dynamic> _$$VecSceneImplToJson(_$VecSceneImpl instance) =>
       'name': instance.name,
       'layers': instance.layers,
       'timeline': instance.timeline,
+      'motionPaths': instance.motionPaths,
     };

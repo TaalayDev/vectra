@@ -15,6 +15,18 @@ _$VecKeyframeImpl _$$VecKeyframeImplFromJson(Map<String, dynamic> json) =>
       tweenType:
           $enumDecodeNullable(_$VecTweenTypeEnumMap, json['tweenType']) ??
           VecTweenType.none,
+      transform: json['transform'] == null
+          ? null
+          : VecTransform.fromJson(json['transform'] as Map<String, dynamic>),
+      fills: (json['fills'] as List<dynamic>?)
+          ?.map((e) => VecFill.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      strokes: (json['strokes'] as List<dynamic>?)
+          ?.map((e) => VecStroke.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      easing: json['easing'] == null
+          ? null
+          : VecEasing.fromJson(json['easing'] as Map<String, dynamic>),
       position: json['position'] == null
           ? null
           : VecPoint.fromJson(json['position'] as Map<String, dynamic>),
@@ -67,6 +79,10 @@ Map<String, dynamic> _$$VecKeyframeImplToJson(_$VecKeyframeImpl instance) =>
       'frame': instance.frame,
       'type': _$VecKeyframeTypeEnumMap[instance.type]!,
       'tweenType': _$VecTweenTypeEnumMap[instance.tweenType]!,
+      'transform': instance.transform,
+      'fills': instance.fills,
+      'strokes': instance.strokes,
+      'easing': instance.easing,
       'position': instance.position,
       'scale': instance.scale,
       'rotation': instance.rotation,

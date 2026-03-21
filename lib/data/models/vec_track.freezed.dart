@@ -23,6 +23,9 @@ VecTrack _$VecTrackFromJson(Map<String, dynamic> json) {
 mixin _$VecTrack {
   String get id => throw _privateConstructorUsedError;
   String get layerId => throw _privateConstructorUsedError;
+
+  /// Null = layer-wide track. Non-null = shape-level track for this shapeId.
+  String? get shapeId => throw _privateConstructorUsedError;
   List<VecKeyframe> get keyframes => throw _privateConstructorUsedError;
 
   /// Serializes this VecTrack to a JSON map.
@@ -40,7 +43,12 @@ abstract class $VecTrackCopyWith<$Res> {
   factory $VecTrackCopyWith(VecTrack value, $Res Function(VecTrack) then) =
       _$VecTrackCopyWithImpl<$Res, VecTrack>;
   @useResult
-  $Res call({String id, String layerId, List<VecKeyframe> keyframes});
+  $Res call({
+    String id,
+    String layerId,
+    String? shapeId,
+    List<VecKeyframe> keyframes,
+  });
 }
 
 /// @nodoc
@@ -60,6 +68,7 @@ class _$VecTrackCopyWithImpl<$Res, $Val extends VecTrack>
   $Res call({
     Object? id = null,
     Object? layerId = null,
+    Object? shapeId = freezed,
     Object? keyframes = null,
   }) {
     return _then(
@@ -72,6 +81,10 @@ class _$VecTrackCopyWithImpl<$Res, $Val extends VecTrack>
                 ? _value.layerId
                 : layerId // ignore: cast_nullable_to_non_nullable
                       as String,
+            shapeId: freezed == shapeId
+                ? _value.shapeId
+                : shapeId // ignore: cast_nullable_to_non_nullable
+                      as String?,
             keyframes: null == keyframes
                 ? _value.keyframes
                 : keyframes // ignore: cast_nullable_to_non_nullable
@@ -91,7 +104,12 @@ abstract class _$$VecTrackImplCopyWith<$Res>
   ) = __$$VecTrackImplCopyWithImpl<$Res>;
   @override
   @useResult
-  $Res call({String id, String layerId, List<VecKeyframe> keyframes});
+  $Res call({
+    String id,
+    String layerId,
+    String? shapeId,
+    List<VecKeyframe> keyframes,
+  });
 }
 
 /// @nodoc
@@ -110,6 +128,7 @@ class __$$VecTrackImplCopyWithImpl<$Res>
   $Res call({
     Object? id = null,
     Object? layerId = null,
+    Object? shapeId = freezed,
     Object? keyframes = null,
   }) {
     return _then(
@@ -122,6 +141,10 @@ class __$$VecTrackImplCopyWithImpl<$Res>
             ? _value.layerId
             : layerId // ignore: cast_nullable_to_non_nullable
                   as String,
+        shapeId: freezed == shapeId
+            ? _value.shapeId
+            : shapeId // ignore: cast_nullable_to_non_nullable
+                  as String?,
         keyframes: null == keyframes
             ? _value._keyframes
             : keyframes // ignore: cast_nullable_to_non_nullable
@@ -137,6 +160,7 @@ class _$VecTrackImpl implements _VecTrack {
   const _$VecTrackImpl({
     required this.id,
     required this.layerId,
+    this.shapeId,
     final List<VecKeyframe> keyframes = const [],
   }) : _keyframes = keyframes;
 
@@ -147,6 +171,10 @@ class _$VecTrackImpl implements _VecTrack {
   final String id;
   @override
   final String layerId;
+
+  /// Null = layer-wide track. Non-null = shape-level track for this shapeId.
+  @override
+  final String? shapeId;
   final List<VecKeyframe> _keyframes;
   @override
   @JsonKey()
@@ -158,7 +186,7 @@ class _$VecTrackImpl implements _VecTrack {
 
   @override
   String toString() {
-    return 'VecTrack(id: $id, layerId: $layerId, keyframes: $keyframes)';
+    return 'VecTrack(id: $id, layerId: $layerId, shapeId: $shapeId, keyframes: $keyframes)';
   }
 
   @override
@@ -168,6 +196,7 @@ class _$VecTrackImpl implements _VecTrack {
             other is _$VecTrackImpl &&
             (identical(other.id, id) || other.id == id) &&
             (identical(other.layerId, layerId) || other.layerId == layerId) &&
+            (identical(other.shapeId, shapeId) || other.shapeId == shapeId) &&
             const DeepCollectionEquality().equals(
               other._keyframes,
               _keyframes,
@@ -180,6 +209,7 @@ class _$VecTrackImpl implements _VecTrack {
     runtimeType,
     id,
     layerId,
+    shapeId,
     const DeepCollectionEquality().hash(_keyframes),
   );
 
@@ -201,6 +231,7 @@ abstract class _VecTrack implements VecTrack {
   const factory _VecTrack({
     required final String id,
     required final String layerId,
+    final String? shapeId,
     final List<VecKeyframe> keyframes,
   }) = _$VecTrackImpl;
 
@@ -211,6 +242,10 @@ abstract class _VecTrack implements VecTrack {
   String get id;
   @override
   String get layerId;
+
+  /// Null = layer-wide track. Non-null = shape-level track for this shapeId.
+  @override
+  String? get shapeId;
   @override
   List<VecKeyframe> get keyframes;
 

@@ -1,55 +1,100 @@
 import 'package:flutter/material.dart';
 
 import '../../../app/theme/theme.dart';
-import '../../../data/models/vec_layer.dart';
-import '../../../data/models/vec_track.dart';
+import 'frame_grid.dart';
 
 class TrackLabelColumn extends StatelessWidget {
   const TrackLabelColumn({
     super.key,
-    required this.tracks,
-    required this.layers,
+    required this.rows,
     required this.theme,
     this.scrollController,
   });
 
-  final List<VecTrack> tracks;
-  final List<VecLayer> layers;
+  final List<TrackRow> rows;
   final AppTheme theme;
   final ScrollController? scrollController;
 
   @override
   Widget build(BuildContext context) {
+    // Ruler header (same height as FrameGrid ruler)
     return SizedBox(
-      width: 240,
-      child: ListView.builder(
-        controller: scrollController,
-        padding: EdgeInsets.zero,
-        itemCount: tracks.length,
-        itemBuilder: (_, index) {
-          final track = tracks[index];
-          final layer = layers.where((l) => l.id == track.layerId).firstOrNull;
-          final name = layer?.name ?? 'Track ${index + 1}';
-
-          return Container(
-            height: 24,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
+      width: 200,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Ruler height spacer
+          Container(
+            height: FrameGrid.rulerHeight,
             decoration: BoxDecoration(
+              color: theme.surfaceVariant.withAlpha(80),
               border: Border(
-                bottom: BorderSide(color: theme.divider.withAlpha(40), width: 0.5),
+                bottom: BorderSide(color: theme.divider.withAlpha(60), width: 0.5),
               ),
             ),
             alignment: Alignment.centerLeft,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
             child: Text(
-              name,
+              'Layer / Shape',
               style: TextStyle(
-                fontSize: 10,
-                color: theme.textSecondary,
+                fontSize: 9,
+                fontWeight: FontWeight.w600,
+                color: theme.textDisabled,
+                letterSpacing: 0.5,
               ),
-              overflow: TextOverflow.ellipsis,
             ),
-          );
-        },
+          ),
+          // Shape rows
+          Expanded(
+            child: rows.isEmpty
+                ? Center(
+                    child: Text(
+                      'No shapes',
+                      style: TextStyle(fontSize: 10, color: theme.textDisabled),
+                    ),
+                  )
+                : ListView.builder(
+                    controller: scrollController,
+                    padding: EdgeInsets.zero,
+                    itemCount: rows.length,
+                    itemBuilder: (_, i) {
+                      final row = rows[i];
+                      return Container(
+                        height: FrameGrid.trackHeight,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        decoration: BoxDecoration(
+                          border: Border(
+                            bottom: BorderSide(
+                              color: theme.divider.withAlpha(40),
+                              width: 0.5,
+                            ),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              row.icon,
+                              size: 10,
+                              color: theme.textDisabled,
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                row.name,
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: theme.textSecondary,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ],
       ),
     );
   }

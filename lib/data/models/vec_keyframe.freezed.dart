@@ -24,6 +24,12 @@ mixin _$VecKeyframe {
   int get frame => throw _privateConstructorUsedError;
   VecKeyframeType get type => throw _privateConstructorUsedError;
   VecTweenType get tweenType =>
+      throw _privateConstructorUsedError; // Full-snapshot values (set when adding a keyframe in the timeline)
+  VecTransform? get transform => throw _privateConstructorUsedError;
+  List<VecFill>? get fills => throw _privateConstructorUsedError;
+  List<VecStroke>? get strokes =>
+      throw _privateConstructorUsedError; // General easing applied to all snapshot properties (transform/opacity/fills/strokes)
+  VecEasing? get easing =>
       throw _privateConstructorUsedError; // Per-property values (null = not keyed at this frame)
   VecPoint? get position => throw _privateConstructorUsedError;
   VecPoint? get scale => throw _privateConstructorUsedError;
@@ -64,6 +70,10 @@ abstract class $VecKeyframeCopyWith<$Res> {
     int frame,
     VecKeyframeType type,
     VecTweenType tweenType,
+    VecTransform? transform,
+    List<VecFill>? fills,
+    List<VecStroke>? strokes,
+    VecEasing? easing,
     VecPoint? position,
     VecPoint? scale,
     double? rotation,
@@ -81,6 +91,8 @@ abstract class $VecKeyframeCopyWith<$Res> {
     List<VecShapeHint> shapeHints,
   });
 
+  $VecTransformCopyWith<$Res>? get transform;
+  $VecEasingCopyWith<$Res>? get easing;
   $VecPointCopyWith<$Res>? get position;
   $VecPointCopyWith<$Res>? get scale;
   $VecColorCopyWith<$Res>? get fillColor;
@@ -112,6 +124,10 @@ class _$VecKeyframeCopyWithImpl<$Res, $Val extends VecKeyframe>
     Object? frame = null,
     Object? type = null,
     Object? tweenType = null,
+    Object? transform = freezed,
+    Object? fills = freezed,
+    Object? strokes = freezed,
+    Object? easing = freezed,
     Object? position = freezed,
     Object? scale = freezed,
     Object? rotation = freezed,
@@ -142,6 +158,22 @@ class _$VecKeyframeCopyWithImpl<$Res, $Val extends VecKeyframe>
                 ? _value.tweenType
                 : tweenType // ignore: cast_nullable_to_non_nullable
                       as VecTweenType,
+            transform: freezed == transform
+                ? _value.transform
+                : transform // ignore: cast_nullable_to_non_nullable
+                      as VecTransform?,
+            fills: freezed == fills
+                ? _value.fills
+                : fills // ignore: cast_nullable_to_non_nullable
+                      as List<VecFill>?,
+            strokes: freezed == strokes
+                ? _value.strokes
+                : strokes // ignore: cast_nullable_to_non_nullable
+                      as List<VecStroke>?,
+            easing: freezed == easing
+                ? _value.easing
+                : easing // ignore: cast_nullable_to_non_nullable
+                      as VecEasing?,
             position: freezed == position
                 ? _value.position
                 : position // ignore: cast_nullable_to_non_nullable
@@ -205,6 +237,34 @@ class _$VecKeyframeCopyWithImpl<$Res, $Val extends VecKeyframe>
           )
           as $Val,
     );
+  }
+
+  /// Create a copy of VecKeyframe
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $VecTransformCopyWith<$Res>? get transform {
+    if (_value.transform == null) {
+      return null;
+    }
+
+    return $VecTransformCopyWith<$Res>(_value.transform!, (value) {
+      return _then(_value.copyWith(transform: value) as $Val);
+    });
+  }
+
+  /// Create a copy of VecKeyframe
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $VecEasingCopyWith<$Res>? get easing {
+    if (_value.easing == null) {
+      return null;
+    }
+
+    return $VecEasingCopyWith<$Res>(_value.easing!, (value) {
+      return _then(_value.copyWith(easing: value) as $Val);
+    });
   }
 
   /// Create a copy of VecKeyframe
@@ -375,6 +435,10 @@ abstract class _$$VecKeyframeImplCopyWith<$Res>
     int frame,
     VecKeyframeType type,
     VecTweenType tweenType,
+    VecTransform? transform,
+    List<VecFill>? fills,
+    List<VecStroke>? strokes,
+    VecEasing? easing,
     VecPoint? position,
     VecPoint? scale,
     double? rotation,
@@ -392,6 +456,10 @@ abstract class _$$VecKeyframeImplCopyWith<$Res>
     List<VecShapeHint> shapeHints,
   });
 
+  @override
+  $VecTransformCopyWith<$Res>? get transform;
+  @override
+  $VecEasingCopyWith<$Res>? get easing;
   @override
   $VecPointCopyWith<$Res>? get position;
   @override
@@ -433,6 +501,10 @@ class __$$VecKeyframeImplCopyWithImpl<$Res>
     Object? frame = null,
     Object? type = null,
     Object? tweenType = null,
+    Object? transform = freezed,
+    Object? fills = freezed,
+    Object? strokes = freezed,
+    Object? easing = freezed,
     Object? position = freezed,
     Object? scale = freezed,
     Object? rotation = freezed,
@@ -463,6 +535,22 @@ class __$$VecKeyframeImplCopyWithImpl<$Res>
             ? _value.tweenType
             : tweenType // ignore: cast_nullable_to_non_nullable
                   as VecTweenType,
+        transform: freezed == transform
+            ? _value.transform
+            : transform // ignore: cast_nullable_to_non_nullable
+                  as VecTransform?,
+        fills: freezed == fills
+            ? _value._fills
+            : fills // ignore: cast_nullable_to_non_nullable
+                  as List<VecFill>?,
+        strokes: freezed == strokes
+            ? _value._strokes
+            : strokes // ignore: cast_nullable_to_non_nullable
+                  as List<VecStroke>?,
+        easing: freezed == easing
+            ? _value.easing
+            : easing // ignore: cast_nullable_to_non_nullable
+                  as VecEasing?,
         position: freezed == position
             ? _value.position
             : position // ignore: cast_nullable_to_non_nullable
@@ -535,6 +623,10 @@ class _$VecKeyframeImpl implements _VecKeyframe {
     required this.frame,
     this.type = VecKeyframeType.keyframe,
     this.tweenType = VecTweenType.none,
+    this.transform,
+    final List<VecFill>? fills,
+    final List<VecStroke>? strokes,
+    this.easing,
     this.position,
     this.scale,
     this.rotation,
@@ -550,7 +642,9 @@ class _$VecKeyframeImpl implements _VecKeyframe {
     this.strokeColorEasing,
     this.pathEasing,
     final List<VecShapeHint> shapeHints = const [],
-  }) : _pathNodes = pathNodes,
+  }) : _fills = fills,
+       _strokes = strokes,
+       _pathNodes = pathNodes,
        _shapeHints = shapeHints;
 
   factory _$VecKeyframeImpl.fromJson(Map<String, dynamic> json) =>
@@ -564,6 +658,32 @@ class _$VecKeyframeImpl implements _VecKeyframe {
   @override
   @JsonKey()
   final VecTweenType tweenType;
+  // Full-snapshot values (set when adding a keyframe in the timeline)
+  @override
+  final VecTransform? transform;
+  final List<VecFill>? _fills;
+  @override
+  List<VecFill>? get fills {
+    final value = _fills;
+    if (value == null) return null;
+    if (_fills is EqualUnmodifiableListView) return _fills;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(value);
+  }
+
+  final List<VecStroke>? _strokes;
+  @override
+  List<VecStroke>? get strokes {
+    final value = _strokes;
+    if (value == null) return null;
+    if (_strokes is EqualUnmodifiableListView) return _strokes;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(value);
+  }
+
+  // General easing applied to all snapshot properties (transform/opacity/fills/strokes)
+  @override
+  final VecEasing? easing;
   // Per-property values (null = not keyed at this frame)
   @override
   final VecPoint? position;
@@ -615,7 +735,7 @@ class _$VecKeyframeImpl implements _VecKeyframe {
 
   @override
   String toString() {
-    return 'VecKeyframe(frame: $frame, type: $type, tweenType: $tweenType, position: $position, scale: $scale, rotation: $rotation, opacity: $opacity, fillColor: $fillColor, strokeColor: $strokeColor, pathNodes: $pathNodes, positionEasing: $positionEasing, scaleEasing: $scaleEasing, rotationEasing: $rotationEasing, opacityEasing: $opacityEasing, fillColorEasing: $fillColorEasing, strokeColorEasing: $strokeColorEasing, pathEasing: $pathEasing, shapeHints: $shapeHints)';
+    return 'VecKeyframe(frame: $frame, type: $type, tweenType: $tweenType, transform: $transform, fills: $fills, strokes: $strokes, easing: $easing, position: $position, scale: $scale, rotation: $rotation, opacity: $opacity, fillColor: $fillColor, strokeColor: $strokeColor, pathNodes: $pathNodes, positionEasing: $positionEasing, scaleEasing: $scaleEasing, rotationEasing: $rotationEasing, opacityEasing: $opacityEasing, fillColorEasing: $fillColorEasing, strokeColorEasing: $strokeColorEasing, pathEasing: $pathEasing, shapeHints: $shapeHints)';
   }
 
   @override
@@ -627,6 +747,11 @@ class _$VecKeyframeImpl implements _VecKeyframe {
             (identical(other.type, type) || other.type == type) &&
             (identical(other.tweenType, tweenType) ||
                 other.tweenType == tweenType) &&
+            (identical(other.transform, transform) ||
+                other.transform == transform) &&
+            const DeepCollectionEquality().equals(other._fills, _fills) &&
+            const DeepCollectionEquality().equals(other._strokes, _strokes) &&
+            (identical(other.easing, easing) || other.easing == easing) &&
             (identical(other.position, position) ||
                 other.position == position) &&
             (identical(other.scale, scale) || other.scale == scale) &&
@@ -663,11 +788,15 @@ class _$VecKeyframeImpl implements _VecKeyframe {
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     runtimeType,
     frame,
     type,
     tweenType,
+    transform,
+    const DeepCollectionEquality().hash(_fills),
+    const DeepCollectionEquality().hash(_strokes),
+    easing,
     position,
     scale,
     rotation,
@@ -683,7 +812,7 @@ class _$VecKeyframeImpl implements _VecKeyframe {
     strokeColorEasing,
     pathEasing,
     const DeepCollectionEquality().hash(_shapeHints),
-  );
+  ]);
 
   /// Create a copy of VecKeyframe
   /// with the given fields replaced by the non-null parameter values.
@@ -704,6 +833,10 @@ abstract class _VecKeyframe implements VecKeyframe {
     required final int frame,
     final VecKeyframeType type,
     final VecTweenType tweenType,
+    final VecTransform? transform,
+    final List<VecFill>? fills,
+    final List<VecStroke>? strokes,
+    final VecEasing? easing,
     final VecPoint? position,
     final VecPoint? scale,
     final double? rotation,
@@ -729,7 +862,15 @@ abstract class _VecKeyframe implements VecKeyframe {
   @override
   VecKeyframeType get type;
   @override
-  VecTweenType get tweenType; // Per-property values (null = not keyed at this frame)
+  VecTweenType get tweenType; // Full-snapshot values (set when adding a keyframe in the timeline)
+  @override
+  VecTransform? get transform;
+  @override
+  List<VecFill>? get fills;
+  @override
+  List<VecStroke>? get strokes; // General easing applied to all snapshot properties (transform/opacity/fills/strokes)
+  @override
+  VecEasing? get easing; // Per-property values (null = not keyed at this frame)
   @override
   VecPoint? get position;
   @override

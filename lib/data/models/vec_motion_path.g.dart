@@ -8,16 +8,24 @@ part of 'vec_motion_path.dart';
 
 _$VecMotionPathImpl _$$VecMotionPathImplFromJson(Map<String, dynamic> json) =>
     _$VecMotionPathImpl(
-      guideLayerId: json['guideLayerId'] as String,
-      attachedLayerId: json['attachedLayerId'] as String,
+      id: json['id'] as String,
+      shapeId: json['shapeId'] as String,
+      nodes:
+          (json['nodes'] as List<dynamic>?)
+              ?.map((e) => VecPathNode.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          const [],
+      isClosed: json['isClosed'] as bool? ?? false,
       orientToPath: json['orientToPath'] as bool? ?? false,
       easeAlongPath: json['easeAlongPath'] as bool? ?? false,
     );
 
 Map<String, dynamic> _$$VecMotionPathImplToJson(_$VecMotionPathImpl instance) =>
     <String, dynamic>{
-      'guideLayerId': instance.guideLayerId,
-      'attachedLayerId': instance.attachedLayerId,
+      'id': instance.id,
+      'shapeId': instance.shapeId,
+      'nodes': instance.nodes,
+      'isClosed': instance.isClosed,
       'orientToPath': instance.orientToPath,
       'easeAlongPath': instance.easeAlongPath,
     };

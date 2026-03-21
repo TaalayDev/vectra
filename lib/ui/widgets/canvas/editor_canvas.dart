@@ -18,6 +18,7 @@ import '../../../data/models/vec_transform.dart';
 import '../../../core/rendering/scene_painter.dart';
 import '../../../core/rendering/selection_overlay.dart';
 import '../../../core/tools/drawing_tool_handler.dart';
+import '../../../providers/animation_provider.dart';
 import '../../../providers/document_provider.dart';
 import '../../../providers/drawing_state_provider.dart';
 import '../../../providers/editor_state_provider.dart';
@@ -113,7 +114,10 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
     final zoom = ref.watch(zoomLevelProvider);
     final panOffset = ref.watch(canvasOffsetProvider);
     final fitRequest = ref.watch(fitRequestProvider);
-    final scene = ref.watch(activeSceneProvider);
+    // Start/stop the playback timer automatically
+    ref.watch(playbackTickerProvider);
+    // Use the animation-interpolated scene for rendering
+    final scene = ref.watch(animatedSceneProvider);
     final selectedShapeId = ref.watch(selectedShapeIdProvider);
     final selectedShapeIds = ref.watch(selectedShapeIdsProvider);
     final selectedShape = ref.watch(selectedShapeProvider);
