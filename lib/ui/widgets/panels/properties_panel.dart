@@ -5,6 +5,7 @@ import '../../../app/theme/theme.dart';
 import '../../../data/models/vec_shape.dart';
 import '../../../providers/document_provider.dart';
 import '../../../providers/editor_state_provider.dart';
+import '../../../providers/motion_path_provider.dart';
 import '../common/panel_header.dart';
 import 'pathfinder_panel.dart';
 import 'properties_sections.dart';
@@ -65,11 +66,14 @@ class PropertiesPanel extends ConsumerWidget {
   // ---------------------------------------------------------------------------
 
   Widget _buildSections(BuildContext context, WidgetRef ref, VecShape? shape, List<String> selectedIds) {
-    final scene = ref.read(activeSceneProvider);
-    final layerId = ref.read(activeLayerIdProvider);
+    final scene = ref.watch(activeSceneProvider);
+    final layerId = ref.watch(activeLayerIdProvider);
     final docNotifier = ref.read(vecDocumentStateProvider.notifier);
+    final motionPath = ref.watch(selectedShapeMotionPathProvider);
+    final drawTarget = ref.watch(motionPathDrawTargetProvider);
 
     if (scene == null || layerId == null) return const SizedBox.shrink();
+    final sceneId = scene.id;
 
     // When only multi-selection (no single shape), show pathfinder only
     if (shape == null) {
@@ -81,12 +85,12 @@ class PropertiesPanel extends ConsumerWidget {
 
     // Committed update — goes to undo history
     void onUpdate(VecShape Function(VecShape) updater) {
-      docNotifier.updateShape(scene.id, layerId, shape.id, updater);
+      docNotifier.updateShape(sceneId, layerId, shape.id, updater);
     }
 
     // Live update — no undo entry (used during slider drag)
     void onLiveUpdate(VecShape Function(VecShape) updater) {
-      docNotifier.updateShapeNoHistory(scene.id, layerId, shape.id, updater);
+      docNotifier.updateShapeNoHistory(sceneId, layerId, shape.id, updater);
     }
 
     // Commit current state after live drag ends
@@ -132,6 +136,34 @@ class PropertiesPanel extends ConsumerWidget {
         ),
         Divider(height: 1, color: theme.divider.withAlpha(60)),
         BlendSection(blendMode: shape.blendMode, theme: theme, onUpdate: onUpdate),
+        Divider(height: 1, color: theme.divider.withAlpha(60)),
+        MotionPathSection(
+          shapeId: shape.id,
+          motionPath: motionPath,
+          isDrawing: drawTarget == shape.id,
+          theme: theme,
+          onStartDraw: () {
+            ref.read(motionPathPreviewNodesProvider.notifier).clear();
+            ref.read(motionPathDrawTargetProvider.notifier).start(shape.id);
+          },
+          onRemove: () {
+            if (motionPath != null) {
+              docNotifier.removeMotionPath(sceneId, motionPath.id);
+            }
+          },
+          onToggleOrient: () {
+            if (motionPath != null) {
+              docNotifier.updateMotionPath(sceneId, motionPath.id,
+                  (mp) => mp.copyWith(orientToPath: !mp.orientToPath));
+            }
+          },
+          onToggleEase: () {
+            if (motionPath != null) {
+              docNotifier.updateMotionPath(sceneId, motionPath.id,
+                  (mp) => mp.copyWith(easeAlongPath: !mp.easeAlongPath));
+            }
+          },
+        ),
       ],
     );
   }

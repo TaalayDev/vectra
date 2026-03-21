@@ -1,0 +1,451 @@
+import 'dart:math' as math;
+
+import '../../data/models/vec_color.dart';
+import '../../data/models/vec_document.dart';
+import '../../data/models/vec_fill.dart';
+import '../../data/models/vec_layer.dart';
+import '../../data/models/vec_path_node.dart';
+import '../../data/models/vec_scene.dart';
+import '../../data/models/vec_shape.dart';
+import '../../data/models/vec_stroke.dart';
+import '../../data/models/vec_transform.dart';
+
+/// Exports a [VecScene] to an SVG string.
+class SvgExporter {
+  const SvgExporter();
+
+  String export(VecDocument doc, VecScene scene, {bool minify = false}) {
+    final w = doc.meta.stageWidth;
+    final h = doc.meta.stageHeight;
+    final bg = doc.meta.backgroundColor;
+
+    final buf = StringBuffer();
+    final nl = minify ? '' : '\n';
+    final ind = minify ? '' : '  ';
+
+    buf.write(
+      '<?xml version="1.0" encoding="UTF-8"?>$nl'
+      '<svg xmlns="http://www.w3.org/2000/svg"'
+      ' width="${_f(w)}" height="${_f(h)}"'
+      ' viewBox="0 0 ${_f(w)} ${_f(h)}">$nl',
+    );
+
+    // Background rect
+    if (bg.a > 0) {
+      buf.write(
+        '$ind<rect width="${_f(w)}" height="${_f(h)}"'
+        ' fill="${_hexColor(bg)}"'
+        '${bg.a < 255 ? ' fill-opacity="${_f(bg.a / 255)}"' : ''}/>$nl',
+      );
+    }
+
+    // Sort layers bottom → top
+    final layers = List<VecLayer>.from(scene.layers)..sort((a, b) => a.order.compareTo(b.order));
+
+    for (final layer in layers) {
+      if (!layer.visible) continue;
+      if (layer.type == VecLayerType.guide) continue;
+
+      for (final shape in layer.shapes) {
+        buf.write(_shapeToSvg(shape, indent: ind, nl: nl));
+      }
+    }
+
+    buf.write('</svg>');
+    return buf.toString();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Shape dispatch
+  // ---------------------------------------------------------------------------
+
+  String _shapeToSvg(VecShape shape, {String indent = '  ', String nl = '\n'}) {
+    final opacity = shape.opacity.clamp(0.0, 1.0);
+    if (opacity <= 0) return '';
+
+    return shape.map(
+      path: (s) => _pathShapeToSvg(s, indent, nl),
+      rectangle: (s) => _rectToSvg(s, indent, nl),
+      ellipse: (s) => _ellipseToSvg(s, indent, nl),
+      polygon: (s) => _polygonToSvg(s, indent, nl),
+      text: (s) => _textToSvg(s, indent, nl),
+      group: (s) => _groupToSvg(s, indent, nl),
+      compound: (s) => _compoundToSvg(s, indent, nl),
+      symbolInstance: (_) => '',
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Rectangle
+  // ---------------------------------------------------------------------------
+
+  String _rectToSvg(VecRectangleShape s, String ind, String nl) {
+    final t = s.transform;
+    final radii = s.cornerRadii;
+    final rx = radii.isNotEmpty ? radii[0] : 0.0;
+    final transform = _transformAttr(t);
+
+    final buf = StringBuffer();
+    final wrapInGroup = s.fills.length + s.strokes.length > 1 || s.transform.rotation != 0 || s.opacity < 1;
+
+    if (wrapInGroup) {
+      buf.write('$ind<g$transform${_opacityAttr(s.opacity)}${_blendModeAttr(s.blendMode)}>$nl');
+    }
+
+    final shape =
+        '<rect x="0" y="0"'
+        ' width="${_f(t.width)}" height="${_f(t.height)}"'
+        '${rx > 0 ? ' rx="${_f(rx)}" ry="${_f(rx)}"' : ''}'
+        '${wrapInGroup ? '' : '$transform${_opacityAttr(s.opacity)}${_blendModeAttr(s.blendMode)}'}';
+
+    for (final fill in s.fills) {
+      buf.write('$ind${wrapInGroup ? '$ind' : ''}$shape${_fillAttrs(fill)} stroke="none"/>$nl');
+    }
+    if (s.fills.isEmpty) {
+      buf.write('$ind${wrapInGroup ? '$ind' : ''}$shape fill="none" stroke="none"/>$nl');
+    }
+    for (final stroke in s.strokes) {
+      buf.write('$ind${wrapInGroup ? '$ind' : ''}$shape fill="none"${_strokeAttrs(stroke)}/>$nl');
+    }
+
+    if (wrapInGroup) buf.write('$ind</g>$nl');
+    return buf.toString();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Ellipse
+  // ---------------------------------------------------------------------------
+
+  String _ellipseToSvg(VecEllipseShape s, String ind, String nl) {
+    final t = s.transform;
+    final cx = t.width / 2;
+    final cy = t.height / 2;
+    final transform = _transformAttr(t);
+
+    final buf = StringBuffer();
+    final wrapInGroup = s.fills.length + s.strokes.length > 1 || s.transform.rotation != 0 || s.opacity < 1;
+
+    if (wrapInGroup) {
+      buf.write('$ind<g$transform${_opacityAttr(s.opacity)}${_blendModeAttr(s.blendMode)}>$nl');
+    }
+
+    final shape =
+        '<ellipse cx="${_f(cx)}" cy="${_f(cy)}"'
+        ' rx="${_f(cx)}" ry="${_f(cy)}"'
+        '${wrapInGroup ? '' : '$transform${_opacityAttr(s.opacity)}${_blendModeAttr(s.blendMode)}'}';
+
+    for (final fill in s.fills) {
+      buf.write('$ind${wrapInGroup ? '$ind' : ''}$shape${_fillAttrs(fill)} stroke="none"/>$nl');
+    }
+    if (s.fills.isEmpty) {
+      buf.write('$ind${wrapInGroup ? '$ind' : ''}$shape fill="none" stroke="none"/>$nl');
+    }
+    for (final stroke in s.strokes) {
+      buf.write('$ind${wrapInGroup ? '$ind' : ''}$shape fill="none"${_strokeAttrs(stroke)}/>$nl');
+    }
+
+    if (wrapInGroup) buf.write('$ind</g>$nl');
+    return buf.toString();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Polygon / Star
+  // ---------------------------------------------------------------------------
+
+  String _polygonToSvg(VecPolygonShape s, String ind, String nl) {
+    final t = s.transform;
+    final cx = t.width / 2;
+    final cy = t.height / 2;
+    final rx = cx;
+    final ry = cy;
+    final sides = s.sideCount;
+    final starDepth = s.starDepth;
+    final transform = _transformAttr(t);
+
+    final points = <String>[];
+    if (starDepth != null && starDepth < 1.0) {
+      // Star polygon
+      final innerRx = rx * starDepth;
+      final innerRy = ry * starDepth;
+      for (var i = 0; i < sides; i++) {
+        final outerAngle = (i * 2 * math.pi / sides) - math.pi / 2;
+        final innerAngle = outerAngle + math.pi / sides;
+        points.add('${_f(cx + rx * math.cos(outerAngle))},${_f(cy + ry * math.sin(outerAngle))}');
+        points.add('${_f(cx + innerRx * math.cos(innerAngle))},${_f(cy + innerRy * math.sin(innerAngle))}');
+      }
+    } else {
+      for (var i = 0; i < sides; i++) {
+        final angle = (i * 2 * math.pi / sides) - math.pi / 2;
+        points.add('${_f(cx + rx * math.cos(angle))},${_f(cy + ry * math.sin(angle))}');
+      }
+    }
+
+    final pointsStr = points.join(' ');
+    final buf = StringBuffer();
+    final wrapInGroup = s.fills.length + s.strokes.length > 1 || s.transform.rotation != 0 || s.opacity < 1;
+
+    if (wrapInGroup) {
+      buf.write('$ind<g$transform${_opacityAttr(s.opacity)}${_blendModeAttr(s.blendMode)}>$nl');
+    }
+
+    final shape =
+        '<polygon points="$pointsStr"'
+        '${wrapInGroup ? '' : '$transform${_opacityAttr(s.opacity)}${_blendModeAttr(s.blendMode)}'}';
+
+    for (final fill in s.fills) {
+      buf.write('$ind${wrapInGroup ? '$ind' : ''}$shape${_fillAttrs(fill)} stroke="none"/>$nl');
+    }
+    if (s.fills.isEmpty) {
+      buf.write('$ind${wrapInGroup ? '$ind' : ''}$shape fill="none" stroke="none"/>$nl');
+    }
+    for (final stroke in s.strokes) {
+      buf.write('$ind${wrapInGroup ? '$ind' : ''}$shape fill="none"${_strokeAttrs(stroke)}/>$nl');
+    }
+
+    if (wrapInGroup) buf.write('$ind</g>$nl');
+    return buf.toString();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Path
+  // ---------------------------------------------------------------------------
+
+  String _pathShapeToSvg(VecPathShape s, String ind, String nl) {
+    final d = _buildPathData(s.nodes, s.isClosed);
+    final transform = _transformAttr(s.transform);
+
+    final buf = StringBuffer();
+    final wrapInGroup = s.fills.length + s.strokes.length > 1 || s.transform.rotation != 0 || s.opacity < 1;
+
+    if (wrapInGroup) {
+      buf.write('$ind<g$transform${_opacityAttr(s.opacity)}${_blendModeAttr(s.blendMode)}>$nl');
+    }
+
+    final shape =
+        '<path d="$d"'
+        '${wrapInGroup ? '' : '$transform${_opacityAttr(s.opacity)}${_blendModeAttr(s.blendMode)}'}';
+
+    for (final fill in s.fills) {
+      buf.write('$ind${wrapInGroup ? '$ind' : ''}$shape${_fillAttrs(fill)} stroke="none"/>$nl');
+    }
+    if (s.fills.isEmpty) {
+      buf.write('$ind${wrapInGroup ? '$ind' : ''}$shape fill="none" stroke="none"/>$nl');
+    }
+    for (final stroke in s.strokes) {
+      buf.write('$ind${wrapInGroup ? '$ind' : ''}$shape fill="none"${_strokeAttrs(stroke)}/>$nl');
+    }
+
+    if (wrapInGroup) buf.write('$ind</g>$nl');
+    return buf.toString();
+  }
+
+  String _buildPathData(List<VecPathNode> nodes, bool closed) {
+    if (nodes.isEmpty) return '';
+    final buf = StringBuffer();
+
+    buf.write('M ${_f(nodes[0].position.x)},${_f(nodes[0].position.y)}');
+
+    for (var i = 1; i < nodes.length; i++) {
+      final from = nodes[i - 1];
+      final to = nodes[i];
+      _appendSegment(buf, from, to);
+    }
+
+    // Close the path back to first node
+    if (closed && nodes.length > 2) {
+      _appendSegment(buf, nodes.last, nodes.first);
+      buf.write(' Z');
+    }
+
+    return buf.toString();
+  }
+
+  void _appendSegment(StringBuffer buf, VecPathNode from, VecPathNode to) {
+    final hasHOut = from.handleOut != null;
+    final hasHIn = to.handleIn != null;
+
+    if (hasHOut || hasHIn) {
+      final cp1x = hasHOut ? from.handleOut!.x : from.position.x;
+      final cp1y = hasHOut ? from.handleOut!.y : from.position.y;
+      final cp2x = hasHIn ? to.handleIn!.x : to.position.x;
+      final cp2y = hasHIn ? to.handleIn!.y : to.position.y;
+      buf.write(' C ${_f(cp1x)},${_f(cp1y)} ${_f(cp2x)},${_f(cp2y)} ${_f(to.position.x)},${_f(to.position.y)}');
+    } else {
+      buf.write(' L ${_f(to.position.x)},${_f(to.position.y)}');
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Text
+  // ---------------------------------------------------------------------------
+
+  String _textToSvg(VecTextShape s, String ind, String nl) {
+    final t = s.transform;
+    final transform = _transformAttr(t);
+
+    final fill = s.fills.isNotEmpty ? _fillAttrs(s.fills.first) : ' fill="#000000"';
+    final anchor = switch (s.alignment) {
+      VecTextAlign.left => 'start',
+      VecTextAlign.center => 'middle',
+      VecTextAlign.right => 'end',
+      VecTextAlign.justify => 'start',
+    };
+
+    final weight = s.fontWeight >= 700 ? 'bold' : (s.fontWeight >= 500 ? '600' : 'normal');
+
+    return '$ind<text$transform x="0" y="${_f(s.fontSize)}"'
+        ' font-family="${_escape(s.fontFamily)}"'
+        ' font-size="${_f(s.fontSize)}"'
+        ' font-weight="$weight"'
+        ' text-anchor="$anchor"'
+        '${_opacityAttr(s.opacity)}'
+        '$fill'
+        '>${_escape(s.content)}</text>$nl';
+  }
+
+  // ---------------------------------------------------------------------------
+  // Group
+  // ---------------------------------------------------------------------------
+
+  String _groupToSvg(VecGroupShape s, String ind, String nl) {
+    final transform = _transformAttr(s.transform);
+    final buf = StringBuffer();
+
+    buf.write('$ind<g$transform${_opacityAttr(s.opacity)}${_blendModeAttr(s.blendMode)}>$nl');
+    for (final child in s.children) {
+      buf.write(_shapeToSvg(child, indent: '$ind  ', nl: nl));
+    }
+    buf.write('$ind</g>$nl');
+
+    return buf.toString();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Compound (pathfinder result)
+  // ---------------------------------------------------------------------------
+
+  String _compoundToSvg(VecCompoundShape s, String ind, String nl) {
+    // Compound shapes use pre-computed canvas paths — not directly exportable
+    // to SVG without re-running pathfinder logic. Return a placeholder group.
+    final transform = _transformAttr(s.transform);
+    return '$ind<g$transform><!-- compound shape: pathfinder result --></g>$nl';
+  }
+
+  // ---------------------------------------------------------------------------
+  // Transform attribute
+  // ---------------------------------------------------------------------------
+
+  String _transformAttr(VecTransform t) {
+    final parts = <String>[];
+
+    if (t.x != 0 || t.y != 0) {
+      parts.add('translate(${_f(t.x)},${_f(t.y)})');
+    }
+
+    final px = t.pivot?.x ?? (t.width / 2);
+    final py = t.pivot?.y ?? (t.height / 2);
+
+    if (t.rotation != 0 || t.scaleX != 1 || t.scaleY != 1 || t.skewX != 0 || t.skewY != 0) {
+      parts.add('translate(${_f(px)},${_f(py)})');
+      if (t.rotation != 0) parts.add('rotate(${_f(t.rotation)})');
+      if (t.scaleX != 1 || t.scaleY != 1) parts.add('scale(${_f(t.scaleX)},${_f(t.scaleY)})');
+      if (t.skewX != 0) parts.add('skewX(${_f(t.skewX)})');
+      if (t.skewY != 0) parts.add('skewY(${_f(t.skewY)})');
+      parts.add('translate(${_f(-px)},${_f(-py)})');
+    }
+
+    if (parts.isEmpty) return '';
+    return ' transform="${parts.join(' ')}"';
+  }
+
+  // ---------------------------------------------------------------------------
+  // Fill / Stroke attributes
+  // ---------------------------------------------------------------------------
+
+  String _fillAttrs(VecFill fill) {
+    final opacity = fill.opacity.clamp(0.0, 1.0);
+    final hex = _hexColor(fill.color);
+    final colorOpacity = fill.color.a / 255.0 * opacity;
+    final blendCss = _blendModeCss(fill.blendMode);
+
+    var s = ' fill="$hex"';
+    if (colorOpacity < 1.0) s += ' fill-opacity="${_f(colorOpacity)}"';
+    if (blendCss != null) s += ' style="mix-blend-mode: $blendCss"';
+    return s;
+  }
+
+  String _strokeAttrs(VecStroke stroke) {
+    final opacity = stroke.opacity.clamp(0.0, 1.0);
+    final hex = _hexColor(stroke.color);
+    final colorOpacity = stroke.color.a / 255.0 * opacity;
+    final cap = _strokeCapName(stroke.cap);
+    final join = _strokeJoinName(stroke.join);
+
+    var s = ' stroke="$hex" stroke-width="${_f(stroke.width)}"';
+    if (colorOpacity < 1.0) s += ' stroke-opacity="${_f(colorOpacity)}"';
+    if (cap != 'butt') s += ' stroke-linecap="$cap"';
+    if (join != 'miter') s += ' stroke-linejoin="$join"';
+    if (stroke.dashPattern.isNotEmpty) {
+      s += ' stroke-dasharray="${stroke.dashPattern.map(_f).join(',')}"';
+      if (stroke.dashOffset != 0) s += ' stroke-dashoffset="${_f(stroke.dashOffset)}"';
+    }
+    return s;
+  }
+
+  String _opacityAttr(double opacity) {
+    if (opacity >= 1.0) return '';
+    return ' opacity="${_f(opacity.clamp(0.0, 1.0))}"';
+  }
+
+  String _blendModeAttr(VecBlendMode mode) {
+    final css = _blendModeCss(mode);
+    if (css == null) return '';
+    return ' style="mix-blend-mode: $css"';
+  }
+
+  // ---------------------------------------------------------------------------
+  // Helpers
+  // ---------------------------------------------------------------------------
+
+  String _hexColor(VecColor c) =>
+      '#${c.r.toRadixString(16).padLeft(2, '0')}${c.g.toRadixString(16).padLeft(2, '0')}${c.b.toRadixString(16).padLeft(2, '0')}';
+
+  String _f(double v) {
+    if (v == v.roundToDouble()) return v.toInt().toString();
+    return v.toStringAsFixed(4).replaceAll(RegExp(r'0+$'), '').replaceAll(RegExp(r'\.$'), '');
+  }
+
+  String _escape(String s) =>
+      s.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
+
+  String _strokeCapName(VecStrokeCap cap) => switch (cap) {
+    VecStrokeCap.butt => 'butt',
+    VecStrokeCap.round => 'round',
+    VecStrokeCap.square => 'square',
+  };
+
+  String _strokeJoinName(VecStrokeJoin join) => switch (join) {
+    VecStrokeJoin.miter => 'miter',
+    VecStrokeJoin.round => 'round',
+    VecStrokeJoin.bevel => 'bevel',
+  };
+
+  String? _blendModeCss(VecBlendMode mode) => switch (mode) {
+    VecBlendMode.normal => null,
+    VecBlendMode.multiply => 'multiply',
+    VecBlendMode.screen => 'screen',
+    VecBlendMode.overlay => 'overlay',
+    VecBlendMode.darken => 'darken',
+    VecBlendMode.lighten => 'lighten',
+    VecBlendMode.colorDodge => 'color-dodge',
+    VecBlendMode.colorBurn => 'color-burn',
+    VecBlendMode.hardLight => 'hard-light',
+    VecBlendMode.softLight => 'soft-light',
+    VecBlendMode.difference => 'difference',
+    VecBlendMode.exclusion => 'exclusion',
+    VecBlendMode.hue => 'hue',
+    VecBlendMode.saturation => 'saturation',
+    VecBlendMode.color => 'color',
+    VecBlendMode.luminosity => 'luminosity',
+  };
+}

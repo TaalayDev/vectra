@@ -2,7 +2,6 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../data/models/vec_motion_path.dart';
 import '../data/models/vec_path_node.dart';
-import 'document_provider.dart';
 import 'editor_state_provider.dart';
 
 part 'motion_path_provider.g.dart';

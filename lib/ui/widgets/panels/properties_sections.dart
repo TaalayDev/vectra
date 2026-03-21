@@ -4,6 +4,7 @@ import 'package:flutter_hooks/flutter_hooks.dart';
 import '../../../app/theme/theme.dart';
 import '../../../data/models/vec_color.dart';
 import '../../../data/models/vec_fill.dart';
+import '../../../data/models/vec_motion_path.dart';
 import '../../../data/models/vec_shape.dart';
 import '../../../data/models/vec_stroke.dart';
 import '../../../data/models/vec_transform.dart';
@@ -907,6 +908,225 @@ class _AddRemoveButton extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 6),
         child: Icon(Icons.add, size: 14, color: theme.textDisabled),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 6. Motion Path Section
+// ---------------------------------------------------------------------------
+
+class MotionPathSection extends StatelessWidget {
+  const MotionPathSection({
+    super.key,
+    required this.shapeId,
+    required this.motionPath,   // null = no path yet
+    required this.isDrawing,    // currently in drawing mode for this shape
+    required this.theme,
+    required this.onStartDraw,
+    required this.onRemove,
+    required this.onToggleOrient,
+    required this.onToggleEase,
+  });
+
+  final String shapeId;
+  final VecMotionPath? motionPath;
+  final bool isDrawing;
+  final AppTheme theme;
+  final VoidCallback onStartDraw;
+  final VoidCallback onRemove;
+  final VoidCallback onToggleOrient;
+  final VoidCallback onToggleEase;
+
+  @override
+  Widget build(BuildContext context) {
+    return CollapsibleSection(
+      title: 'Motion Path',
+      theme: theme,
+      content: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (motionPath == null && !isDrawing) ...[
+            // No path yet — show Draw button
+            _MpButton(
+              label: 'Draw Path',
+              icon: Icons.timeline,
+              active: false,
+              theme: theme,
+              onTap: onStartDraw,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Click on the canvas to place nodes.\nDouble-click or press Esc to finish.',
+              style: TextStyle(fontSize: 10, color: theme.textDisabled),
+            ),
+          ] else if (isDrawing) ...[
+            // Currently drawing
+            _MpButton(
+              label: 'Drawing… (Esc to cancel)',
+              icon: Icons.edit_road,
+              active: true,
+              theme: theme,
+              onTap: () {}, // ESC handled globally
+            ),
+          ] else ...[
+            // Path exists — show toggles + remove
+            Row(
+              children: [
+                _MpToggle(
+                  label: 'Orient',
+                  icon: Icons.navigation,
+                  active: motionPath!.orientToPath,
+                  theme: theme,
+                  onTap: onToggleOrient,
+                ),
+                const SizedBox(width: 6),
+                _MpToggle(
+                  label: 'Ease',
+                  icon: Icons.show_chart,
+                  active: motionPath!.easeAlongPath,
+                  theme: theme,
+                  onTap: onToggleEase,
+                ),
+                const Spacer(),
+                GestureDetector(
+                  onTap: onRemove,
+                  child: Tooltip(
+                    message: 'Remove motion path',
+                    child: Icon(Icons.delete_outline,
+                        size: 15, color: theme.textDisabled),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                Icon(Icons.check_circle_outline,
+                    size: 11, color: theme.accentColor),
+                const SizedBox(width: 4),
+                Text(
+                  '${motionPath!.nodes.length} node${motionPath!.nodes.length == 1 ? '' : 's'}',
+                  style: TextStyle(fontSize: 10, color: theme.textDisabled),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            _MpButton(
+              label: 'Redraw Path',
+              icon: Icons.redo,
+              active: false,
+              theme: theme,
+              onTap: onStartDraw,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _MpButton extends StatelessWidget {
+  const _MpButton({
+    required this.label,
+    required this.icon,
+    required this.active,
+    required this.theme,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool active;
+  final AppTheme theme;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+        decoration: BoxDecoration(
+          color: active
+              ? theme.primaryColor.withAlpha(25)
+              : theme.surfaceVariant,
+          borderRadius: BorderRadius.circular(5),
+          border: Border.all(
+            color: active ? theme.primaryColor : theme.divider,
+            width: 0.8,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon,
+                size: 12,
+                color: active ? theme.primaryColor : theme.textDisabled),
+            const SizedBox(width: 5),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                color: active ? theme.primaryColor : theme.textPrimary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MpToggle extends StatelessWidget {
+  const _MpToggle({
+    required this.label,
+    required this.icon,
+    required this.active,
+    required this.theme,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool active;
+  final AppTheme theme;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 120),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+        decoration: BoxDecoration(
+          color:
+              active ? theme.primaryColor.withAlpha(30) : theme.surfaceVariant,
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(
+            color: active ? theme.primaryColor : theme.divider,
+            width: 0.8,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon,
+                size: 11,
+                color: active ? theme.primaryColor : theme.textDisabled),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 10,
+                color: active ? theme.primaryColor : theme.textDisabled,
+                fontWeight: active ? FontWeight.w600 : FontWeight.normal,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

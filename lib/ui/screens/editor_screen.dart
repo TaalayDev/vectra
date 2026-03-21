@@ -8,6 +8,8 @@ import '../../providers/clipboard_provider.dart';
 import '../../providers/document_provider.dart';
 import '../../providers/drawing_state_provider.dart';
 import '../../providers/editor_state_provider.dart';
+import '../../providers/motion_path_provider.dart';
+import '../../ui/contents/dialogs/export_dialog.dart';
 import '../../ui/contents/theme_selector.dart';
 import '../contents/shortcuts_wrapper.dart';
 import '../widgets/workspace/workspace_layout.dart';
@@ -20,10 +22,7 @@ VecShape _cloneShape(VecShape shape, {double offset = _pasteOffset}) {
   return shape.copyWith(
     data: shape.data.copyWith(
       id: _uuid.v4(),
-      transform: shape.data.transform.copyWith(
-        x: shape.data.transform.x + offset,
-        y: shape.data.transform.y + offset,
-      ),
+      transform: shape.data.transform.copyWith(x: shape.data.transform.x + offset, y: shape.data.transform.y + offset),
     ),
   );
 }
@@ -71,6 +70,13 @@ class EditorScreen extends HookConsumerWidget {
           }
         },
         onEscape: () {
+          // Cancel motion path drawing if active
+          final mpTarget = ref.read(motionPathDrawTargetProvider);
+          if (mpTarget != null) {
+            ref.read(motionPathDrawTargetProvider.notifier).cancel();
+            ref.read(motionPathPreviewNodesProvider.notifier).clear();
+            return;
+          }
           final tool = ref.read(activeToolProvider);
           // Cancel any in-progress drag drawing
           ref.read(activeDrawingProvider.notifier).finish();
@@ -142,33 +148,31 @@ class EditorScreen extends HookConsumerWidget {
           final groupId = ref.read(activeGroupIdProvider);
           if (groupId != null) {
             // Nudge a child inside the active group
-            ref.read(vecDocumentStateProvider.notifier).updateGroupChildNoHistory(
+            ref
+                .read(vecDocumentStateProvider.notifier)
+                .updateGroupChildNoHistory(
                   scene.id,
                   layerId,
                   groupId,
                   selectedId,
                   (c) => c.copyWith(
                     data: c.data.copyWith(
-                      transform: c.transform.copyWith(
-                        x: c.transform.x + dx,
-                        y: c.transform.y + dy,
-                      ),
+                      transform: c.transform.copyWith(x: c.transform.x + dx, y: c.transform.y + dy),
                     ),
                   ),
                 );
             ref.read(vecDocumentStateProvider.notifier).commitCurrentState();
             return;
           }
-          ref.read(vecDocumentStateProvider.notifier).updateShape(
+          ref
+              .read(vecDocumentStateProvider.notifier)
+              .updateShape(
                 scene.id,
                 layerId,
                 selectedId,
                 (shape) => shape.copyWith(
                   data: shape.data.copyWith(
-                    transform: shape.transform.copyWith(
-                      x: shape.transform.x + dx,
-                      y: shape.transform.y + dy,
-                    ),
+                    transform: shape.transform.copyWith(x: shape.transform.x + dx, y: shape.transform.y + dy),
                   ),
                 ),
               );
@@ -198,9 +202,7 @@ class EditorScreen extends HookConsumerWidget {
           if (selectedIds.isEmpty) return;
           for (final layer in scene.layers) {
             if (layer.id != layerId) continue;
-            final shapes = layer.shapes
-                .where((s) => selectedIds.contains(s.id))
-                .toList();
+            final shapes = layer.shapes.where((s) => selectedIds.contains(s.id)).toList();
             if (shapes.isNotEmpty) {
               ref.read(clipboardProvider.notifier).set(shapes);
             }
@@ -214,12 +216,8 @@ class EditorScreen extends HookConsumerWidget {
           final layerId = ref.read(activeLayerIdProvider);
           if (scene == null || layerId == null) return;
           final clones = clipboard.map(_cloneShape).toList();
-          ref
-              .read(vecDocumentStateProvider.notifier)
-              .addShapes(scene.id, layerId, clones);
-          ref
-              .read(selectedShapeIdsProvider.notifier)
-              .setAll(clones.map((s) => s.id).toList());
+          ref.read(vecDocumentStateProvider.notifier).addShapes(scene.id, layerId, clones);
+          ref.read(selectedShapeIdsProvider.notifier).setAll(clones.map((s) => s.id).toList());
           ref.read(selectedShapeIdProvider.notifier).set(clones.last.id);
         },
         onCut: () {
@@ -231,18 +229,14 @@ class EditorScreen extends HookConsumerWidget {
           // Copy first
           for (final layer in scene.layers) {
             if (layer.id != layerId) continue;
-            final shapes = layer.shapes
-                .where((s) => selectedIds.contains(s.id))
-                .toList();
+            final shapes = layer.shapes.where((s) => selectedIds.contains(s.id)).toList();
             if (shapes.isNotEmpty) {
               ref.read(clipboardProvider.notifier).set(shapes);
             }
             break;
           }
           // Remove in one undo step
-          ref
-              .read(vecDocumentStateProvider.notifier)
-              .removeShapes(scene.id, layerId, selectedIds.toList());
+          ref.read(vecDocumentStateProvider.notifier).removeShapes(scene.id, layerId, selectedIds.toList());
           ref.read(selectedShapeIdProvider.notifier).clear();
           ref.read(selectedShapeIdsProvider.notifier).clear();
         },
@@ -254,17 +248,10 @@ class EditorScreen extends HookConsumerWidget {
           if (selectedIds.isEmpty) return;
           for (final layer in scene.layers) {
             if (layer.id != layerId) continue;
-            final clones = layer.shapes
-                .where((s) => selectedIds.contains(s.id))
-                .map(_cloneShape)
-                .toList();
+            final clones = layer.shapes.where((s) => selectedIds.contains(s.id)).map(_cloneShape).toList();
             if (clones.isEmpty) return;
-            ref
-                .read(vecDocumentStateProvider.notifier)
-                .addShapes(scene.id, layerId, clones);
-            ref
-                .read(selectedShapeIdsProvider.notifier)
-                .setAll(clones.map((s) => s.id).toList());
+            ref.read(vecDocumentStateProvider.notifier).addShapes(scene.id, layerId, clones);
+            ref.read(selectedShapeIdsProvider.notifier).setAll(clones.map((s) => s.id).toList());
             ref.read(selectedShapeIdProvider.notifier).set(clones.last.id);
             return;
           }
@@ -287,9 +274,7 @@ class EditorScreen extends HookConsumerWidget {
           if (scene == null || layerId == null) return;
           final selectedId = ref.read(selectedShapeIdProvider);
           if (selectedId == null) return;
-          final childIds = ref
-              .read(vecDocumentStateProvider.notifier)
-              .ungroupShape(scene.id, layerId, selectedId);
+          final childIds = ref.read(vecDocumentStateProvider.notifier).ungroupShape(scene.id, layerId, selectedId);
           if (childIds.isNotEmpty) {
             ref.read(selectedShapeIdsProvider.notifier).setAll(childIds);
             ref.read(selectedShapeIdProvider.notifier).set(childIds.last);
@@ -298,7 +283,7 @@ class EditorScreen extends HookConsumerWidget {
             ref.read(selectedShapeIdsProvider.notifier).clear();
           }
         },
-        onExport: () {},
+        onExport: () => ExportDialog.show(context),
         onImport: () {},
         child: WorkspaceLayout(theme: theme),
       ),

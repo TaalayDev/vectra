@@ -5,6 +5,7 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import '../../../app/theme/theme.dart';
 import '../../../providers/document_provider.dart';
 import '../../../providers/editor_state_provider.dart';
+import '../../contents/dialogs/export_dialog.dart';
 import 'tool_button_group.dart';
 
 class EditorToolbar extends HookConsumerWidget {
@@ -122,7 +123,7 @@ class EditorToolbar extends HookConsumerWidget {
           const SizedBox(width: 8),
           Container(width: 1, height: 20, color: theme.divider),
           const SizedBox(width: 8),
-          _ToolbarIconButton(icon: Icons.file_download_outlined, onTap: () {}, theme: theme, tooltip: 'Export'),
+          _ExportButton(theme: theme),
           const SizedBox(width: 12),
         ],
       ),
@@ -195,9 +196,7 @@ class _CanvasSizeControls extends HookConsumerWidget {
       final w = double.tryParse(widthController.text);
       final h = double.tryParse(heightController.text);
       if (w != null && h != null && w >= 1 && h >= 1 && w <= 16384 && h <= 16384) {
-        ref.read(vecDocumentStateProvider.notifier).updateMeta(
-          meta.copyWith(stageWidth: w, stageHeight: h),
-        );
+        ref.read(vecDocumentStateProvider.notifier).updateMeta(meta.copyWith(stageWidth: w, stageHeight: h));
       } else {
         widthController.text = meta.stageWidth.round().toString();
         heightController.text = meta.stageHeight.round().toString();
@@ -228,12 +227,7 @@ class _CanvasSizeControls extends HookConsumerWidget {
             onSubmitted: (_) => applySize(),
           ),
           const SizedBox(width: 4),
-          _ToolbarIconButton(
-            icon: Icons.check,
-            onTap: applySize,
-            theme: theme,
-            tooltip: 'Apply size',
-          ),
+          _ToolbarIconButton(icon: Icons.check, onTap: applySize, theme: theme, tooltip: 'Apply size'),
         ],
       );
     }
@@ -252,10 +246,7 @@ class _CanvasSizeControls extends HookConsumerWidget {
             isEditing.value = true;
             WidgetsBinding.instance.addPostFrameCallback((_) {
               widthFocus.requestFocus();
-              widthController.selection = TextSelection(
-                baseOffset: 0,
-                extentOffset: widthController.text.length,
-              );
+              widthController.selection = TextSelection(baseOffset: 0, extentOffset: widthController.text.length);
             });
           },
           child: Padding(
@@ -279,12 +270,7 @@ class _CanvasSizeControls extends HookConsumerWidget {
 }
 
 class _SizeField extends StatelessWidget {
-  const _SizeField({
-    required this.controller,
-    required this.focusNode,
-    required this.theme,
-    this.onSubmitted,
-  });
+  const _SizeField({required this.controller, required this.focusNode, required this.theme, this.onSubmitted});
 
   final TextEditingController controller;
   final FocusNode focusNode;
@@ -326,6 +312,51 @@ class _SizeField extends StatelessWidget {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Export button
+// ---------------------------------------------------------------------------
+
+class _ExportButton extends StatelessWidget {
+  const _ExportButton({required this.theme});
+  final AppTheme theme;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: 'Export (Cmd+E)',
+      waitDuration: const Duration(milliseconds: 500),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(6),
+          hoverColor: theme.primaryColor.withOpacity(0.12),
+          onTap: () => ExportDialog.show(context),
+          child: Container(
+            height: 28,
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            decoration: BoxDecoration(
+              color: theme.primaryColor.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: theme.primaryColor.withOpacity(0.25)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.upload_rounded, size: 13, color: theme.primaryColor),
+                const SizedBox(width: 5),
+                Text(
+                  'Export',
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: theme.primaryColor),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _UndoRedoButtons extends ConsumerWidget {
   const _UndoRedoButtons({required this.theme});
 
@@ -340,18 +371,14 @@ class _UndoRedoButtons extends ConsumerWidget {
       children: [
         _ToolbarIconButton(
           icon: Icons.undo,
-          onTap: availability.canUndo
-              ? () => ref.read(vecDocumentStateProvider.notifier).undo()
-              : () {},
+          onTap: availability.canUndo ? () => ref.read(vecDocumentStateProvider.notifier).undo() : () {},
           theme: theme,
           tooltip: 'Undo (Ctrl+Z)',
           enabled: availability.canUndo,
         ),
         _ToolbarIconButton(
           icon: Icons.redo,
-          onTap: availability.canRedo
-              ? () => ref.read(vecDocumentStateProvider.notifier).redo()
-              : () {},
+          onTap: availability.canRedo ? () => ref.read(vecDocumentStateProvider.notifier).redo() : () {},
           theme: theme,
           tooltip: 'Redo (Ctrl+Shift+Z)',
           enabled: availability.canRedo,

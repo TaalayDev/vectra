@@ -1,30 +1,33 @@
 import 'dart:math' as math;
 
-import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../app/theme/theme.dart';
 import '../../../core/rendering/bend_handle_overlay.dart';
 import '../../../core/rendering/corner_radius_overlay.dart';
 import '../../../core/rendering/drawing_preview_painter.dart';
+import '../../../core/rendering/motion_path_overlay.dart';
 import '../../../core/rendering/path_edit_overlay.dart';
-import '../../../core/tools/select_tool_handler.dart';
-import '../../../data/models/vec_document.dart';
-import '../../../data/models/vec_path_node.dart';
-import '../../../data/models/vec_point.dart';
-import '../../../data/models/vec_transform.dart';
 import '../../../core/rendering/scene_painter.dart';
 import '../../../core/rendering/selection_overlay.dart';
 import '../../../core/tools/drawing_tool_handler.dart';
+import '../../../core/tools/select_tool_handler.dart';
+import '../../../data/models/vec_document.dart';
+import '../../../data/models/vec_motion_path.dart';
+import '../../../data/models/vec_path_node.dart';
+import '../../../data/models/vec_point.dart';
 import '../../../providers/animation_provider.dart';
 import '../../../providers/document_provider.dart';
 import '../../../providers/drawing_state_provider.dart';
 import '../../../providers/editor_state_provider.dart';
+import '../../../providers/motion_path_provider.dart';
 
 // Describes what kind of select-tool drag is active.
-enum _SelectDragMode { none, move, resizeHandle, rotate, cornerRadius, bend }
+enum _SelectDragMode { none, move, resizeHandle, rotate, cornerRadius, bend, motionPathNode }
 
 class EditorCanvas extends ConsumerStatefulWidget {
   const EditorCanvas({super.key, required this.theme});
@@ -81,6 +84,10 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
   Offset _bendStartLocalPos = Offset.zero; // node[0] position at drag start
   Offset _bendEndLocalPos = Offset.zero;   // node[1] position at drag start
 
+  // Motion path node drag
+  String? _mpDragPathId;
+  int _mpDragNodeIndex = -1;
+
   AppTheme get theme => widget.theme;
 
   // ===========================================================================
@@ -125,6 +132,11 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
     final activeTool = ref.watch(activeToolProvider);
     final drawing = ref.watch(activeDrawingProvider);
     final penDrawing = ref.watch(activePenDrawingProvider);
+    final motionPaths = ref.watch(activeSceneMotionPathsProvider);
+    final mpDrawTargetNullable = ref.watch(motionPathDrawTargetProvider);
+    final mpPreviewNodes = ref.watch(motionPathPreviewNodesProvider);
+    final isMotionPathDrawing = mpDrawTargetNullable != null;
+    final mpDrawTarget = mpDrawTargetNullable ?? '';
 
     final isDrawingTool = activeTool == VecTool.rectangle ||
         activeTool == VecTool.ellipse ||
@@ -227,6 +239,10 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
                 _handlePenPanUpdate(details, scene, selectedShape);
                 return;
               }
+              if (_selectDragMode == _SelectDragMode.motionPathNode) {
+                _handleMpNodeDrag(details);
+                return;
+              }
               if (isSelectTool && _isMarqueeDrag) {
                 setState(() => _marqueeCurrentCanvas = _toCanvasPoint(details.localPosition));
                 return;
@@ -246,6 +262,15 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
                 _handlePenPanEnd(scene, selectedShape);
                 return;
               }
+              if (_selectDragMode == _SelectDragMode.motionPathNode) {
+                ref.read(vecDocumentStateProvider.notifier).commitCurrentState();
+                setState(() {
+                  _selectDragMode = _SelectDragMode.none;
+                  _mpDragPathId = null;
+                  _mpDragNodeIndex = -1;
+                });
+                return;
+              }
               if (isSelectTool && _isMarqueeDrag) {
                 _finishMarqueeSelection(scene, activeGroupId);
                 setState(() => _isMarqueeDrag = false);
@@ -256,40 +281,47 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
               }
             },
 
-            onTapDown: isPenTool
+            onTapDown: isMotionPathDrawing
                 ? (details) {
                     final local = _toCanvasPoint(details.localPosition);
-                    final pen = ref.read(activePenDrawingProvider);
-                    // If no active drawing and clicked near an existing node,
-                    // let onPanStart handle the drag instead.
-                    if (pen == null && selectedShape != null) {
-                      final pathShape = selectedShape.maybeMap(
-                          path: (s) => s, orElse: () => null);
-                      if (pathShape != null) {
-                        final nodeIdx = PathEditOverlayPainter.hitTestNode(
-                            pathShape, local, zoom);
-                        if (nodeIdx != -1) return;
-                      }
-                    }
-                    if (pen == null) {
-                      ref.read(activePenDrawingProvider.notifier).start(local);
-                    } else {
-                      ref.read(activePenDrawingProvider.notifier).addPoint(local);
-                    }
+                    _handleMotionPathTap(local, mpDrawTarget, zoom);
                   }
-                : isSelectTool
+                : isPenTool
                     ? (details) {
                         final local = _toCanvasPoint(details.localPosition);
-                        final cmdHeld =
-                            HardwareKeyboard.instance.isControlPressed ||
-                            HardwareKeyboard.instance.isMetaPressed;
-                        _handleSelectTap(scene, selectedShape, displaySelectedShape, local, zoom, cmdHeld, activeGroupId);
+                        final pen = ref.read(activePenDrawingProvider);
+                        // If no active drawing and clicked near an existing node,
+                        // let onPanStart handle the drag instead.
+                        if (pen == null && selectedShape != null) {
+                          final pathShape = selectedShape.maybeMap(
+                              path: (s) => s, orElse: () => null);
+                          if (pathShape != null) {
+                            final nodeIdx = PathEditOverlayPainter.hitTestNode(
+                                pathShape, local, zoom);
+                            if (nodeIdx != -1) return;
+                          }
+                        }
+                        if (pen == null) {
+                          ref.read(activePenDrawingProvider.notifier).start(local);
+                        } else {
+                          ref.read(activePenDrawingProvider.notifier).addPoint(local);
+                        }
                       }
-                    : null,
+                    : isSelectTool
+                        ? (details) {
+                            final local = _toCanvasPoint(details.localPosition);
+                            final cmdHeld =
+                                HardwareKeyboard.instance.isControlPressed ||
+                                HardwareKeyboard.instance.isMetaPressed;
+                            _handleSelectTap(scene, selectedShape, displaySelectedShape, local, zoom, cmdHeld, activeGroupId);
+                          }
+                        : null,
 
-            onDoubleTap: isPenTool
-                ? () => _finishPenDrawing(closed: true)
-                : isSelectTool
+            onDoubleTap: isMotionPathDrawing
+                ? () => _finishMotionPathDrawing(mpDrawTarget)
+                : isPenTool
+                    ? () => _finishPenDrawing(closed: true)
+                    : isSelectTool
                     ? () {
                         if (selectedShape == null) return;
                         // If the selected shape is a group and we're not already inside it,
@@ -345,6 +377,8 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
                             activeTool: activeTool,
                             drawing: drawing,
                             penDrawing: penDrawing,
+                            motionPaths: motionPaths,
+                            mpPreviewNodes: mpPreviewNodes,
                           ),
                         ),
                       ),
@@ -392,6 +426,8 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
     required VecTool activeTool,
     required dynamic drawing,
     required dynamic penDrawing,
+    required List<dynamic> motionPaths,
+    required List<dynamic> mpPreviewNodes,
   }) {
     return Transform.scale(
       scale: zoom,
@@ -549,6 +585,22 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
                   ),
                 );
               }),
+
+            // Motion path overlay — dashed paths + node handles
+            if (motionPaths.isNotEmpty || mpPreviewNodes.isNotEmpty)
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: CustomPaint(
+                    painter: MotionPathOverlayPainter(
+                      motionPaths: motionPaths.cast(),
+                      previewNodes: mpPreviewNodes.cast(),
+                      zoom: zoom,
+                      pathColor: theme.accentColor,
+                      nodeColor: theme.primaryColor,
+                    ),
+                  ),
+                ),
+              ),
           ],
         ),
       ),
@@ -733,6 +785,18 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
   ) {
     final canvasPoint = _toCanvasPoint(details.localPosition);
     final selectedIds = ref.read(selectedShapeIdsProvider);
+
+    // --- Motion path node drag ---
+    final motionPaths = ref.read(activeSceneMotionPathsProvider);
+    final mpHit = MotionPathHitTest.hitTestNode(motionPaths, canvasPoint, zoom);
+    if (mpHit != null) {
+      setState(() {
+        _selectDragMode = _SelectDragMode.motionPathNode;
+        _mpDragPathId = mpHit.pathId;
+        _mpDragNodeIndex = mpHit.nodeIndex;
+      });
+      return;
+    }
 
     // --- Multi-select drag: move all selected shapes together ---
     if (selectedIds.length > 1 && activeGroup == null && scene != null) {
@@ -1000,6 +1064,10 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
         return;
 
       case _SelectDragMode.none:
+        return;
+
+      case _SelectDragMode.motionPathNode:
+        // Handled before this switch in onPanUpdate
         return;
     }
 
@@ -1444,6 +1512,74 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
     ref.read(vecDocumentStateProvider.notifier).addShape(scene.id, layerId, shape);
     ref.read(selectedShapeIdProvider.notifier).set(shape.id);
     ref.read(selectedShapeIdsProvider.notifier).setSingle(shape.id);
+  }
+
+  // ===========================================================================
+  // Motion path — drawing mode
+  // ===========================================================================
+
+  /// Called on each tap while in motion-path drawing mode.
+  void _handleMotionPathTap(Offset canvasPoint, String shapeId, double zoom) {
+    final node = VecPathNode(
+      position: VecPoint(x: canvasPoint.dx, y: canvasPoint.dy),
+    );
+    ref.read(motionPathPreviewNodesProvider.notifier).addNode(node);
+  }
+
+  /// Called on double-tap (or Esc→finish) to commit the drawn path.
+  void _finishMotionPathDrawing(String shapeId) {
+    final nodes = ref.read(motionPathPreviewNodesProvider);
+    if (nodes.length < 2) {
+      // Not enough nodes — cancel silently
+      ref.read(motionPathDrawTargetProvider.notifier).cancel();
+      ref.read(motionPathPreviewNodesProvider.notifier).clear();
+      return;
+    }
+
+    final scene = ref.read(activeSceneProvider);
+    if (scene == null) return;
+
+    const uuid = Uuid();
+    final mp = VecMotionPath(
+      id: uuid.v4(),
+      shapeId: shapeId,
+      nodes: List.unmodifiable(nodes),
+    );
+
+    ref.read(vecDocumentStateProvider.notifier).addMotionPath(scene.id, mp);
+    ref.read(motionPathDrawTargetProvider.notifier).cancel();
+    ref.read(motionPathPreviewNodesProvider.notifier).clear();
+  }
+
+  // ===========================================================================
+  // Motion path — node drag
+  // ===========================================================================
+
+  void _handleMpNodeDrag(DragUpdateDetails details) {
+    final pathId = _mpDragPathId;
+    final nodeIdx = _mpDragNodeIndex;
+    if (pathId == null || nodeIdx < 0) return;
+
+    final scene = ref.read(activeSceneProvider);
+    if (scene == null) return;
+
+    final canvasPoint = _toCanvasPoint(details.localPosition);
+    final mp = scene.motionPaths.where((p) => p.id == pathId).firstOrNull;
+    if (mp == null || nodeIdx >= mp.nodes.length) return;
+
+    final updatedNodes = [
+      for (var i = 0; i < mp.nodes.length; i++)
+        if (i == nodeIdx)
+          mp.nodes[i].copyWith(
+            position: VecPoint(x: canvasPoint.dx, y: canvasPoint.dy),
+          )
+        else
+          mp.nodes[i],
+    ];
+
+    ref
+        .read(vecDocumentStateProvider.notifier)
+        .updateMotionPathNodesNoHistory(scene.id, pathId, updatedNodes);
   }
 }
 
