@@ -1,5 +1,6 @@
 import 'dart:ui' show Offset;
 
+import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../data/models/vec_layer.dart';
@@ -141,6 +142,11 @@ class SelectedShapeIds extends _$SelectedShapeIds {
   void setAll(List<String> ids) => state = List.unmodifiable(ids);
   void clear() => state = const [];
 }
+
+/// The frame number of the currently selected keyframe.
+/// Defaults to 0 (first frame). Updated when clicking a keyframe diamond
+/// or adding a new keyframe.
+final selectedKeyframeFrameProvider = StateProvider<int>((ref) => 0);
 
 @riverpod
 class IsPlaying extends _$IsPlaying {

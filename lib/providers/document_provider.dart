@@ -304,39 +304,103 @@ class VecDocumentState extends _$VecDocumentState {
   // ===========================================================================
 
   void addShape(String sceneId, String layerId, VecShape shape) {
-    _commit(_withLayer(
-      sceneId,
-      layerId,
-      (l) => l.copyWith(shapes: [...l.shapes, shape]),
-    ));
+    final kf = VecKeyframe(
+      frame: 0,
+      tweenType: VecTweenType.classic,
+      transform: shape.data.transform,
+      opacity: shape.data.opacity,
+      fills: List.unmodifiable(shape.data.fills),
+      strokes: List.unmodifiable(shape.data.strokes),
+    );
+    _commit(_withScene(sceneId, (scene) {
+      final newLayers = [
+        for (final l in scene.layers)
+          if (l.id == layerId) l.copyWith(shapes: [...l.shapes, shape]) else l,
+      ];
+      return scene.copyWith(
+        layers: newLayers,
+        timeline: scene.timeline.copyWith(
+          tracks: [
+            ...scene.timeline.tracks,
+            VecTrack(
+              id: _uuid.v4(),
+              layerId: layerId,
+              shapeId: shape.id,
+              keyframes: [kf],
+            ),
+          ],
+        ),
+      );
+    }));
   }
 
   /// Adds multiple shapes in one undo-able step.
   void addShapes(String sceneId, String layerId, List<VecShape> shapes) {
-    _commit(_withLayer(
-      sceneId,
-      layerId,
-      (l) => l.copyWith(shapes: [...l.shapes, ...shapes]),
-    ));
+    _commit(_withScene(sceneId, (scene) {
+      final newLayers = [
+        for (final l in scene.layers)
+          if (l.id == layerId)
+            l.copyWith(shapes: [...l.shapes, ...shapes])
+          else
+            l,
+      ];
+      return scene.copyWith(
+        layers: newLayers,
+        timeline: scene.timeline.copyWith(
+          tracks: [
+            ...scene.timeline.tracks,
+            for (final shape in shapes)
+              VecTrack(
+                id: _uuid.v4(),
+                layerId: layerId,
+                shapeId: shape.id,
+                keyframes: [
+                  VecKeyframe(
+                    frame: 0,
+                    tweenType: VecTweenType.classic,
+                    transform: shape.data.transform,
+                    opacity: shape.data.opacity,
+                    fills: List.unmodifiable(shape.data.fills),
+                    strokes: List.unmodifiable(shape.data.strokes),
+                  ),
+                ],
+              ),
+          ],
+        ),
+      );
+    }));
   }
 
   /// Removes multiple shapes in one undo-able step.
   void removeShapes(String sceneId, String layerId, List<String> shapeIds) {
-    _commit(_withLayer(
-      sceneId,
-      layerId,
-      (l) => l.copyWith(
-        shapes: l.shapes.where((s) => !shapeIds.contains(s.id)).toList(),
-      ),
-    ));
+    _commit(_withScene(sceneId, (scene) {
+      return scene.copyWith(
+        layers: [
+          for (final l in scene.layers)
+            if (l.id == layerId)
+              l.copyWith(
+                shapes: l.shapes.where((s) => !shapeIds.contains(s.id)).toList(),
+              )
+            else
+              l,
+        ],
+        timeline: scene.timeline.copyWith(
+          tracks: scene.timeline.tracks
+              .where((t) => t.shapeId == null || !shapeIds.contains(t.shapeId))
+              .toList(),
+        ),
+      );
+    }));
   }
 
   /// Wraps [shapeIds] into a new [VecGroupShape] inserted at the topmost
   /// z-position of the selected shapes.  Returns the new group's ID.
   String groupShapes(String sceneId, String layerId, List<String> shapeIds) {
     final groupId = _uuid.v4();
-    _commit(_withLayer(sceneId, layerId, (layer) {
-      // Collect selected shapes in layer z-order, track lowest z-index
+    _commit(_withScene(sceneId, (scene) {
+      final layer = scene.layers.where((l) => l.id == layerId).firstOrNull;
+      if (layer == null) return scene;
+
       final selected = <VecShape>[];
       var insertAt = layer.shapes.length;
       for (var i = 0; i < layer.shapes.length; i++) {
@@ -345,9 +409,8 @@ class VecDocumentState extends _$VecDocumentState {
           if (i < insertAt) insertAt = i;
         }
       }
-      if (selected.isEmpty) return layer;
+      if (selected.isEmpty) return scene;
 
-      // Bounding box of all selected shapes (ignoring rotation for simplicity)
       var minX = selected.first.transform.x;
       var minY = selected.first.transform.y;
       var maxX = minX + selected.first.transform.width;
@@ -360,7 +423,6 @@ class VecDocumentState extends _$VecDocumentState {
         if (t.y + t.height > maxY) maxY = t.y + t.height;
       }
 
-      // Adjust children to group-local space
       final children = selected.map((s) => s.copyWith(
             data: s.data.copyWith(
               transform: s.transform.copyWith(
@@ -388,23 +450,39 @@ class VecDocumentState extends _$VecDocumentState {
       final remaining =
           layer.shapes.where((s) => !shapeIds.contains(s.id)).toList();
       remaining.insert(insertAt, group);
-      return layer.copyWith(shapes: remaining);
+
+      // Remove tracks for grouped children, add one for the new group.
+      final cleanTracks = scene.timeline.tracks
+          .where((t) => t.shapeId == null || !shapeIds.contains(t.shapeId))
+          .toList();
+
+      return scene.copyWith(
+        layers: [
+          for (final l in scene.layers)
+            if (l.id == layerId) l.copyWith(shapes: remaining) else l,
+        ],
+        timeline: scene.timeline.copyWith(
+          tracks: [...cleanTracks, _trackAt0(layerId, group)],
+        ),
+      );
     }));
     return groupId;
   }
 
   /// Dissolves the selected [VecGroupShape], inserting its children back into
   /// the layer at the group's z-position.  Returns the children's IDs.
-  List<String> ungroupShape(
-      String sceneId, String layerId, String groupId) {
+  List<String> ungroupShape(String sceneId, String layerId, String groupId) {
     final childIds = <String>[];
-    _commit(_withLayer(sceneId, layerId, (layer) {
-      final groupIdx = layer.shapes.indexWhere((s) => s.id == groupId);
-      if (groupIdx == -1) return layer;
+    _commit(_withScene(sceneId, (scene) {
+      final layer = scene.layers.where((l) => l.id == layerId).firstOrNull;
+      if (layer == null) return scene;
 
-      final groupShape = layer.shapes[groupIdx].maybeMap(
-          group: (g) => g, orElse: () => null);
-      if (groupShape == null) return layer;
+      final groupIdx = layer.shapes.indexWhere((s) => s.id == groupId);
+      if (groupIdx == -1) return scene;
+
+      final groupShape =
+          layer.shapes[groupIdx].maybeMap(group: (g) => g, orElse: () => null);
+      if (groupShape == null) return scene;
 
       final gt = groupShape.data.transform;
       final children = groupShape.children.map((c) {
@@ -424,7 +502,24 @@ class VecDocumentState extends _$VecDocumentState {
       for (var i = 0; i < children.length; i++) {
         shapes.insert(groupIdx + i, children[i]);
       }
-      return layer.copyWith(shapes: shapes);
+
+      // Remove group's track, add tracks for each ungrouped child.
+      final cleanTracks = scene.timeline.tracks
+          .where((t) => t.shapeId != groupId)
+          .toList();
+
+      return scene.copyWith(
+        layers: [
+          for (final l in scene.layers)
+            if (l.id == layerId) l.copyWith(shapes: shapes) else l,
+        ],
+        timeline: scene.timeline.copyWith(
+          tracks: [
+            ...cleanTracks,
+            for (final child in children) _trackAt0(layerId, child),
+          ],
+        ),
+      );
     }));
     return childIds;
   }
@@ -467,26 +562,8 @@ class VecDocumentState extends _$VecDocumentState {
     String shapeId,
     VecShape Function(VecShape) updater,
   ) {
-    _commit(_withLayer(sceneId, layerId, (layer) {
-      return layer.copyWith(
-        shapes: [
-          for (final s in layer.shapes)
-            if (s.id == shapeId) updater(s) else s,
-        ],
-      );
-    }));
-  }
-
-  /// Updates shape state without adding to undo history.
-  /// Use this during live drag operations; call [updateShape] on drag end
-  /// to commit a single undo-able step.
-  void updateShapeNoHistory(
-    String sceneId,
-    String layerId,
-    String shapeId,
-    VecShape Function(VecShape) updater,
-  ) {
-    final newDoc = _withLayer(sceneId, layerId, (layer) {
+    final selectedFrame = ref.read(selectedKeyframeFrameProvider);
+    var newDoc = _withLayer(sceneId, layerId, (layer) {
       return layer.copyWith(
         shapes: [
           for (final s in layer.shapes)
@@ -494,6 +571,34 @@ class VecDocumentState extends _$VecDocumentState {
         ],
       );
     });
+    newDoc = _recordShapeToKeyframe(newDoc, sceneId, layerId, shapeId, selectedFrame);
+    _commit(newDoc);
+  }
+
+  /// Updates shape state without adding to undo history.
+  /// Use this during live drag operations; call [updateShape] on drag end
+  /// to commit a single undo-able step.
+  ///
+  /// Also mirrors the change to the keyframe at the selected frame (if one
+  /// exists) so that [animatedSceneProvider] reflects the live position while
+  /// dragging — without this, keyframe interpolation would freeze the visual
+  /// at the last committed keyframe value.
+  void updateShapeNoHistory(
+    String sceneId,
+    String layerId,
+    String shapeId,
+    VecShape Function(VecShape) updater,
+  ) {
+    final selectedFrame = ref.read(selectedKeyframeFrameProvider);
+    var newDoc = _withLayer(sceneId, layerId, (layer) {
+      return layer.copyWith(
+        shapes: [
+          for (final s in layer.shapes)
+            if (s.id == shapeId) updater(s) else s,
+        ],
+      );
+    });
+    newDoc = _recordShapeToKeyframe(newDoc, sceneId, layerId, shapeId, selectedFrame);
     state = newDoc;
     _service.markDirty();
   }
@@ -501,8 +606,116 @@ class VecDocumentState extends _$VecDocumentState {
   /// Commits the current in-memory state to undo history.
   /// Call after a series of [updateShapeNoHistory] calls to create one
   /// undo-able step for the entire drag operation.
+  /// Automatically records any changed shapes to their keyframe at the
+  /// currently selected keyframe frame.
   void commitCurrentState() {
-    _commit(state);
+    final selectedFrame = ref.read(selectedKeyframeFrameProvider);
+    final prevDoc = _cursor >= 0 ? _history[_cursor] : null;
+
+    var finalDoc = state;
+    if (prevDoc != null) {
+      for (final newScene in state.scenes) {
+        final oldScene =
+            prevDoc.scenes.where((s) => s.id == newScene.id).firstOrNull;
+        if (oldScene == null) continue;
+        for (final newLayer in newScene.layers) {
+          final oldLayer =
+              oldScene.layers.where((l) => l.id == newLayer.id).firstOrNull;
+          if (oldLayer == null) continue;
+          for (final newShape in newLayer.shapes) {
+            final oldShape = oldLayer.shapes
+                .where((s) => s.id == newShape.id)
+                .firstOrNull;
+            if (oldShape == null || oldShape == newShape) continue;
+            finalDoc = _recordShapeToKeyframe(
+                finalDoc, newScene.id, newLayer.id, newShape.id, selectedFrame);
+          }
+        }
+      }
+    }
+
+    _commit(finalDoc);
+  }
+
+  /// Builds a [VecTrack] for [shape] in [layerId] with a single frame-0 keyframe.
+  VecTrack _trackAt0(String layerId, VecShape shape) => VecTrack(
+        id: _uuid.v4(),
+        layerId: layerId,
+        shapeId: shape.id,
+        keyframes: [
+          VecKeyframe(
+            frame: 0,
+            tweenType: VecTweenType.classic,
+            transform: shape.data.transform,
+            opacity: shape.data.opacity,
+            fills: List.unmodifiable(shape.data.fills),
+            strokes: List.unmodifiable(shape.data.strokes),
+          ),
+        ],
+      );
+
+  /// Pure helper – returns a new [VecDocument] with the keyframe at [frame]
+  /// updated to snapshot the current state of [shapeId]. No-op if the shape
+  /// has no track or no keyframe at [frame].
+  VecDocument _recordShapeToKeyframe(
+    VecDocument doc,
+    String sceneId,
+    String layerId,
+    String shapeId,
+    int frame,
+  ) {
+    final scene = doc.scenes.where((s) => s.id == sceneId).firstOrNull;
+    if (scene == null) return doc;
+
+    final track = scene.timeline.tracks
+        .where((t) => t.layerId == layerId && t.shapeId == shapeId)
+        .firstOrNull;
+    if (track == null || !track.keyframes.any((k) => k.frame == frame)) {
+      return doc;
+    }
+
+    VecShape? shape;
+    for (final layer in scene.layers) {
+      if (layer.id != layerId) continue;
+      shape = layer.shapes.where((s) => s.id == shapeId).firstOrNull;
+      break;
+    }
+    if (shape == null) return doc;
+
+    final kf = VecKeyframe(
+      frame: frame,
+      tweenType: VecTweenType.classic,
+      transform: shape.data.transform,
+      opacity: shape.data.opacity,
+      fills: List.unmodifiable(shape.data.fills),
+      strokes: List.unmodifiable(shape.data.strokes),
+    );
+
+    return doc.copyWith(
+      scenes: [
+        for (final s in doc.scenes)
+          if (s.id == sceneId)
+            s.copyWith(
+              timeline: s.timeline.copyWith(
+                tracks: [
+                  for (final t in s.timeline.tracks)
+                    if (t.id == track.id)
+                      t.copyWith(
+                        keyframes: [
+                          for (final k in t.keyframes)
+                            if (k.frame != frame) k,
+                          kf,
+                        ]..sort((a, b) => a.frame.compareTo(b.frame)),
+                      )
+                    else
+                      t,
+                ],
+              ),
+            )
+          else
+            s,
+      ],
+    );
   }
 
   // ===========================================================================
@@ -522,34 +735,48 @@ class VecDocumentState extends _$VecDocumentState {
 
     final resultIds = <String>[];
 
-    _commit(_withLayer(sceneId, layerId, (layer) {
+    _commit(_withScene(sceneId, (scene) {
+      final layer = scene.layers.where((l) => l.id == layerId).firstOrNull;
+      if (layer == null) return scene;
+
       // Collect inputs in bottom-to-top order (layer.shapes order)
       final inputs = layer.shapes
           .where((s) => shapeIds.contains(s.id))
-          .toList(); // already in layer order (bottom first)
+          .toList();
 
-      // Find insertion index = position of first (bottommost) selected shape
       final insertIdx =
           layer.shapes.indexWhere((s) => shapeIds.contains(s.id));
-
-      // Remove originals
       final remaining =
           layer.shapes.where((s) => !shapeIds.contains(s.id)).toList();
 
-      // Apply operation
       final results = PathfinderOps.apply(inputs, op);
-      for (final r in results) {
-        resultIds.add(r.id);
-      }
+      resultIds
+        ..clear()
+        ..addAll(results.map((r) => r.id));
 
-      // Insert results at original position
       final newShapes = [
         ...remaining.take(insertIdx),
         ...results,
         ...remaining.skip(insertIdx),
       ];
 
-      return layer.copyWith(shapes: newShapes);
+      // Remove stale tracks for the consumed shapes, add tracks for results.
+      final cleanTracks = scene.timeline.tracks
+          .where((t) => t.shapeId == null || !shapeIds.contains(t.shapeId))
+          .toList();
+
+      return scene.copyWith(
+        layers: [
+          for (final l in scene.layers)
+            if (l.id == layerId) l.copyWith(shapes: newShapes) else l,
+        ],
+        timeline: scene.timeline.copyWith(
+          tracks: [
+            ...cleanTracks,
+            for (final shape in results) _trackAt0(layerId, shape),
+          ],
+        ),
+      );
     }));
 
     return resultIds;
@@ -559,33 +786,61 @@ class VecDocumentState extends _$VecDocumentState {
   String? expandCompound(String sceneId, String layerId, String shapeId) {
     String? newId;
 
-    _commit(_withLayer(sceneId, layerId, (layer) {
+    _commit(_withScene(sceneId, (scene) {
+      final layer = scene.layers.where((l) => l.id == layerId).firstOrNull;
+      if (layer == null) return scene;
+
       final idx = layer.shapes.indexWhere((s) => s.id == shapeId);
-      if (idx == -1) return layer;
+      if (idx == -1) return scene;
 
       final compound =
           layer.shapes[idx].maybeMap(compound: (c) => c, orElse: () => null);
-      if (compound == null) return layer;
+      if (compound == null) return scene;
 
       final expanded = PathfinderOps.expand(compound);
       newId = expanded.id;
 
       final newShapes = [...layer.shapes];
       newShapes[idx] = expanded;
-      return layer.copyWith(shapes: newShapes);
+
+      // Replace compound's track with one for the expanded path.
+      final cleanTracks = scene.timeline.tracks
+          .where((t) => t.shapeId != shapeId)
+          .toList();
+
+      return scene.copyWith(
+        layers: [
+          for (final l in scene.layers)
+            if (l.id == layerId) l.copyWith(shapes: newShapes) else l,
+        ],
+        timeline: scene.timeline.copyWith(
+          tracks: [...cleanTracks, _trackAt0(layerId, expanded)],
+        ),
+      );
     }));
 
     return newId;
   }
 
   void removeShape(String sceneId, String layerId, String shapeId) {
-    _commit(_withLayer(
-      sceneId,
-      layerId,
-      (l) => l.copyWith(
-        shapes: l.shapes.where((s) => s.id != shapeId).toList(),
-      ),
-    ));
+    _commit(_withScene(sceneId, (scene) {
+      return scene.copyWith(
+        layers: [
+          for (final l in scene.layers)
+            if (l.id == layerId)
+              l.copyWith(
+                shapes: l.shapes.where((s) => s.id != shapeId).toList(),
+              )
+            else
+              l,
+        ],
+        timeline: scene.timeline.copyWith(
+          tracks: scene.timeline.tracks
+              .where((t) => t.shapeId != shapeId)
+              .toList(),
+        ),
+      );
+    }));
   }
 
   // ===========================================================================
@@ -760,6 +1015,42 @@ class VecDocumentState extends _$VecDocumentState {
         ),
       );
     }));
+  }
+
+  /// Moves the keyframe at [fromFrame] to [toFrame] for [shapeId]'s track.
+  /// If a keyframe already exists at [toFrame], it is replaced.
+  void moveKeyframeForShape(
+    String sceneId,
+    String layerId,
+    String shapeId,
+    int fromFrame,
+    int toFrame,
+  ) {
+    if (fromFrame == toFrame) return;
+    _commit(_withScene(sceneId, (scene) {
+      final clampedTo = toFrame.clamp(0, scene.timeline.duration - 1);
+      final newTracks = scene.timeline.tracks.map((t) {
+        if (t.layerId != layerId || t.shapeId != shapeId) return t;
+        final kfToMove =
+            t.keyframes.where((k) => k.frame == fromFrame).firstOrNull;
+        if (kfToMove == null) return t;
+        final others = t.keyframes
+            .where((k) => k.frame != fromFrame && k.frame != clampedTo)
+            .toList();
+        final moved = [...others, kfToMove.copyWith(frame: clampedTo)]
+          ..sort((a, b) => a.frame.compareTo(b.frame));
+        return t.copyWith(keyframes: moved);
+      }).toList();
+      return scene.copyWith(
+          timeline: scene.timeline.copyWith(tracks: newTracks));
+    }));
+  }
+
+  /// Sets the total frame count (duration) of the scene's timeline.
+  void setTimelineDuration(String sceneId, int duration) {
+    if (duration < 1) return;
+    _commit(_withScene(
+        sceneId, (s) => s.copyWith(timeline: s.timeline.copyWith(duration: duration))));
   }
 
   void removeKeyframe(String sceneId, String trackId, int frame) {

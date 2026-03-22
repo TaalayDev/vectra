@@ -30,6 +30,12 @@ class TrackRow {
 }
 
 // ---------------------------------------------------------------------------
+// Drag mode
+// ---------------------------------------------------------------------------
+
+enum _DragMode { none, seek, moveKeyframe, duration }
+
+// ---------------------------------------------------------------------------
 // FrameGrid widget
 // ---------------------------------------------------------------------------
 
@@ -50,6 +56,8 @@ class FrameGrid extends ConsumerStatefulWidget {
   static const frameWidth = 10.0;
   static const trackHeight = 24.0;
   static const rulerHeight = 18.0;
+  // Width of the duration drag handle zone at the right edge of the ruler
+  static const _durationHandleWidth = 8.0;
 
   @override
   ConsumerState<FrameGrid> createState() => _FrameGridState();
@@ -59,10 +67,75 @@ class _FrameGridState extends ConsumerState<FrameGrid> {
   int _hoverFrame = -1;
   int _hoverRow = -1;
 
+  // Drag state
+  _DragMode _dragMode = _DragMode.none;
+  // moveKeyframe
+  String? _dragShapeId;
+  String? _dragLayerId;
+  int _dragFromFrame = -1;
+  int _dragPreviewFrame = -1;
+  // duration
+  int _previewDuration = -1;
+
+  double get _scrollOffset =>
+      widget.scrollController?.hasClients == true
+          ? widget.scrollController!.offset
+          : 0.0;
+
+  /// Converts a screen-local x position to a canvas frame index.
+  int _toFrame(double screenX, int duration) {
+    final canvasX = screenX + _scrollOffset;
+    return (canvasX / FrameGrid.frameWidth).floor().clamp(0, duration - 1);
+  }
+
+  /// Returns (rowIndex, shapeId, layerId, fromFrame) if [screenPos] is near
+  /// an existing keyframe diamond, otherwise null.
+  ({int row, String shapeId, String layerId, int frame})? _hitTestKeyframe(
+    Offset screenPos,
+    Map<String, VecTrack> trackMap,
+  ) {
+    final dy = screenPos.dy;
+    final canvasX = screenPos.dx + _scrollOffset;
+    if (dy < FrameGrid.rulerHeight) return null;
+
+    final rowIndex =
+        ((dy - FrameGrid.rulerHeight) / FrameGrid.trackHeight).floor();
+    if (rowIndex < 0 || rowIndex >= widget.rows.length) return null;
+
+    final row = widget.rows[rowIndex];
+    final track = trackMap[row.shapeId];
+    if (track == null) return null;
+
+    for (final kf in track.keyframes) {
+      final kfX = kf.frame * FrameGrid.frameWidth + FrameGrid.frameWidth / 2;
+      if ((canvasX - kfX).abs() <= 6) {
+        return (
+          row: rowIndex,
+          shapeId: row.shapeId,
+          layerId: row.layerId,
+          frame: kf.frame,
+        );
+      }
+    }
+    return null;
+  }
+
+  /// Returns true if [screenPos] is near the duration drag handle.
+  bool _hitTestDurationHandle(Offset screenPos) {
+    final canvasX = screenPos.dx + _scrollOffset;
+    final handleX =
+        widget.timeline.duration * FrameGrid.frameWidth;
+    return screenPos.dy < FrameGrid.rulerHeight &&
+        (canvasX - handleX).abs() <= FrameGrid._durationHandleWidth;
+  }
+
   @override
   Widget build(BuildContext context) {
     final playhead = ref.watch(playheadFrameProvider);
-    final totalWidth = widget.timeline.duration * FrameGrid.frameWidth;
+    final selectedKf = ref.watch(selectedKeyframeFrameProvider);
+    final effectiveDuration =
+        _previewDuration > 0 ? _previewDuration : widget.timeline.duration;
+    final totalWidth = effectiveDuration * FrameGrid.frameWidth;
 
     // Build shapeId → track map for keyframe lookup
     final trackMap = <String, VecTrack>{};
@@ -72,13 +145,15 @@ class _FrameGridState extends ConsumerState<FrameGrid> {
 
     return MouseRegion(
       onHover: (e) {
-        final dx = e.localPosition.dx;
+        final canvasX = e.localPosition.dx + _scrollOffset;
         final dy = e.localPosition.dy;
         final row = ((dy - FrameGrid.rulerHeight) / FrameGrid.trackHeight).floor();
-        final frame = (dx / FrameGrid.frameWidth).floor();
+        final frame = (canvasX / FrameGrid.frameWidth)
+            .floor()
+            .clamp(0, widget.timeline.duration - 1);
         setState(() {
           _hoverRow = row;
-          _hoverFrame = frame.clamp(0, widget.timeline.duration - 1);
+          _hoverFrame = frame;
         });
       },
       onExit: (_) => setState(() {
@@ -86,31 +161,32 @@ class _FrameGridState extends ConsumerState<FrameGrid> {
         _hoverFrame = -1;
       }),
       child: GestureDetector(
-        // Tap on ruler → seek; tap on track row → add/remove keyframe
         onTapDown: (d) => _handleTap(d.localPosition, trackMap),
-        // Right-click on a keyframe diamond → easing editor
         onSecondaryTapDown: (d) =>
             _handleSecondaryTap(d.localPosition, trackMap, context),
-        // Drag always seeks
-        onHorizontalDragUpdate: (d) {
-          final frame = (d.localPosition.dx / FrameGrid.frameWidth)
-              .floor()
-              .clamp(0, widget.timeline.duration - 1);
-          ref.read(playheadFrameProvider.notifier).set(frame);
-        },
+        onHorizontalDragStart: (d) =>
+            _handleDragStart(d.localPosition, trackMap),
+        onHorizontalDragUpdate: (d) =>
+            _handleDragUpdate(d.localPosition, trackMap),
+        onHorizontalDragEnd: (_) => _handleDragEnd(),
         child: SingleChildScrollView(
           controller: widget.scrollController,
           scrollDirection: Axis.horizontal,
           child: SizedBox(
-            width: totalWidth,
+            width: totalWidth + FrameGrid.frameWidth * 2, // extra space for handle
             child: CustomPaint(
               painter: _FrameGridPainter(
-                timeline: widget.timeline,
+                timeline: widget.timeline.copyWith(duration: effectiveDuration),
                 rows: widget.rows,
                 trackMap: trackMap,
                 playheadFrame: playhead,
+                selectedKeyframeFrame: selectedKf,
                 hoverRow: _hoverRow,
                 hoverFrame: _hoverFrame,
+                dragShapeId: _dragShapeId,
+                dragFromFrame: _dragFromFrame,
+                dragPreviewFrame: _dragPreviewFrame,
+                isDurationDrag: _dragMode == _DragMode.duration,
                 gridLineColor: widget.theme.gridLine.withAlpha(40),
                 dividerColor: widget.theme.divider.withAlpha(40),
                 accentColor: widget.theme.accentColor,
@@ -126,15 +202,103 @@ class _FrameGridState extends ConsumerState<FrameGrid> {
     );
   }
 
+  void _handleDragStart(Offset localPos, Map<String, VecTrack> trackMap) {
+    if (_hitTestDurationHandle(localPos)) {
+      setState(() {
+        _dragMode = _DragMode.duration;
+        _previewDuration = widget.timeline.duration;
+      });
+      return;
+    }
+
+    final hit = _hitTestKeyframe(localPos, trackMap);
+    if (hit != null) {
+      setState(() {
+        _dragMode = _DragMode.moveKeyframe;
+        _dragShapeId = hit.shapeId;
+        _dragLayerId = hit.layerId;
+        _dragFromFrame = hit.frame;
+        _dragPreviewFrame = hit.frame;
+      });
+      return;
+    }
+
+    setState(() => _dragMode = _DragMode.seek);
+  }
+
+  void _handleDragUpdate(Offset localPos, Map<String, VecTrack> trackMap) {
+    switch (_dragMode) {
+      case _DragMode.seek:
+        final frame = _toFrame(localPos.dx, widget.timeline.duration);
+        ref.read(playheadFrameProvider.notifier).set(frame);
+      case _DragMode.moveKeyframe:
+        final frame = _toFrame(localPos.dx, widget.timeline.duration);
+        setState(() => _dragPreviewFrame = frame);
+        ref.read(playheadFrameProvider.notifier).set(frame);
+      case _DragMode.duration:
+        final canvasX = localPos.dx + _scrollOffset;
+        final newDuration =
+            (canvasX / FrameGrid.frameWidth).round().clamp(1, 9999);
+        setState(() => _previewDuration = newDuration);
+      case _DragMode.none:
+        break;
+    }
+  }
+
+  void _handleDragEnd() {
+    switch (_dragMode) {
+      case _DragMode.moveKeyframe:
+        if (_dragShapeId != null &&
+            _dragLayerId != null &&
+            _dragPreviewFrame != _dragFromFrame) {
+          final scene = ref.read(activeSceneProvider);
+          if (scene != null) {
+            ref.read(vecDocumentStateProvider.notifier).moveKeyframeForShape(
+                  scene.id,
+                  _dragLayerId!,
+                  _dragShapeId!,
+                  _dragFromFrame,
+                  _dragPreviewFrame,
+                );
+            // Update selected keyframe to the new position
+            ref.read(selectedKeyframeFrameProvider.notifier).state =
+                _dragPreviewFrame;
+          }
+        }
+        setState(() {
+          _dragMode = _DragMode.none;
+          _dragShapeId = null;
+          _dragLayerId = null;
+          _dragFromFrame = -1;
+          _dragPreviewFrame = -1;
+        });
+      case _DragMode.duration:
+        if (_previewDuration > 0) {
+          final scene = ref.read(activeSceneProvider);
+          if (scene != null) {
+            ref
+                .read(vecDocumentStateProvider.notifier)
+                .setTimelineDuration(scene.id, _previewDuration);
+          }
+        }
+        setState(() {
+          _dragMode = _DragMode.none;
+          _previewDuration = -1;
+        });
+      case _DragMode.seek:
+      case _DragMode.none:
+        setState(() => _dragMode = _DragMode.none);
+    }
+  }
+
   void _handleTap(Offset localPos, Map<String, VecTrack> trackMap) {
     final dy = localPos.dy;
-    final dx = localPos.dx;
-    final frame = (dx / FrameGrid.frameWidth)
+    final canvasX = localPos.dx + _scrollOffset;
+    final frame = (canvasX / FrameGrid.frameWidth)
         .floor()
         .clamp(0, widget.timeline.duration - 1);
 
     if (dy < FrameGrid.rulerHeight) {
-      // Ruler → seek
       ref.read(playheadFrameProvider.notifier).set(frame);
       return;
     }
@@ -154,12 +318,12 @@ class _FrameGridState extends ConsumerState<FrameGrid> {
     if (scene == null) return;
 
     if (hasKf) {
-      // Cmd+click or plain click on existing → remove
       if (HardwareKeyboard.instance.isMetaPressed) {
         ref.read(vecDocumentStateProvider.notifier).removeKeyframeForShape(
-              scene.id, row.layerId, row.shapeId, frame);
+            scene.id, row.layerId, row.shapeId, frame);
       } else {
-        // Plain click on diamond → just seek
+        // Select this keyframe and seek to it
+        ref.read(selectedKeyframeFrameProvider.notifier).state = frame;
         ref.read(playheadFrameProvider.notifier).set(frame);
       }
     } else {
@@ -180,10 +344,12 @@ class _FrameGridState extends ConsumerState<FrameGrid> {
         fills: List.unmodifiable(shape.data.fills),
         strokes: List.unmodifiable(shape.data.strokes),
       );
-      ref.read(vecDocumentStateProvider.notifier).addKeyframeForShape(
-            scene.id, row.layerId, row.shapeId, kf);
+      ref
+          .read(vecDocumentStateProvider.notifier)
+          .addKeyframeForShape(scene.id, row.layerId, row.shapeId, kf);
 
-      // Seek to the added keyframe
+      // New keyframe becomes the selected frame
+      ref.read(selectedKeyframeFrameProvider.notifier).state = frame;
       ref.read(playheadFrameProvider.notifier).set(frame);
     }
   }
@@ -195,21 +361,21 @@ class _FrameGridState extends ConsumerState<FrameGrid> {
     BuildContext ctx,
   ) {
     final dy = localPos.dy;
-    final dx = localPos.dx;
+    final canvasX = localPos.dx + _scrollOffset;
     if (dy < FrameGrid.rulerHeight) return;
 
     final rowIndex =
         ((dy - FrameGrid.rulerHeight) / FrameGrid.trackHeight).floor();
     if (rowIndex < 0 || rowIndex >= widget.rows.length) return;
 
-    final frame = (dx / FrameGrid.frameWidth)
+    final frame = (canvasX / FrameGrid.frameWidth)
         .floor()
         .clamp(0, widget.timeline.duration - 1);
 
     final row = widget.rows[rowIndex];
     final track = trackMap[row.shapeId];
     final kf = track?.keyframes.where((k) => k.frame == frame).firstOrNull;
-    if (kf == null) return; // only on existing keyframes
+    if (kf == null) return;
 
     final scene = ref.read(activeSceneProvider);
     if (scene == null) return;
@@ -220,8 +386,8 @@ class _FrameGridState extends ConsumerState<FrameGrid> {
       currentEasing: kf.easing,
       onChanged: (newEasing) {
         ref.read(vecDocumentStateProvider.notifier).updateKeyframeForShape(
-              scene.id, row.layerId, row.shapeId, frame,
-              (k) => k.copyWith(easing: newEasing));
+            scene.id, row.layerId, row.shapeId, frame,
+            (k) => k.copyWith(easing: newEasing));
       },
     );
   }
@@ -237,8 +403,13 @@ class _FrameGridPainter extends CustomPainter {
     required this.rows,
     required this.trackMap,
     required this.playheadFrame,
+    required this.selectedKeyframeFrame,
     required this.hoverRow,
     required this.hoverFrame,
+    required this.dragShapeId,
+    required this.dragFromFrame,
+    required this.dragPreviewFrame,
+    required this.isDurationDrag,
     required this.gridLineColor,
     required this.dividerColor,
     required this.accentColor,
@@ -251,8 +422,13 @@ class _FrameGridPainter extends CustomPainter {
   final List<TrackRow> rows;
   final Map<String, VecTrack> trackMap;
   final int playheadFrame;
+  final int selectedKeyframeFrame;
   final int hoverRow;
   final int hoverFrame;
+  final String? dragShapeId;
+  final int dragFromFrame;
+  final int dragPreviewFrame;
+  final bool isDurationDrag;
   final Color gridLineColor;
   final Color dividerColor;
   final Color accentColor;
@@ -287,6 +463,15 @@ class _FrameGridPainter extends CustomPainter {
       canvas.drawRect(
         Rect.fromLTWH(0, _rh + hoverRow * _th, size.width, _th),
         Paint()..color = hoverColor,
+      );
+    }
+
+    // Selected keyframe column tint (behind everything)
+    if (selectedKeyframeFrame >= 0 && selectedKeyframeFrame < timeline.duration) {
+      final sx = selectedKeyframeFrame * _fw;
+      canvas.drawRect(
+        Rect.fromLTWH(sx, _rh, _fw, size.height - _rh),
+        Paint()..color = primaryColor.withAlpha(12),
       );
     }
 
@@ -333,17 +518,58 @@ class _FrameGridPainter extends CustomPainter {
       if (track == null) continue;
 
       final cy = _rh + i * _th + _th / 2;
+      final isDragRow = row.shapeId == dragShapeId;
+
       for (final kf in track.keyframes) {
+        // During drag: don't draw the original position, draw preview instead
+        if (isDragRow && kf.frame == dragFromFrame && dragFromFrame >= 0) {
+          if (dragPreviewFrame >= 0) {
+            final cx = dragPreviewFrame * _fw + _fw / 2;
+            final isSelected = dragPreviewFrame == selectedKeyframeFrame;
+            _drawDiamond(
+              canvas,
+              Offset(cx, cy),
+              5.5,
+              Paint()..color = primaryColor,
+              selected: isSelected,
+            );
+          }
+          continue;
+        }
+
         final cx = kf.frame * _fw + _fw / 2;
         final isHovered = i == hoverRow && kf.frame == hoverFrame;
+        final isSelected = kf.frame == selectedKeyframeFrame;
+
         _drawDiamond(
           canvas,
           Offset(cx, cy),
-          isHovered ? 5.5 : 4.5,
-          Paint()..color = isHovered ? primaryColor : accentColor,
+          isHovered || isSelected ? 5.5 : 4.5,
+          Paint()
+            ..color = isSelected
+                ? primaryColor
+                : isHovered
+                    ? primaryColor.withAlpha(200)
+                    : accentColor,
+          selected: isSelected,
         );
       }
     }
+
+    // Duration end line
+    final endX = timeline.duration * _fw;
+    canvas.drawLine(
+      Offset(endX, 0),
+      Offset(endX, size.height),
+      Paint()
+        ..color = isDurationDrag
+            ? primaryColor
+            : dividerColor.withAlpha(180)
+        ..strokeWidth = isDurationDrag ? 2.0 : 1.5,
+    );
+
+    // Duration handle on the ruler
+    _drawDurationHandle(canvas, endX);
 
     // Playhead line
     final phX = playheadFrame * _fw + _fw / 2;
@@ -363,7 +589,37 @@ class _FrameGridPainter extends CustomPainter {
     canvas.drawPath(tri, Paint()..color = primaryColor);
   }
 
-  void _drawDiamond(Canvas canvas, Offset c, double r, Paint paint) {
+  void _drawDurationHandle(Canvas canvas, double endX) {
+    // Small pill/tab on the ruler at the end
+    const h = _rh - 4;
+    const w = 10.0;
+    final rect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(endX - w / 2, 2, w, h),
+      const Radius.circular(3),
+    );
+    canvas.drawRRect(
+      rect,
+      Paint()
+        ..color = isDurationDrag
+            ? primaryColor
+            : dividerColor.withAlpha(200),
+    );
+    // Small double-arrow hint
+    const midY = 2 + h / 2;
+    final arrowPaint = Paint()
+      ..color = isDurationDrag ? Colors.white : textColor
+      ..strokeWidth = 1.0
+      ..strokeCap = StrokeCap.round;
+    // Left arrow
+    canvas.drawLine(Offset(endX - 3, midY - 2), Offset(endX - 5, midY), arrowPaint);
+    canvas.drawLine(Offset(endX - 3, midY + 2), Offset(endX - 5, midY), arrowPaint);
+    // Right arrow
+    canvas.drawLine(Offset(endX + 3, midY - 2), Offset(endX + 5, midY), arrowPaint);
+    canvas.drawLine(Offset(endX + 3, midY + 2), Offset(endX + 5, midY), arrowPaint);
+  }
+
+  void _drawDiamond(Canvas canvas, Offset c, double r, Paint paint,
+      {bool selected = false}) {
     final path = Path()
       ..moveTo(c.dx, c.dy - r)
       ..lineTo(c.dx + r, c.dy)
@@ -371,23 +627,30 @@ class _FrameGridPainter extends CustomPainter {
       ..lineTo(c.dx - r, c.dy)
       ..close();
     canvas.drawPath(path, paint);
-    // Outline
+    // Outline – thicker and brighter for selected
     canvas.drawPath(
       path,
       Paint()
-        ..color = paint.color.withAlpha(180)
+        ..color = selected
+            ? Colors.white.withAlpha(200)
+            : paint.color.withAlpha(180)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 0.8,
+        ..strokeWidth = selected ? 1.5 : 0.8,
     );
   }
 
   @override
   bool shouldRepaint(covariant _FrameGridPainter old) =>
       old.playheadFrame != playheadFrame ||
+      old.selectedKeyframeFrame != selectedKeyframeFrame ||
       old.timeline != timeline ||
       old.rows != rows ||
       old.trackMap != trackMap ||
       old.hoverRow != hoverRow ||
       old.hoverFrame != hoverFrame ||
+      old.dragShapeId != dragShapeId ||
+      old.dragFromFrame != dragFromFrame ||
+      old.dragPreviewFrame != dragPreviewFrame ||
+      old.isDurationDrag != isDurationDrag ||
       old.primaryColor != primaryColor;
 }

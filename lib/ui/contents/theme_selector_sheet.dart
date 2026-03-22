@@ -51,10 +51,7 @@ class ThemeSelectorBottomSheet extends HookConsumerWidget {
             decoration: BoxDecoration(
               color: previewTheme.surface.withOpacity(0.95),
               borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-              border: Border.all(
-                color: previewTheme.divider.withOpacity(0.3),
-                width: 1,
-              ),
+              border: Border.all(color: previewTheme.divider.withOpacity(0.3), width: 1),
             ),
             child: Column(
               children: [
@@ -63,10 +60,7 @@ class ThemeSelectorBottomSheet extends HookConsumerWidget {
                   margin: const EdgeInsets.only(top: 12),
                   width: 40,
                   height: 4,
-                  decoration: BoxDecoration(
-                    color: previewTheme.divider,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
+                  decoration: BoxDecoration(color: previewTheme.divider, borderRadius: BorderRadius.circular(2)),
                 ),
 
                 // Header
@@ -74,11 +68,7 @@ class ThemeSelectorBottomSheet extends HookConsumerWidget {
                   padding: const EdgeInsets.all(20),
                   child: Row(
                     children: [
-                      Icon(
-                        Icons.palette_outlined,
-                        color: previewTheme.primaryColor,
-                        size: 28,
-                      ),
+                      Icon(Icons.palette_outlined, color: previewTheme.primaryColor, size: 28),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(
@@ -96,10 +86,7 @@ class ThemeSelectorBottomSheet extends HookConsumerWidget {
                               selectedTheme.value != null
                                   ? 'Previewing ${selectedTheme.value!.displayName}'
                                   : 'Current: ${currentTheme.type.displayName}',
-                              style: TextStyle(
-                                fontSize: isSmallScreen ? 12 : 14,
-                                color: previewTheme.textSecondary,
-                              ),
+                              style: TextStyle(fontSize: isSmallScreen ? 12 : 14, color: previewTheme.textSecondary),
                             ),
                           ],
                         ),
@@ -111,10 +98,7 @@ class ThemeSelectorBottomSheet extends HookConsumerWidget {
                             onPressed: () {
                               selectedTheme.value = null;
                             },
-                            child: Text(
-                              'Cancel',
-                              style: TextStyle(color: previewTheme.textSecondary),
-                            ),
+                            child: Text('Cancel', style: TextStyle(color: previewTheme.textSecondary)),
                           ),
                           const SizedBox(width: 8),
                         ],
@@ -137,11 +121,9 @@ class ThemeSelectorBottomSheet extends HookConsumerWidget {
                             final type = selectedTheme.value!;
                             if (type.isLocked && !subscription.isPro) {
                               Navigator.of(context).pop();
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (context) => const SubscriptionOfferScreen(),
-                                ),
-                              );
+                              Navigator.of(
+                                context,
+                              ).push(MaterialPageRoute(builder: (context) => const SubscriptionOfferScreen()));
 
                               return;
                             }
@@ -157,10 +139,7 @@ class ThemeSelectorBottomSheet extends HookConsumerWidget {
                       ] else
                         IconButton(
                           onPressed: () => Navigator.of(context).pop(),
-                          icon: Icon(
-                            Icons.close,
-                            color: previewTheme.textSecondary,
-                          ),
+                          icon: Icon(Icons.close, color: previewTheme.textSecondary),
                         ),
                     ],
                   ),
@@ -179,17 +158,11 @@ class ThemeSelectorBottomSheet extends HookConsumerWidget {
                         ],
                       ),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: previewTheme.primaryColor.withOpacity(0.2),
-                      ),
+                      border: Border.all(color: previewTheme.primaryColor.withOpacity(0.2)),
                     ),
                     child: Row(
                       children: [
-                        Icon(
-                          MaterialCommunityIcons.crown,
-                          color: previewTheme.primaryColor,
-                          size: 20,
-                        ),
+                        Icon(MaterialCommunityIcons.crown, color: previewTheme.primaryColor, size: 20),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Column(
@@ -197,17 +170,11 @@ class ThemeSelectorBottomSheet extends HookConsumerWidget {
                             children: [
                               Text(
                                 'Unlock Premium Themes',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: previewTheme.textPrimary,
-                                ),
+                                style: TextStyle(fontWeight: FontWeight.bold, color: previewTheme.textPrimary),
                               ),
                               Text(
                                 'Get access to all themes with Pro',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: previewTheme.textSecondary,
-                                ),
+                                style: TextStyle(fontSize: 12, color: previewTheme.textSecondary),
                               ),
                             ],
                           ),
@@ -219,10 +186,7 @@ class ThemeSelectorBottomSheet extends HookConsumerWidget {
                           },
                           child: Text(
                             'Get Pro',
-                            style: TextStyle(
-                              color: previewTheme.primaryColor,
-                              fontWeight: FontWeight.bold,
-                            ),
+                            style: TextStyle(color: previewTheme.primaryColor, fontWeight: FontWeight.bold),
                           ),
                         ),
                       ],
@@ -301,11 +265,7 @@ class _ThemeList extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         DefaultTextStyle(
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: previewTheme.textPrimary,
-          ),
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: previewTheme.textPrimary),
           child: title,
         ),
         const SizedBox(height: 16),
@@ -373,8 +333,8 @@ class ThemePreviewCard extends HookWidget {
             color: isSelected
                 ? theme.primaryColor
                 : isCurrent
-                    ? theme.accentColor
-                    : theme.divider,
+                ? theme.accentColor
+                : theme.divider,
             width: isSelected || isCurrent ? 3 : 1,
           ),
           boxShadow: [
@@ -448,27 +408,16 @@ class ThemePreviewCard extends HookWidget {
                               color: Colors.orange.withOpacity(0.2),
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            child: const Icon(
-                              MaterialCommunityIcons.crown,
-                              size: 16,
-                              color: Colors.orange,
-                            ),
+                            child: const Icon(MaterialCommunityIcons.crown, size: 16, color: Colors.orange),
                           ),
                         const Spacer(),
                         if (isCurrent)
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: theme.accentColor,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
+                            decoration: BoxDecoration(color: theme.accentColor, borderRadius: BorderRadius.circular(8)),
                             child: Text(
                               'Current',
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                                color: theme.onAccent,
-                              ),
+                              style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: theme.onAccent),
                             ),
                           ),
                         if (isSelected && !isCurrent)
@@ -478,11 +427,7 @@ class ThemePreviewCard extends HookWidget {
                               color: theme.primaryColor,
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            child: Icon(
-                              Icons.check,
-                              size: 16,
-                              color: theme.onPrimary,
-                            ),
+                            child: Icon(Icons.check, size: 16, color: theme.onPrimary),
                           ),
                       ],
                     ),
@@ -492,11 +437,7 @@ class ThemePreviewCard extends HookWidget {
                     // Theme name
                     Text(
                       themeType.displayName,
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: theme.textPrimary,
-                      ),
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: theme.textPrimary),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -514,11 +455,7 @@ class ThemePreviewCard extends HookWidget {
                         const Spacer(),
                         Text(
                           theme.isDark ? 'Dark' : 'Light',
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: theme.textSecondary,
-                            fontWeight: FontWeight.w500,
-                          ),
+                          style: TextStyle(fontSize: 10, color: theme.textSecondary, fontWeight: FontWeight.w500),
                         ),
                       ],
                     ),
@@ -533,13 +470,7 @@ class ThemePreviewCard extends HookWidget {
                     color: Colors.black.withOpacity(0.3),
                     borderRadius: BorderRadius.circular(15),
                   ),
-                  child: const Center(
-                    child: Icon(
-                      MaterialCommunityIcons.lock,
-                      color: Colors.white,
-                      size: 32,
-                    ),
-                  ),
+                  child: const Center(child: Icon(MaterialCommunityIcons.lock, color: Colors.white, size: 32)),
                 ),
             ],
           ),
@@ -560,20 +491,11 @@ class ThemeShowcase extends StatelessWidget {
     return Dialog(
       backgroundColor: Colors.transparent,
       child: Container(
-        constraints: const BoxConstraints(
-          maxWidth: 700,
-          maxHeight: 600,
-        ),
+        constraints: const BoxConstraints(maxWidth: 700, maxHeight: 600),
         decoration: BoxDecoration(
           color: theme.surface,
           borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.3),
-              blurRadius: 20,
-              spreadRadius: 5,
-            ),
-          ],
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 20, spreadRadius: 5)],
         ),
         child: Column(
           children: [
@@ -585,10 +507,7 @@ class ThemeShowcase extends StatelessWidget {
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [
-                    theme.primaryColor.withOpacity(0.8),
-                    theme.accentColor.withOpacity(0.6),
-                  ],
+                  colors: [theme.primaryColor.withOpacity(0.8), theme.accentColor.withOpacity(0.6)],
                 ),
               ),
               child: Stack(
@@ -608,11 +527,7 @@ class ThemeShowcase extends StatelessWidget {
                     padding: const EdgeInsets.all(20),
                     child: Row(
                       children: [
-                        Icon(
-                          Icons.palette,
-                          color: theme.onPrimary,
-                          size: 32,
-                        ),
+                        Icon(Icons.palette, color: theme.onPrimary, size: 32),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Column(
@@ -621,18 +536,11 @@ class ThemeShowcase extends StatelessWidget {
                             children: [
                               Text(
                                 theme.type.displayName,
-                                style: TextStyle(
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.bold,
-                                  color: theme.onPrimary,
-                                ),
+                                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: theme.onPrimary),
                               ),
                               Text(
                                 '${theme.isDark ? 'Dark' : 'Light'} Theme Preview',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: theme.onPrimary.withOpacity(0.8),
-                                ),
+                                style: TextStyle(fontSize: 14, color: theme.onPrimary.withOpacity(0.8)),
                               ),
                             ],
                           ),
@@ -688,11 +596,7 @@ class ThemeShowcase extends StatelessWidget {
                       _ThemeSection(
                         title: 'UI Elements',
                         theme: theme,
-                        children: [
-                          _ButtonsRow(theme),
-                          const SizedBox(height: 16),
-                          _InputsRow(theme),
-                        ],
+                        children: [_ButtonsRow(theme), const SizedBox(height: 16), _InputsRow(theme)],
                       ),
                     ],
                   ),
@@ -711,11 +615,7 @@ class _ThemeSection extends StatelessWidget {
   final AppTheme theme;
   final List<Widget> children;
 
-  const _ThemeSection({
-    required this.title,
-    required this.theme,
-    required this.children,
-  });
+  const _ThemeSection({required this.title, required this.theme, required this.children});
 
   @override
   Widget build(BuildContext context) {
@@ -726,18 +626,10 @@ class _ThemeSection extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 8.0),
           child: Text(
             title,
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: theme.textPrimary,
-            ),
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: theme.textPrimary),
           ),
         ),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: children,
-        ),
+        Wrap(spacing: 8, runSpacing: 8, children: children),
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 16),
           child: Divider(color: theme.divider),
@@ -765,31 +657,17 @@ class _ColorBox extends StatelessWidget {
           decoration: BoxDecoration(
             color: color,
             borderRadius: BorderRadius.circular(8),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.1),
-                blurRadius: 2,
-                offset: const Offset(0, 1),
-              ),
-            ],
+            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 2, offset: const Offset(0, 1))],
           ),
           child: Center(
             child: Text(
               '#${color.value.toRadixString(16).padLeft(8, '0').toUpperCase().substring(2)}',
-              style: TextStyle(
-                color: textColor,
-                fontSize: 10,
-                fontFamily: 'monospace',
-              ),
+              style: TextStyle(color: textColor, fontSize: 10, fontFamily: 'monospace'),
             ),
           ),
         ),
         const SizedBox(height: 4),
-        Text(
-          label,
-          style: const TextStyle(fontSize: 12),
-          textAlign: TextAlign.center,
-        ),
+        Text(label, style: const TextStyle(fontSize: 12), textAlign: TextAlign.center),
       ],
     );
   }
@@ -809,18 +687,12 @@ class _ButtonsRow extends StatelessWidget {
       children: [
         ElevatedButton(
           onPressed: () {},
-          style: ElevatedButton.styleFrom(
-            backgroundColor: theme.primaryColor,
-            foregroundColor: theme.onPrimary,
-          ),
+          style: ElevatedButton.styleFrom(backgroundColor: theme.primaryColor, foregroundColor: theme.onPrimary),
           child: const Text('Elevated'),
         ),
         FilledButton(
           onPressed: () {},
-          style: FilledButton.styleFrom(
-            backgroundColor: theme.primaryColor,
-            foregroundColor: theme.onPrimary,
-          ),
+          style: FilledButton.styleFrom(backgroundColor: theme.primaryColor, foregroundColor: theme.onPrimary),
           child: const Text('Filled'),
         ),
         OutlinedButton(
@@ -833,9 +705,7 @@ class _ButtonsRow extends StatelessWidget {
         ),
         TextButton(
           onPressed: () {},
-          style: TextButton.styleFrom(
-            foregroundColor: theme.primaryColor,
-          ),
+          style: TextButton.styleFrom(foregroundColor: theme.primaryColor),
           child: const Text('Text'),
         ),
       ],
@@ -863,32 +733,15 @@ class _InputsRow extends StatelessWidget {
               hintText: 'Enter text',
               labelStyle: TextStyle(color: theme.textSecondary),
               hintStyle: TextStyle(color: theme.textDisabled),
-              enabledBorder: OutlineInputBorder(
-                borderSide: BorderSide(color: theme.divider),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderSide: BorderSide(color: theme.primaryColor),
-              ),
+              enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: theme.divider)),
+              focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: theme.primaryColor)),
             ),
             style: TextStyle(color: theme.textPrimary),
           ),
         ),
-        Checkbox(
-          value: true,
-          onChanged: (_) {},
-          activeColor: theme.primaryColor,
-        ),
-        Radio<bool>(
-          value: true,
-          groupValue: true,
-          onChanged: (_) {},
-          activeColor: theme.primaryColor,
-        ),
-        Switch(
-          value: true,
-          onChanged: (_) {},
-          activeColor: theme.primaryColor,
-        ),
+        Checkbox(value: true, onChanged: (_) {}, activeColor: theme.primaryColor),
+        Radio<bool>(value: true, groupValue: true, onChanged: (_) {}, activeColor: theme.primaryColor),
+        Switch(value: true, onChanged: (_) {}, activeColor: theme.primaryColor),
         SizedBox(
           width: 200,
           child: Slider(
@@ -910,10 +763,7 @@ Widget _buildColorDot(Color color) {
     decoration: BoxDecoration(
       color: color,
       shape: BoxShape.circle,
-      border: Border.all(
-        color: Colors.white.withOpacity(0.3),
-        width: 1,
-      ),
+      border: Border.all(color: Colors.white.withOpacity(0.3), width: 1),
     ),
   );
 }
