@@ -832,18 +832,15 @@ class _Footer extends StatelessWidget {
                         height: 14,
                         child: CircularProgressIndicator(strokeWidth: 2, color: theme.onPrimary),
                       )
-                    : Icon(
-                        isSuccess ? Icons.check_rounded : Icons.upload_rounded,
-                        size: 15,
-                      ),
+                    : Icon(isSuccess ? Icons.check_rounded : Icons.upload_rounded, size: 15),
                 label: Text(
                   isExporting
                       ? 'Exporting…'
                       : isSuccess
-                          ? 'Done'
-                          : isCancelled
-                              ? 'Try Again'
-                              : 'Export',
+                      ? 'Done'
+                      : isCancelled
+                      ? 'Try Again'
+                      : 'Export',
                 ),
                 style: FilledButton.styleFrom(
                   backgroundColor: isSuccess ? const Color(0xFF4CAF50) : theme.primaryColor,

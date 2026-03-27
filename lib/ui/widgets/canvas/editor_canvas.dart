@@ -370,8 +370,8 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
                       child: ClipRect(
                         child: OverflowBox(
                           alignment: Alignment.topLeft,
-                          maxWidth: meta.stageWidth,
-                          maxHeight: meta.stageHeight,
+                          maxWidth: stageScreenW,
+                          maxHeight: stageScreenH,
                           child: _buildStage(
                             meta: meta,
                             zoom: zoom,
