@@ -6,6 +6,7 @@ import '../../../providers/editor_state_provider.dart';
 import '../canvas/editor_canvas.dart';
 import '../panels/layers_panel.dart';
 import '../panels/properties_panel.dart';
+import '../panels/symbols_panel.dart';
 import '../panels/timeline_panel.dart';
 import '../toolbar/editor_toolbar.dart';
 import 'scene_tabs_bar.dart';
@@ -30,9 +31,9 @@ class WorkspaceLayout extends ConsumerWidget {
         Expanded(
           child: Row(
             children: [
-              // Left: Layers panel or collapse strip
+              // Left: Layers/Symbols tabbed panel or collapse strip
               if (panels.layers)
-                SizedBox(width: 240, child: LayersPanel(theme: theme))
+                SizedBox(width: 240, child: _LeftPanel(theme: theme))
               else
                 _PanelCollapseStrip(
                   label: 'Layers',
@@ -81,6 +82,98 @@ class WorkspaceLayout extends ConsumerWidget {
         // Status bar
         StatusBar(theme: theme),
       ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Left panel — Layers / Symbols tab switcher
+// ---------------------------------------------------------------------------
+
+class _LeftPanel extends ConsumerStatefulWidget {
+  const _LeftPanel({required this.theme});
+  final AppTheme theme;
+
+  @override
+  ConsumerState<_LeftPanel> createState() => _LeftPanelState();
+}
+
+class _LeftPanelState extends ConsumerState<_LeftPanel> {
+  int _tab = 0; // 0=Layers, 1=Symbols
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = widget.theme;
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.surface,
+        border: Border(right: BorderSide(color: theme.divider, width: 0.5)),
+      ),
+      child: Column(
+        children: [
+          // Tab bar
+          Container(
+            height: 28,
+            decoration: BoxDecoration(
+              color: theme.surfaceVariant,
+              border: Border(bottom: BorderSide(color: theme.divider, width: 0.5)),
+            ),
+            child: Row(
+              children: [
+                _Tab(label: 'Layers', selected: _tab == 0, theme: theme, onTap: () => setState(() => _tab = 0)),
+                _Tab(label: 'Symbols', selected: _tab == 1, theme: theme, onTap: () => setState(() => _tab = 1)),
+              ],
+            ),
+          ),
+          Expanded(
+            child: _tab == 0
+                ? LayersPanel(theme: theme)
+                : SymbolsPanel(theme: theme),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Tab extends StatelessWidget {
+  const _Tab({required this.label, required this.selected, required this.theme, required this.onTap});
+
+  final String label;
+  final bool selected;
+  final AppTheme theme;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            border: Border(
+              bottom: BorderSide(
+                color: selected ? theme.accentColor : Colors.transparent,
+                width: 2,
+              ),
+            ),
+          ),
+          child: Center(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                color: selected ? theme.accentColor : theme.textDisabled,
+                letterSpacing: 0.8,
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

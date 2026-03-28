@@ -96,6 +96,14 @@ class EditorScreen extends HookConsumerWidget {
             ref.read(activeToolProvider.notifier).set(VecTool.select);
             return;
           }
+          // Exit symbol edit mode if active
+          final editingSymbol = ref.read(editingSymbolIdProvider);
+          if (editingSymbol != null) {
+            ref.read(editingSymbolIdProvider.notifier).clear();
+            ref.read(selectedShapeIdProvider.notifier).clear();
+            ref.read(selectedShapeIdsProvider.notifier).clear();
+            return;
+          }
           // Exit group-edit mode if active, otherwise deselect
           final groupId = ref.read(activeGroupIdProvider);
           if (groupId != null) {

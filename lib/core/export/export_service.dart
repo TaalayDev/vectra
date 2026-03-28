@@ -443,7 +443,7 @@ class ExportService {
     }
 
     canvas.scale(w / doc.meta.stageWidth, h / doc.meta.stageHeight);
-    ScenePainter(scene: scene).paint(canvas, Size(doc.meta.stageWidth, doc.meta.stageHeight));
+    ScenePainter(scene: scene, symbols: doc.symbols).paint(canvas, Size(doc.meta.stageWidth, doc.meta.stageHeight));
 
     final picture = recorder.endRecording();
     final image = await picture.toImage(w.toInt(), h.toInt());

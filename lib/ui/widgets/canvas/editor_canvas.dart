@@ -17,6 +17,9 @@ import '../../../core/rendering/selection_overlay.dart';
 import '../../../core/tools/drawing_tool_handler.dart';
 import '../../../core/tools/select_tool_handler.dart';
 import '../../../data/models/vec_document.dart';
+import '../../../data/models/vec_shape.dart';
+import '../../../data/models/vec_symbol.dart';
+import '../../../data/models/vec_transform.dart';
 import '../../../data/models/vec_motion_path.dart';
 import '../../../data/models/vec_path_node.dart';
 import '../../../data/models/vec_point.dart';
@@ -122,6 +125,8 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
     ref.watch(playbackTickerProvider);
     // Use the animation-interpolated scene for rendering
     final scene = ref.watch(animatedSceneProvider);
+    final symbols = ref.watch(symbolLibraryProvider);
+    final editingSymbolId = ref.watch(editingSymbolIdProvider);
     final selectedShapeId = ref.watch(selectedShapeIdProvider);
     final selectedShapeIds = ref.watch(selectedShapeIdsProvider);
     final selectedShape = ref.watch(selectedShapeProvider);
@@ -334,6 +339,17 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
                 : isSelectTool
                 ? () {
                     if (selectedShape == null) return;
+                    // If the selected shape is a symbol instance, enter symbol edit mode.
+                    final isSymbol = selectedShape.maybeMap(symbolInstance: (_) => true, orElse: () => false);
+                    if (isSymbol) {
+                      final symId = selectedShape.maybeMap(symbolInstance: (s) => s.symbolId, orElse: () => null);
+                      if (symId != null) {
+                        ref.read(editingSymbolIdProvider.notifier).set(symId);
+                        ref.read(selectedShapeIdProvider.notifier).clear();
+                        ref.read(selectedShapeIdsProvider.notifier).clear();
+                      }
+                      return;
+                    }
                     // If the selected shape is a group and we're not already inside it,
                     // enter group-edit mode.
                     final isGroup = selectedShape.maybeMap(group: (_) => true, orElse: () => false);
@@ -376,6 +392,7 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
                             meta: meta,
                             zoom: zoom,
                             scene: scene,
+                            symbols: symbols,
                             selectedShapeId: selectedShapeId,
                             selectedShapeIds: selectedShapeIds,
                             selectedShape: selectedShape,
@@ -402,6 +419,56 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
                         ),
                       ),
                     ),
+
+                    // Symbol drop target — transparent Positioned.fill overlay for drag-and-drop
+                    Positioned.fill(
+                      child: DragTarget<VecSymbol>(
+                        onWillAcceptWithDetails: (_) => true,
+                        onAcceptWithDetails: (details) {
+                          final sym = details.data;
+                          final dropPos = details.offset;
+                          final box = context.findRenderObject() as RenderBox?;
+                          final canvasOrigin = box?.localToGlobal(Offset.zero) ?? Offset.zero;
+                          final local = dropPos - canvasOrigin;
+                          final canvasX = (local.dx - stageLeft) / zoom;
+                          final canvasY = (local.dy - stageTop) / zoom;
+                          final activeScene = ref.read(activeSceneProvider);
+                          final layerId = ref.read(activeLayerIdProvider);
+                          if (activeScene == null || layerId == null) return;
+                          const instanceSize = 100.0;
+                          final instanceId = const Uuid().v4();
+                          final instance = VecShape.symbolInstance(
+                            data: VecShapeData(
+                              id: instanceId,
+                              name: sym.name,
+                              transform: VecTransform(
+                                x: canvasX - instanceSize / 2,
+                                y: canvasY - instanceSize / 2,
+                                width: instanceSize,
+                                height: instanceSize,
+                              ),
+                            ),
+                            symbolId: sym.id,
+                          );
+                          ref.read(vecDocumentStateProvider.notifier).addShape(activeScene.id, layerId, instance);
+                          ref.read(selectedShapeIdProvider.notifier).set(instanceId);
+                          ref.read(selectedShapeIdsProvider.notifier).setSingle(instanceId);
+                        },
+                        builder: (ctx, candidateData, rejectedData) {
+                          if (candidateData.isEmpty) return const SizedBox.shrink();
+                          return IgnorePointer(child: ColoredBox(color: theme.accentColor.withAlpha(20)));
+                        },
+                      ),
+                    ),
+
+                    // Symbol edit mode banner
+                    if (editingSymbolId != null)
+                      Positioned(
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        child: _SymbolEditBanner(symbolId: editingSymbolId, theme: theme),
+                      ),
                   ],
                 ),
               ),
@@ -420,6 +487,7 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
     required VecMeta meta,
     required double zoom,
     required dynamic scene,
+    required List<dynamic> symbols,
     required String? selectedShapeId,
     required List<String> selectedShapeIds,
     required dynamic selectedShape,
@@ -451,7 +519,7 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
               Positioned.fill(
                 child: ClipRect(
                   child: CustomPaint(
-                    painter: ScenePainter(scene: scene, selectedShapeId: selectedShapeId),
+                    painter: ScenePainter(scene: scene, symbols: symbols.cast(), selectedShapeId: selectedShapeId),
                   ),
                 ),
               ),
@@ -1713,4 +1781,56 @@ class _CheckerboardPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _CheckerboardPainter old) => old.color1 != color1 || old.color2 != color2;
+}
+
+// =============================================================================
+// Symbol edit mode banner
+// =============================================================================
+
+class _SymbolEditBanner extends ConsumerWidget {
+  const _SymbolEditBanner({required this.symbolId, required this.theme});
+
+  final String symbolId;
+  final AppTheme theme;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final symbols = ref.watch(symbolLibraryProvider);
+    final sym = symbols.cast<VecSymbol?>().firstWhere((s) => s!.id == symbolId, orElse: () => null);
+    final name = sym?.name ?? 'Symbol';
+
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        height: 28,
+        color: theme.accentColor.withAlpha(230),
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        child: Row(
+          children: [
+            Icon(Icons.widgets_outlined, size: 12, color: theme.onAccent),
+            const SizedBox(width: 6),
+            Text(
+              'Editing: $name',
+              style: TextStyle(color: theme.onAccent, fontSize: 11, fontWeight: FontWeight.w600),
+            ),
+            const Spacer(),
+            GestureDetector(
+              onTap: () => ref.read(editingSymbolIdProvider.notifier).clear(),
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('Done Editing', style: TextStyle(color: theme.onAccent, fontSize: 11)),
+                    const SizedBox(width: 4),
+                    Icon(Icons.check, size: 12, color: theme.onAccent),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../data/models/vec_layer.dart';
 import '../../data/models/vec_scene.dart';
 import '../../data/models/vec_shape.dart';
+import '../../data/models/vec_symbol.dart';
 import 'shape_renderer.dart';
 
 /// CustomPainter that renders all visible layers and shapes of a [VecScene].
@@ -12,18 +13,20 @@ import 'shape_renderer.dart';
 class ScenePainter extends CustomPainter {
   ScenePainter({
     required this.scene,
+    this.symbols = const [],
     this.selectedShapeId,
     this.showGuides = false,
   });
 
   final VecScene scene;
+  final List<VecSymbol> symbols;
   final String? selectedShapeId;
   final bool showGuides;
 
-  static const _renderer = ShapeRenderer();
-
   @override
   void paint(Canvas canvas, Size size) {
+    final renderer = ShapeRenderer(symbols: symbols);
+
     // Sort layers by order ascending (bottom first)
     final sortedLayers = List<VecLayer>.from(scene.layers)
       ..sort((a, b) => a.order.compareTo(b.order));
@@ -33,7 +36,7 @@ class ScenePainter extends CustomPainter {
       if (layer.type == VecLayerType.guide && !showGuides) continue;
 
       for (final shape in layer.shapes) {
-        _renderer.render(canvas, shape);
+        renderer.render(canvas, shape);
       }
     }
   }
@@ -41,6 +44,7 @@ class ScenePainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant ScenePainter old) {
     return old.scene != scene ||
+        old.symbols != symbols ||
         old.selectedShapeId != selectedShapeId ||
         old.showGuides != showGuides;
   }

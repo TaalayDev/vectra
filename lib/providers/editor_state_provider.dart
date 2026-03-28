@@ -168,6 +168,17 @@ class ActiveGroupId extends _$ActiveGroupId {
   void clear() => state = null;
 }
 
+/// The ID of the symbol currently being edited in Symbol Edit Mode.
+/// Null when not editing a symbol master.
+@riverpod
+class EditingSymbolId extends _$EditingSymbolId {
+  @override
+  String? build() => null;
+
+  void set(String symbolId) => state = symbolId;
+  void clear() => state = null;
+}
+
 // ---------------------------------------------------------------------------
 // Derived state providers
 // ---------------------------------------------------------------------------

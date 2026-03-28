@@ -8,6 +8,7 @@ import '../../data/models/vec_path_node.dart';
 import '../../data/models/vec_scene.dart';
 import '../../data/models/vec_shape.dart';
 import '../../data/models/vec_stroke.dart';
+import '../../data/models/vec_symbol.dart';
 import '../../data/models/vec_transform.dart';
 
 /// Exports a [VecScene] to an SVG string.
@@ -15,6 +16,7 @@ class SvgExporter {
   const SvgExporter();
 
   String export(VecDocument doc, VecScene scene, {bool minify = false}) {
+    final symbols = doc.symbols;
     final w = doc.meta.stageWidth;
     final h = doc.meta.stageHeight;
     final bg = doc.meta.backgroundColor;
@@ -47,7 +49,7 @@ class SvgExporter {
       if (layer.type == VecLayerType.guide) continue;
 
       for (final shape in layer.shapes) {
-        buf.write(_shapeToSvg(shape, indent: ind, nl: nl));
+        buf.write(_shapeToSvg(shape, symbols, indent: ind, nl: nl));
       }
     }
 
@@ -59,7 +61,7 @@ class SvgExporter {
   // Shape dispatch
   // ---------------------------------------------------------------------------
 
-  String _shapeToSvg(VecShape shape, {String indent = '  ', String nl = '\n'}) {
+  String _shapeToSvg(VecShape shape, List<VecSymbol> symbols, {String indent = '  ', String nl = '\n'}) {
     final opacity = shape.opacity.clamp(0.0, 1.0);
     if (opacity <= 0) return '';
 
@@ -69,9 +71,9 @@ class SvgExporter {
       ellipse: (s) => _ellipseToSvg(s, indent, nl),
       polygon: (s) => _polygonToSvg(s, indent, nl),
       text: (s) => _textToSvg(s, indent, nl),
-      group: (s) => _groupToSvg(s, indent, nl),
+      group: (s) => _groupToSvg(s, symbols, indent, nl),
       compound: (s) => _compoundToSvg(s, indent, nl),
-      symbolInstance: (_) => '',
+      symbolInstance: (s) => _symbolInstanceToSvg(s, symbols, indent, nl),
     );
   }
 
@@ -307,16 +309,46 @@ class SvgExporter {
   // Group
   // ---------------------------------------------------------------------------
 
-  String _groupToSvg(VecGroupShape s, String ind, String nl) {
+  String _groupToSvg(VecGroupShape s, List<VecSymbol> symbols, String ind, String nl) {
     final transform = _transformAttr(s.transform);
     final buf = StringBuffer();
 
     buf.write('$ind<g$transform${_opacityAttr(s.opacity)}${_blendModeAttr(s.blendMode)}>$nl');
     for (final child in s.children) {
-      buf.write(_shapeToSvg(child, indent: '$ind  ', nl: nl));
+      buf.write(_shapeToSvg(child, symbols, indent: '$ind  ', nl: nl));
     }
     buf.write('$ind</g>$nl');
 
+    return buf.toString();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Symbol instance — render master layers inline as a <g>
+  // ---------------------------------------------------------------------------
+
+  String _symbolInstanceToSvg(VecSymbolInstanceShape s, List<VecSymbol> symbols, String ind, String nl) {
+    final symbol = symbols.cast<VecSymbol?>().firstWhere(
+      (sym) => sym!.id == s.symbolId,
+      orElse: () => null,
+    );
+    if (symbol == null) return '';
+
+    final transform = _transformAttr(s.transform);
+    final opacity = s.opacity * s.alphaOverride;
+    final buf = StringBuffer();
+    buf.write('$ind<g$transform${_opacityAttr(opacity)}${_blendModeAttr(s.blendMode)}>$nl');
+
+    // Render symbol layers bottom-to-top
+    final sorted = List<VecLayer>.from(symbol.layers)
+      ..sort((a, b) => a.order.compareTo(b.order));
+    for (final layer in sorted) {
+      if (!layer.visible) continue;
+      for (final shape in layer.shapes) {
+        buf.write(_shapeToSvg(shape, symbols, indent: '$ind  ', nl: nl));
+      }
+    }
+
+    buf.write('$ind</g>$nl');
     return buf.toString();
   }
 

@@ -8,6 +8,7 @@ import '../data/models/vec_keyframe.dart';
 import '../data/models/vec_layer.dart';
 import '../data/models/vec_motion_path.dart';
 import '../data/models/vec_path_node.dart';
+import '../data/models/vec_point.dart';
 import '../data/models/vec_scene.dart';
 import '../data/models/vec_shape.dart';
 import '../data/models/vec_symbol.dart';
@@ -864,6 +865,208 @@ class VecDocumentState extends _$VecDocumentState {
     _commit(state.copyWith(
       symbols: state.symbols.where((s) => s.id != symbolId).toList(),
     ));
+  }
+
+  /// Converts the given [shapeIds] (in [layerId] of [sceneId]) into a new
+  /// [VecSymbol] named [name], replacing the original shapes with a single
+  /// [VecSymbolInstanceShape] in one undo-able step.
+  ///
+  /// Returns the new symbol's ID, or null if no valid shapes were found.
+  String? convertToSymbol(
+    String sceneId,
+    String layerId,
+    List<String> shapeIds,
+    String name,
+  ) {
+    final layer = state.scenes
+        .where((s) => s.id == sceneId)
+        .expand((s) => s.layers)
+        .where((l) => l.id == layerId)
+        .firstOrNull;
+    if (layer == null) return null;
+
+    final selected = layer.shapes.where((s) => shapeIds.contains(s.id)).toList();
+    if (selected.isEmpty) return null;
+
+    // Compute bounding box of all selected shapes in scene space
+    var minX = selected.first.transform.x;
+    var minY = selected.first.transform.y;
+    var maxX = minX + selected.first.transform.width;
+    var maxY = minY + selected.first.transform.height;
+    for (final s in selected) {
+      final t = s.transform;
+      if (t.x < minX) minX = t.x;
+      if (t.y < minY) minY = t.y;
+      if (t.x + t.width > maxX) maxX = t.x + t.width;
+      if (t.y + t.height > maxY) maxY = t.y + t.height;
+    }
+
+    // Translate shapes to symbol-local space (origin at bounding box top-left)
+    final symbolShapes = selected.map((s) => s.copyWith(
+          data: s.data.copyWith(
+            transform: s.transform.copyWith(
+              x: s.transform.x - minX,
+              y: s.transform.y - minY,
+            ),
+          ),
+        )).toList();
+
+    final symbolId = _uuid.v4();
+    final symbolLayerId = _uuid.v4();
+
+    final symbol = VecSymbol(
+      id: symbolId,
+      name: name,
+      registrationPoint: const VecPoint(x: 0, y: 0),
+      layers: [
+        VecLayer(
+          id: symbolLayerId,
+          name: 'Layer 1',
+          shapes: symbolShapes,
+        ),
+      ],
+      timeline: const VecTimeline(duration: 1),
+    );
+
+    final instanceId = _uuid.v4();
+    final instance = VecShape.symbolInstance(
+      data: VecShapeData(
+        id: instanceId,
+        name: name,
+        transform: VecTransform(
+          x: minX,
+          y: minY,
+          width: maxX - minX,
+          height: maxY - minY,
+        ),
+      ),
+      symbolId: symbolId,
+    );
+
+    final insertAt = layer.shapes.indexWhere((s) => shapeIds.contains(s.id));
+
+    _commit(_withScene(sceneId, (scene) {
+      final l = scene.layers.firstWhere((l) => l.id == layerId);
+      final remaining = l.shapes.where((s) => !shapeIds.contains(s.id)).toList();
+      remaining.insert(insertAt.clamp(0, remaining.length), instance);
+
+      // Remove stale tracks, add track for the new instance
+      final cleanTracks = scene.timeline.tracks
+          .where((t) => t.shapeId == null || !shapeIds.contains(t.shapeId))
+          .toList();
+
+      return scene.copyWith(
+        layers: [
+          for (final lay in scene.layers)
+            if (lay.id == layerId) lay.copyWith(shapes: remaining) else lay,
+        ],
+        timeline: scene.timeline.copyWith(
+          tracks: [...cleanTracks, _trackAt0(layerId, instance)],
+        ),
+      );
+    }).copyWith(symbols: [...state.symbols, symbol]));
+
+    return symbolId;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Symbol layer / shape mutations (used in Symbol Edit Mode)
+  // ---------------------------------------------------------------------------
+
+  void addSymbolLayer(String symbolId, {String? name}) {
+    final layerId = _uuid.v4();
+    updateSymbol(symbolId, (sym) => sym.copyWith(
+      layers: [
+        ...sym.layers,
+        VecLayer(id: layerId, name: name ?? 'Layer ${sym.layers.length + 1}'),
+      ],
+    ));
+  }
+
+  void removeSymbolLayer(String symbolId, String layerId) {
+    updateSymbol(symbolId, (sym) => sym.copyWith(
+      layers: sym.layers.where((l) => l.id != layerId).toList(),
+    ));
+  }
+
+  void reorderSymbolLayers(String symbolId, List<String> orderedIds) {
+    updateSymbol(symbolId, (sym) {
+      final map = {for (final l in sym.layers) l.id: l};
+      return sym.copyWith(layers: [
+        for (var i = 0; i < orderedIds.length; i++)
+          if (map.containsKey(orderedIds[i]))
+            map[orderedIds[i]]!.copyWith(order: i),
+      ]);
+    });
+  }
+
+  void addSymbolShape(String symbolId, String layerId, VecShape shape) {
+    updateSymbol(symbolId, (sym) => sym.copyWith(
+      layers: [
+        for (final l in sym.layers)
+          if (l.id == layerId)
+            l.copyWith(shapes: [...l.shapes, shape])
+          else
+            l,
+      ],
+    ));
+  }
+
+  void removeSymbolShapes(String symbolId, String layerId, List<String> shapeIds) {
+    updateSymbol(symbolId, (sym) => sym.copyWith(
+      layers: [
+        for (final l in sym.layers)
+          if (l.id == layerId)
+            l.copyWith(shapes: l.shapes.where((s) => !shapeIds.contains(s.id)).toList())
+          else
+            l,
+      ],
+    ));
+  }
+
+  void updateSymbolShape(
+    String symbolId,
+    String layerId,
+    String shapeId,
+    VecShape Function(VecShape) updater,
+  ) {
+    updateSymbol(symbolId, (sym) => sym.copyWith(
+      layers: [
+        for (final l in sym.layers)
+          if (l.id == layerId)
+            l.copyWith(shapes: [
+              for (final s in l.shapes) if (s.id == shapeId) updater(s) else s,
+            ])
+          else
+            l,
+      ],
+    ));
+  }
+
+  void updateSymbolShapeNoHistory(
+    String symbolId,
+    String layerId,
+    String shapeId,
+    VecShape Function(VecShape) updater,
+  ) {
+    final newDoc = state.copyWith(symbols: [
+      for (final sym in state.symbols)
+        if (sym.id == symbolId)
+          sym.copyWith(layers: [
+            for (final l in sym.layers)
+              if (l.id == layerId)
+                l.copyWith(shapes: [
+                  for (final s in l.shapes)
+                    if (s.id == shapeId) updater(s) else s,
+                ])
+              else
+                l,
+          ])
+        else
+          sym,
+    ]);
+    state = newDoc;
+    _service.markDirty();
   }
 
   // ===========================================================================

@@ -263,5 +263,24 @@ final activeGroupIdProvider =
     );
 
 typedef _$ActiveGroupId = AutoDisposeNotifier<String?>;
+String _$editingSymbolIdHash() => r'47720bb1666848baee826dd21c9de2dba6cd8fc9';
+
+/// The ID of the symbol currently being edited in Symbol Edit Mode.
+/// Null when not editing a symbol master.
+///
+/// Copied from [EditingSymbolId].
+@ProviderFor(EditingSymbolId)
+final editingSymbolIdProvider =
+    AutoDisposeNotifierProvider<EditingSymbolId, String?>.internal(
+      EditingSymbolId.new,
+      name: r'editingSymbolIdProvider',
+      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+          ? null
+          : _$editingSymbolIdHash,
+      dependencies: null,
+      allTransitiveDependencies: null,
+    );
+
+typedef _$EditingSymbolId = AutoDisposeNotifier<String?>;
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member, deprecated_member_use_from_same_package

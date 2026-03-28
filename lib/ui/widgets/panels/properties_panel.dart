@@ -6,9 +6,11 @@ import '../../../data/models/vec_shape.dart';
 import '../../../providers/document_provider.dart';
 import '../../../providers/editor_state_provider.dart';
 import '../../../providers/motion_path_provider.dart';
+import '../../contents/dialogs/convert_to_symbol_dialog.dart';
 import '../common/panel_header.dart';
 import 'pathfinder_panel.dart';
 import 'properties_sections.dart';
+import 'symbol_instance_section.dart';
 
 class PropertiesPanel extends ConsumerWidget {
   const PropertiesPanel({super.key, required this.theme});
@@ -98,6 +100,8 @@ class PropertiesPanel extends ConsumerWidget {
       docNotifier.commitCurrentState();
     }
 
+    final isSymbolInstance = shape.maybeMap(symbolInstance: (_) => true, orElse: () => false);
+
     return ListView(
       padding: const EdgeInsets.symmetric(vertical: 4),
       children: [
@@ -119,51 +123,71 @@ class PropertiesPanel extends ConsumerWidget {
         ),
         PathfinderPanel(theme: theme),
         Divider(height: 1, color: theme.divider.withAlpha(60)),
-        FillSection(
-          fills: shape.fills,
-          theme: theme,
-          onUpdate: onUpdate,
-          onLiveUpdate: onLiveUpdate,
-          onCommit: onCommit,
-        ),
-        Divider(height: 1, color: theme.divider.withAlpha(60)),
-        StrokeSection(
-          strokes: shape.strokes,
-          theme: theme,
-          onUpdate: onUpdate,
-          onLiveUpdate: onLiveUpdate,
-          onCommit: onCommit,
-        ),
-        Divider(height: 1, color: theme.divider.withAlpha(60)),
-        BlendSection(blendMode: shape.blendMode, theme: theme, onUpdate: onUpdate),
-        Divider(height: 1, color: theme.divider.withAlpha(60)),
-        MotionPathSection(
-          shapeId: shape.id,
-          motionPath: motionPath,
-          isDrawing: drawTarget == shape.id,
-          theme: theme,
-          onStartDraw: () {
-            ref.read(motionPathPreviewNodesProvider.notifier).clear();
-            ref.read(motionPathDrawTargetProvider.notifier).start(shape.id);
-          },
-          onRemove: () {
-            if (motionPath != null) {
-              docNotifier.removeMotionPath(sceneId, motionPath.id);
-            }
-          },
-          onToggleOrient: () {
-            if (motionPath != null) {
-              docNotifier.updateMotionPath(sceneId, motionPath.id,
-                  (mp) => mp.copyWith(orientToPath: !mp.orientToPath));
-            }
-          },
-          onToggleEase: () {
-            if (motionPath != null) {
-              docNotifier.updateMotionPath(sceneId, motionPath.id,
-                  (mp) => mp.copyWith(easeAlongPath: !mp.easeAlongPath));
-            }
-          },
-        ),
+
+        // Symbol instance: show instance-specific controls instead of fills/strokes
+        if (isSymbolInstance) ...[
+          SymbolInstanceSection(
+            shape: shape as VecSymbolInstanceShape,
+            theme: theme,
+            onUpdate: onUpdate,
+            onLiveUpdate: onLiveUpdate,
+            onCommit: onCommit,
+          ),
+        ] else ...[
+          FillSection(
+            fills: shape.fills,
+            theme: theme,
+            onUpdate: onUpdate,
+            onLiveUpdate: onLiveUpdate,
+            onCommit: onCommit,
+          ),
+          Divider(height: 1, color: theme.divider.withAlpha(60)),
+          StrokeSection(
+            strokes: shape.strokes,
+            theme: theme,
+            onUpdate: onUpdate,
+            onLiveUpdate: onLiveUpdate,
+            onCommit: onCommit,
+          ),
+          Divider(height: 1, color: theme.divider.withAlpha(60)),
+          BlendSection(blendMode: shape.blendMode, theme: theme, onUpdate: onUpdate),
+          Divider(height: 1, color: theme.divider.withAlpha(60)),
+          MotionPathSection(
+            shapeId: shape.id,
+            motionPath: motionPath,
+            isDrawing: drawTarget == shape.id,
+            theme: theme,
+            onStartDraw: () {
+              ref.read(motionPathPreviewNodesProvider.notifier).clear();
+              ref.read(motionPathDrawTargetProvider.notifier).start(shape.id);
+            },
+            onRemove: () {
+              if (motionPath != null) {
+                docNotifier.removeMotionPath(sceneId, motionPath.id);
+              }
+            },
+            onToggleOrient: () {
+              if (motionPath != null) {
+                docNotifier.updateMotionPath(sceneId, motionPath.id,
+                    (mp) => mp.copyWith(orientToPath: !mp.orientToPath));
+              }
+            },
+            onToggleEase: () {
+              if (motionPath != null) {
+                docNotifier.updateMotionPath(sceneId, motionPath.id,
+                    (mp) => mp.copyWith(easeAlongPath: !mp.easeAlongPath));
+              }
+            },
+          ),
+          Divider(height: 1, color: theme.divider.withAlpha(60)),
+          _ConvertToSymbolButton(
+            theme: theme,
+            shape: shape,
+            sceneId: sceneId,
+            layerId: layerId,
+            selectedIds: selectedIds,
+          ),
+        ],
       ],
     );
   }
@@ -182,6 +206,68 @@ class PropertiesPanel extends ConsumerWidget {
       group: (_) => 'Group',
       symbolInstance: (_) => 'Symbol',
       compound: (s) => '${s.op.name[0].toUpperCase()}${s.op.name.substring(1)}',
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Convert to Symbol button
+// ---------------------------------------------------------------------------
+
+class _ConvertToSymbolButton extends ConsumerWidget {
+  const _ConvertToSymbolButton({
+    required this.theme,
+    required this.shape,
+    required this.sceneId,
+    required this.layerId,
+    required this.selectedIds,
+  });
+
+  final AppTheme theme;
+  final VecShape shape;
+  final String sceneId;
+  final String layerId;
+  final List<String> selectedIds;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Padding(
+      padding: const EdgeInsets.all(12),
+      child: SizedBox(
+        width: double.infinity,
+        child: OutlinedButton.icon(
+          icon: Icon(Icons.widgets_outlined, size: 14, color: theme.accentColor),
+          label: Text(
+            'Convert to Symbol',
+            style: TextStyle(fontSize: 11, color: theme.accentColor),
+          ),
+          style: OutlinedButton.styleFrom(
+            side: BorderSide(color: theme.accentColor.withAlpha(100)),
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+          ),
+          onPressed: () async {
+            // Determine which shapes to convert — if multi-selected use all,
+            // otherwise just the single shape.
+            final idsToConvert = selectedIds.length > 1 ? selectedIds : [shape.id];
+            final defaultName = shape.name ?? 'Symbol ${DateTime.now().millisecondsSinceEpoch % 1000}';
+
+            final result = await ConvertToSymbolDialog.show(
+              context,
+              theme,
+              defaultName: defaultName,
+            );
+            if (result == null) return;
+
+            ref.read(vecDocumentStateProvider.notifier).convertToSymbol(
+              sceneId,
+              layerId,
+              idsToConvert,
+              result.name,
+            );
+          },
+        ),
+      ),
     );
   }
 }

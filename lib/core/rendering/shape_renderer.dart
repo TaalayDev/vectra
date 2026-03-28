@@ -5,17 +5,23 @@ import 'dart:ui';
 import 'package:flutter/painting.dart';
 
 import '../../core/pathfinder/pathfinder.dart';
+import '../../data/models/vec_color.dart';
 import '../../data/models/vec_fill.dart';
+import '../../data/models/vec_layer.dart';
 import '../../data/models/vec_path_node.dart';
 import '../../data/models/vec_shape.dart';
 import '../../data/models/vec_stroke.dart';
+import '../../data/models/vec_symbol.dart';
 import '../../data/models/vec_transform.dart';
 import 'blend_mode_mapper.dart';
 
 /// Converts a [VecShape] into a Flutter [Path] and applies fills/strokes
 /// onto a [Canvas].
 class ShapeRenderer {
-  const ShapeRenderer();
+  const ShapeRenderer({this.symbols = const []});
+
+  /// The symbol library — used to resolve [VecSymbolInstanceShape] references.
+  final List<VecSymbol> symbols;
 
   /// Renders a single shape (with transform, fills, strokes, opacity, blend).
   void render(Canvas canvas, VecShape shape) {
@@ -52,7 +58,7 @@ class ShapeRenderer {
       text: (s) => _renderText(canvas, s),
       group: (s) => _renderGroup(canvas, s),
       compound: (s) => _renderCompound(canvas, s),
-      symbolInstance: (s) {}, // TODO: resolve from symbol library
+      symbolInstance: (s) => _renderSymbolInstance(canvas, s),
     );
 
     if (needsLayer) canvas.restore();
@@ -367,6 +373,99 @@ class ShapeRenderer {
     for (final child in s.children) {
       render(canvas, child);
     }
+  }
+
+  // ===========================================================================
+  // Symbol instance — resolve master and render its layers
+  // ===========================================================================
+
+  void _renderSymbolInstance(Canvas canvas, VecSymbolInstanceShape s) {
+    final symbol = symbols.cast<VecSymbol?>().firstWhere(
+      (sym) => sym!.id == s.symbolId,
+      orElse: () => null,
+    );
+
+    if (symbol == null) {
+      // Render a placeholder when symbol is missing
+      _renderMissingSymbolPlaceholder(canvas, s);
+      return;
+    }
+
+    // Apply alpha override as an additional layer
+    final effectiveAlpha = s.alphaOverride.clamp(0.0, 1.0);
+    final needsAlphaLayer = effectiveAlpha < 1.0;
+    if (needsAlphaLayer) {
+      canvas.saveLayer(
+        null,
+        Paint()
+          ..color = Color.fromARGB((effectiveAlpha * 255).round(), 255, 255, 255),
+      );
+    }
+
+    // Apply registration point offset so symbol origin aligns with instance origin
+    if (symbol.registrationPoint != null) {
+      canvas.translate(-symbol.registrationPoint!.x, -symbol.registrationPoint!.y);
+    }
+
+    // Render symbol layers bottom-to-top
+    _renderSymbolLayers(canvas, symbol.layers);
+
+    // Apply color tint as an overlay if tintAmount > 0
+    if (s.colorTint != null && s.tintAmount > 0) {
+      _applyTint(canvas, s, symbol);
+    }
+
+    if (needsAlphaLayer) canvas.restore();
+  }
+
+  void _renderSymbolLayers(Canvas canvas, List<VecLayer> layers) {
+    final sorted = List<VecLayer>.from(layers)
+      ..sort((a, b) => a.order.compareTo(b.order));
+    for (final layer in sorted) {
+      if (!layer.visible) continue;
+      for (final shape in layer.shapes) {
+        render(canvas, shape);
+      }
+    }
+  }
+
+  void _applyTint(Canvas canvas, VecSymbolInstanceShape s, VecSymbol symbol) {
+    // Measure the symbol's bounding box to draw the tint overlay
+    var minX = double.infinity, minY = double.infinity;
+    var maxX = double.negativeInfinity, maxY = double.negativeInfinity;
+    for (final layer in symbol.layers) {
+      for (final shape in layer.shapes) {
+        final t = shape.transform;
+        if (t.x < minX) minX = t.x;
+        if (t.y < minY) minY = t.y;
+        if (t.x + t.width > maxX) maxX = t.x + t.width;
+        if (t.y + t.height > maxY) maxY = t.y + t.height;
+      }
+    }
+    if (minX == double.infinity) return;
+
+    final tintColor = s.colorTint!.toFlutterColor()
+        .withAlpha((s.tintAmount.clamp(0.0, 1.0) * 255).round());
+    canvas.drawRect(
+      Rect.fromLTRB(minX, minY, maxX, maxY),
+      Paint()
+        ..color = tintColor
+        ..blendMode = BlendMode.srcATop,
+    );
+  }
+
+  void _renderMissingSymbolPlaceholder(Canvas canvas, VecSymbolInstanceShape s) {
+    final t = s.transform;
+    final rect = Rect.fromLTWH(0, 0, t.width, t.height);
+    final paint = Paint()
+      ..color = const Color(0x44FF0000)
+      ..style = PaintingStyle.fill;
+    canvas.drawRect(rect, paint);
+    final border = Paint()
+      ..color = const Color(0xFFFF0000)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0;
+    canvas.drawRect(rect, border);
   }
 
   // ===========================================================================
