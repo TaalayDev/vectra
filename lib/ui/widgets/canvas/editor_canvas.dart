@@ -30,7 +30,7 @@ import '../../../providers/editor_state_provider.dart';
 import '../../../providers/motion_path_provider.dart';
 
 // Describes what kind of select-tool drag is active.
-enum _SelectDragMode { none, move, resizeHandle, rotate, cornerRadius, bend, motionPathNode }
+enum _SelectDragMode { none, move, resizeHandle, rotate, pivotMove, cornerRadius, bend, motionPathNode }
 
 class EditorCanvas extends ConsumerStatefulWidget {
   const EditorCanvas({super.key, required this.theme});
@@ -47,6 +47,10 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
   bool _didInitialFit = false;
   int _lastFitRequest = 0;
 
+  // Inline text editing
+  final TextEditingController _textEditingController = TextEditingController();
+  final FocusNode _textFocusNode = FocusNode();
+
   // Select-tool drag state
   _SelectDragMode _selectDragMode = _SelectDragMode.none;
   int _resizeHandleIndex = -1;
@@ -54,6 +58,7 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
   Map<String, dynamic> _dragStartTransforms = {}; // shapeId → VecTransform for multi-shape drag
   Offset _dragStartCanvasPoint = Offset.zero;
   double _rotationStartAngle = 0.0; // direction from center to drag-start point
+  Offset? _dragStartPivot; // pivot local position captured at pivot-drag start
   // When dragging a group child, store the group transform so we can convert back
   dynamic _dragGroupTransform; // group's VecTransform when in group-edit mode
 
@@ -63,7 +68,7 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
   Offset _marqueeCurrentCanvas = Offset.zero;
 
   // Hover hit index for cursor
-  int _hoverHandleIndex = -1; // -2=rotate, 0-7=resize, -1=none, -3=body
+  int _hoverHandleIndex = -1; // -2=rotate, 0-7=resize, -1=none, -3=body, -4=pivot
 
   // Pen tool — handle drag (click+drag to pull bezier handle from last node)
   bool _isPenHandleDrag = false;
@@ -97,6 +102,26 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
   // Coordinate conversion — screen point → canvas point
   // ===========================================================================
 
+  @override
+  void initState() {
+    super.initState();
+    _textFocusNode.addListener(_onTextFocusChanged);
+  }
+
+  @override
+  void dispose() {
+    _textEditingController.dispose();
+    _textFocusNode.removeListener(_onTextFocusChanged);
+    _textFocusNode.dispose();
+    super.dispose();
+  }
+
+  void _onTextFocusChanged() {
+    if (!_textFocusNode.hasFocus) {
+      _exitTextEditMode();
+    }
+  }
+
   Offset _toCanvasPoint(Offset screenLocal) {
     final zoom = ref.read(zoomLevelProvider);
     final panOffset = ref.read(canvasOffsetProvider);
@@ -109,6 +134,54 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
     final stageOriginY = cy - (meta.stageHeight * zoom) / 2;
 
     return Offset((screenLocal.dx - stageOriginX) / zoom, (screenLocal.dy - stageOriginY) / zoom);
+  }
+
+  // ===========================================================================
+  // Text editing
+  // ===========================================================================
+
+  void _enterTextEditMode(String shapeId, String content) {
+    _textEditingController.text = content;
+    _textEditingController.selection = TextSelection(baseOffset: 0, extentOffset: content.length);
+    ref.read(textEditingShapeIdProvider.notifier).state = shapeId;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _textFocusNode.requestFocus();
+    });
+  }
+
+  void _exitTextEditMode() {
+    final editingId = ref.read(textEditingShapeIdProvider);
+    if (editingId == null) return;
+    ref.read(vecDocumentStateProvider.notifier).commitCurrentState();
+    ref.read(textEditingShapeIdProvider.notifier).state = null;
+  }
+
+  void _onTextContentLiveUpdate(String value, String shapeId) {
+    final scene = ref.read(activeSceneProvider);
+    final layerId = ref.read(activeLayerIdProvider);
+    if (scene == null || layerId == null) return;
+    ref
+        .read(vecDocumentStateProvider.notifier)
+        .updateShapeNoHistory(
+          scene.id,
+          layerId,
+          shapeId,
+          (s) => s.maybeMap(
+            text: (t) => t.copyWith(content: value),
+            orElse: () => s,
+          ),
+        );
+  }
+
+  /// Returns the text shape with [id] from [scene], or null.
+  dynamic _findTextShape(dynamic scene, String id) {
+    if (scene == null) return null;
+    for (final layer in scene.layers) {
+      for (final shape in layer.shapes) {
+        if (shape.id == id) return shape;
+      }
+    }
+    return null;
   }
 
   // ===========================================================================
@@ -132,6 +205,7 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
     final selectedShape = ref.watch(selectedShapeProvider);
     final activeGroupId = ref.watch(activeGroupIdProvider);
     final activeTool = ref.watch(activeToolProvider);
+    final textEditingShapeId = ref.watch(textEditingShapeIdProvider);
     final drawing = ref.watch(activeDrawingProvider);
     final penDrawing = ref.watch(activePenDrawingProvider);
     final motionPaths = ref.watch(activeSceneMotionPathsProvider);
@@ -229,6 +303,11 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
 
             onPanStart: (details) {
               if (_isPanning) return;
+              // Exit text editing mode when starting any canvas drag
+              if (textEditingShapeId != null) {
+                _exitTextEditMode();
+                return;
+              }
               if (isDrawingTool) {
                 final local = _toCanvasPoint(details.localPosition);
                 ref.read(activeDrawingProvider.notifier).start(local);
@@ -325,6 +404,11 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
                   }
                 : isSelectTool
                 ? (details) {
+                    // Exit text editing mode first (Figma-style: first click exits)
+                    if (textEditingShapeId != null) {
+                      _exitTextEditMode();
+                      return;
+                    }
                     final local = _toCanvasPoint(details.localPosition);
                     final cmdHeld =
                         HardwareKeyboard.instance.isControlPressed || HardwareKeyboard.instance.isMetaPressed;
@@ -339,6 +423,12 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
                 : isSelectTool
                 ? () {
                     if (selectedShape == null) return;
+                    // Double-tap on text shape → enter inline edit mode
+                    final isText = selectedShape.maybeMap(text: (_) => true, orElse: () => false);
+                    if (isText) {
+                      selectedShape.maybeMap(text: (t) => _enterTextEditMode(t.id, t.content), orElse: () {});
+                      return;
+                    }
                     // If the selected shape is a symbol instance, enter symbol edit mode.
                     final isSymbol = selectedShape.maybeMap(symbolInstance: (_) => true, orElse: () => false);
                     if (isSymbol) {
@@ -386,8 +476,8 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
                       child: ClipRect(
                         child: OverflowBox(
                           alignment: Alignment.topLeft,
-                          maxWidth: stageScreenW,
-                          maxHeight: stageScreenH,
+                          maxWidth: meta.stageWidth,
+                          maxHeight: meta.stageHeight,
                           child: _buildStage(
                             meta: meta,
                             zoom: zoom,
@@ -419,6 +509,16 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
                         ),
                       ),
                     ),
+
+                    // Inline text editing overlay
+                    if (textEditingShapeId != null)
+                      _buildTextEditingOverlay(
+                        editingId: textEditingShapeId,
+                        scene: scene,
+                        stageLeft: stageLeft,
+                        stageTop: stageTop,
+                        zoom: zoom,
+                      ),
 
                     // Symbol drop target — transparent Positioned.fill overlay for drag-and-drop
                     Positioned.fill(
@@ -476,6 +576,86 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
           ),
         );
       },
+    );
+  }
+
+  // ===========================================================================
+  // Text editing overlay
+  // ===========================================================================
+
+  Widget _buildTextEditingOverlay({
+    required String editingId,
+    required dynamic scene,
+    required double stageLeft,
+    required double stageTop,
+    required double zoom,
+  }) {
+    final shape = _findTextShape(scene, editingId);
+    if (shape == null) return const SizedBox.shrink();
+
+    // Must be a text shape
+    final bool isText = shape.maybeMap(text: (_) => true, orElse: () => false);
+    if (!isText) return const SizedBox.shrink();
+
+    final t = shape.transform;
+    final fills = shape.data.fills;
+    final textColor = fills.isNotEmpty
+        ? fills.first.color.toFlutterColor().withAlpha((fills.first.opacity * 255).round())
+        : const Color(0xFF000000);
+    final fontWeight = FontWeight.values[((shape.fontWeight / 100).clamp(1, 9).round() - 1)];
+    final TextAlign textAlign;
+    switch (shape.alignment.index) {
+      case 1:
+        textAlign = TextAlign.center;
+      case 2:
+        textAlign = TextAlign.right;
+      case 3:
+        textAlign = TextAlign.justify;
+      default:
+        textAlign = TextAlign.left;
+    }
+
+    final screenX = stageLeft + t.x * zoom;
+    final screenY = stageTop + t.y * zoom;
+    final screenW = math.max(t.width * zoom, 20.0);
+    final pivotX = (t.pivot?.x ?? (t.width / 2)) * zoom;
+    final pivotY = (t.pivot?.y ?? (t.height / 2)) * zoom;
+
+    return Positioned(
+      left: screenX,
+      top: screenY,
+      child: Transform.rotate(
+        angle: t.rotation * math.pi / 180,
+        origin: Offset(pivotX, pivotY),
+        child: Container(
+          width: screenW,
+          constraints: BoxConstraints(minHeight: shape.fontSize * zoom * shape.leading),
+          decoration: BoxDecoration(
+            border: Border.all(color: widget.theme.primaryColor.withAlpha(140), width: 1.5),
+            color: widget.theme.primaryColor.withAlpha(10),
+          ),
+          child: TextField(
+            controller: _textEditingController,
+            focusNode: _textFocusNode,
+            decoration: const InputDecoration(
+              isDense: true,
+              border: InputBorder.none,
+              contentPadding: EdgeInsets.all(2),
+            ),
+            style: TextStyle(
+              fontSize: shape.fontSize * zoom,
+              fontFamily: shape.fontFamily,
+              fontWeight: fontWeight,
+              letterSpacing: shape.tracking * zoom,
+              height: shape.leading,
+              color: textColor,
+            ),
+            textAlign: textAlign,
+            maxLines: null,
+            onChanged: (value) => _onTextContentLiveUpdate(value, editingId),
+          ),
+        ),
+      ),
     );
   }
 
@@ -940,11 +1120,25 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
       }
     }
 
+    // Pivot handle drag
+    if (SelectToolHandler.hitTestPivot(t, zoom, canvasPoint)) {
+      final pivotLocal = Offset(t.pivot?.x ?? (t.width / 2), t.pivot?.y ?? (t.height / 2));
+      setState(() {
+        _selectDragMode = _SelectDragMode.pivotMove;
+        _dragStartTransform = t;
+        _dragStartCanvasPoint = canvasPoint;
+        _dragStartPivot = pivotLocal;
+        _dragGroupTransform = activeGroup?.data.transform;
+      });
+      return;
+    }
+
     final hitIndex = SelectToolHandler.hitTestHandles(t, zoom, canvasPoint);
 
     if (hitIndex == -2) {
-      // Rotation handle
-      final center = SelectToolHandler.localToCanvas(t, Offset(t.width / 2, t.height / 2));
+      // Rotation handle — rotate around the pivot point
+      final pivotLocal = Offset(t.pivot?.x ?? (t.width / 2), t.pivot?.y ?? (t.height / 2));
+      final center = SelectToolHandler.localToCanvas(t, pivotLocal);
       setState(() {
         _selectDragMode = _SelectDragMode.rotate;
         _dragStartTransform = t;
@@ -1024,10 +1218,22 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
         newCanvasTransform = SelectToolHandler.applyResizeHandle(start, _resizeHandleIndex, delta);
 
       case _SelectDragMode.rotate:
-        final center = SelectToolHandler.localToCanvas(start, Offset(start.width / 2, start.height / 2));
+        final pivotLocal = Offset(start.pivot?.x ?? (start.width / 2), start.pivot?.y ?? (start.height / 2));
+        final center = SelectToolHandler.localToCanvas(start, pivotLocal);
         final currentAngle = (canvasPoint - center).direction;
         final angleDeltaDeg = (currentAngle - _rotationStartAngle) * 180 / math.pi;
         newCanvasTransform = start.copyWith(rotation: start.rotation + angleDeltaDeg);
+
+      case _SelectDragMode.pivotMove:
+        final angle = start.rotation * math.pi / 180;
+        final cosA = math.cos(angle);
+        final sinA = math.sin(angle);
+        final localDx = (delta.dx * cosA + delta.dy * sinA) / start.scaleX;
+        final localDy = (-delta.dx * sinA + delta.dy * cosA) / start.scaleY;
+        final startPivot = _dragStartPivot ?? Offset(start.width / 2, start.height / 2);
+        newCanvasTransform = start.copyWith(
+          pivot: VecPoint(x: startPivot.dx + localDx, y: startPivot.dy + localDy),
+        );
 
       case _SelectDragMode.cornerRadius:
         // Un-rotate the canvas delta into shape-local space
@@ -1164,6 +1370,7 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
       _selectDragMode = _SelectDragMode.none;
       _dragGroupTransform = null;
       _dragStartTransforms = {};
+      _dragStartPivot = null;
     });
   }
 
@@ -1333,11 +1540,16 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
     if (transform == null) return;
     final canvasPoint = _toCanvasPoint(screenPos);
     final hitIndex = SelectToolHandler.hitTestHandles(transform, zoom, canvasPoint);
-    final bodyHit = hitIndex == -1 ? SelectToolHandler.hitTestBody(transform, canvasPoint) : false;
-    final newIndex = bodyHit ? -3 : hitIndex;
-    if (newIndex != _hoverHandleIndex) {
-      setState(() => _hoverHandleIndex = newIndex);
+    if (hitIndex != -1) {
+      if (hitIndex != _hoverHandleIndex) setState(() => _hoverHandleIndex = hitIndex);
+      return;
     }
+    if (SelectToolHandler.hitTestPivot(transform, zoom, canvasPoint)) {
+      if (_hoverHandleIndex != -4) setState(() => _hoverHandleIndex = -4);
+      return;
+    }
+    final newIndex = SelectToolHandler.hitTestBody(transform, canvasPoint) ? -3 : -1;
+    if (newIndex != _hoverHandleIndex) setState(() => _hoverHandleIndex = newIndex);
   }
 
   MouseCursor _currentCursor(VecTool activeTool, dynamic selectedShape) {
@@ -1356,6 +1568,9 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
         }
         if (_selectDragMode == _SelectDragMode.rotate || _hoverHandleIndex == -2) {
           return SystemMouseCursors.grab;
+        }
+        if (_selectDragMode == _SelectDragMode.pivotMove || _hoverHandleIndex == -4) {
+          return SystemMouseCursors.move;
         }
         final handleIdx = _selectDragMode == _SelectDragMode.resizeHandle ? _resizeHandleIndex : _hoverHandleIndex;
         if (handleIdx >= 0) {
@@ -1465,6 +1680,20 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
       return;
     }
 
+    // Text tool: click (tiny drag) creates a default-size text box
+    if (tool == VecTool.text) {
+      final textDrawing = (drawingState.width < 4 || drawingState.height < 4)
+          ? drawingState.copyWith(currentPoint: drawingState.startPoint + const Offset(200, 50))
+          : drawingState;
+      final shape = handler.createText(textDrawing);
+      _addShapeToActiveLayer(shape);
+      ref.read(activeToolProvider.notifier).set(VecTool.select);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _enterTextEditMode(shape.id, 'Text');
+      });
+      return;
+    }
+
     if (drawingState.width < 2 || drawingState.height < 2) return;
 
     late final dynamic shape;
@@ -1474,9 +1703,6 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
         break;
       case VecTool.ellipse:
         shape = handler.createEllipse(drawingState);
-        break;
-      case VecTool.text:
-        shape = handler.createText(drawingState);
         break;
       default:
         return;

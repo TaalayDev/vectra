@@ -288,15 +288,24 @@ class PathfinderOps {
   // ---------------------------------------------------------------------------
 
   static VecShape expand(VecCompoundShape compound) {
-    final canvasPath = _converter.computeCompoundPath(compound);
-    final bounds = canvasPath.getBounds();
-    if (bounds.isEmpty) {
+    var canvasPath = _converter.computeCompoundPath(compound);
+    final naturalBounds = canvasPath.getBounds();
+    if (naturalBounds.isEmpty) {
       return VecShape.path(
         data: compound.data.copyWith(id: _uuid.v4()),
         nodes: const [],
         isClosed: true,
       );
     }
+
+    // Shift path to match the compound's current transform position (may have
+    // been moved after the pathfinder was applied).
+    final dx = compound.data.transform.x - naturalBounds.left;
+    final dy = compound.data.transform.y - naturalBounds.top;
+    if (dx != 0.0 || dy != 0.0) {
+      canvasPath = canvasPath.shift(ui.Offset(dx, dy));
+    }
+    final bounds = canvasPath.getBounds();
 
     final nodes = _samplePath(canvasPath, bounds);
     return VecShape.path(

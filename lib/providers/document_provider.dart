@@ -563,7 +563,7 @@ class VecDocumentState extends _$VecDocumentState {
     String shapeId,
     VecShape Function(VecShape) updater,
   ) {
-    final selectedFrame = ref.read(selectedKeyframeFrameProvider);
+    final selectedFrame = ref.read(playheadFrameProvider);
     var newDoc = _withLayer(sceneId, layerId, (layer) {
       return layer.copyWith(
         shapes: [
@@ -590,7 +590,7 @@ class VecDocumentState extends _$VecDocumentState {
     String shapeId,
     VecShape Function(VecShape) updater,
   ) {
-    final selectedFrame = ref.read(selectedKeyframeFrameProvider);
+    final selectedFrame = ref.read(playheadFrameProvider);
     var newDoc = _withLayer(sceneId, layerId, (layer) {
       return layer.copyWith(
         shapes: [
@@ -610,7 +610,7 @@ class VecDocumentState extends _$VecDocumentState {
   /// Automatically records any changed shapes to their keyframe at the
   /// currently selected keyframe frame.
   void commitCurrentState() {
-    final selectedFrame = ref.read(selectedKeyframeFrameProvider);
+    final selectedFrame = ref.read(playheadFrameProvider);
     final prevDoc = _cursor >= 0 ? _history[_cursor] : null;
 
     var finalDoc = state;
@@ -656,8 +656,13 @@ class VecDocumentState extends _$VecDocumentState {
       );
 
   /// Pure helper – returns a new [VecDocument] with the keyframe at [frame]
-  /// updated to snapshot the current state of [shapeId]. No-op if the shape
-  /// has no track or no keyframe at [frame].
+  /// updated to snapshot the current state of [shapeId].
+  ///
+  /// - If the shape has no track (not animated): no-op.
+  /// - If the shape has a track but no keyframe at [frame]: auto-inserts a
+  ///   new keyframe at [frame] (the "auto-keyframe" feature — any edit while
+  ///   the playhead sits between existing keyframes creates one automatically).
+  /// - If a keyframe already exists at [frame]: updates it in-place.
   VecDocument _recordShapeToKeyframe(
     VecDocument doc,
     String sceneId,
@@ -671,9 +676,9 @@ class VecDocumentState extends _$VecDocumentState {
     final track = scene.timeline.tracks
         .where((t) => t.layerId == layerId && t.shapeId == shapeId)
         .firstOrNull;
-    if (track == null || !track.keyframes.any((k) => k.frame == frame)) {
-      return doc;
-    }
+    // Shape has no animation track — don't auto-create one.
+    if (track == null) return doc;
+    // Track exists but no keyframe here yet → will be auto-inserted below.
 
     VecShape? shape;
     for (final layer in scene.layers) {
@@ -683,9 +688,18 @@ class VecDocumentState extends _$VecDocumentState {
     }
     if (shape == null) return doc;
 
+    // Inherit tweenType from the preceding keyframe so the animation curve is
+    // preserved when auto-inserting between two existing keyframes.
+    final sortedKfs = [...track.keyframes]..sort((a, b) => a.frame.compareTo(b.frame));
+    VecKeyframe? preceding;
+    for (final k in sortedKfs) {
+      if (k.frame < frame) preceding = k;
+    }
+    final inheritedTween = preceding?.tweenType ?? VecTweenType.classic;
+
     final kf = VecKeyframe(
       frame: frame,
-      tweenType: VecTweenType.classic,
+      tweenType: inheritedTween,
       transform: shape.data.transform,
       opacity: shape.data.opacity,
       fills: List.unmodifiable(shape.data.fills),

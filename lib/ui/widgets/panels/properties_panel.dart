@@ -121,6 +121,14 @@ class PropertiesPanel extends ConsumerWidget {
           ],
           orElse: () => const <Widget>[],
         ),
+        // Text properties — text shapes only
+        ...shape.maybeMap(
+          text: (t) => [
+            Divider(height: 1, color: theme.divider.withAlpha(60)),
+            TextSection(shape: t, theme: theme, onUpdate: onUpdate),
+          ],
+          orElse: () => const <Widget>[],
+        ),
         PathfinderPanel(theme: theme),
         Divider(height: 1, color: theme.divider.withAlpha(60)),
 

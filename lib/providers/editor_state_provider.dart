@@ -17,6 +17,12 @@ part 'editor_state_provider.g.dart';
 enum VecTool { select, pen, line, rectangle, ellipse, text, width }
 
 // ---------------------------------------------------------------------------
+// Text editing — which shape is currently being inline-edited (null = none)
+// ---------------------------------------------------------------------------
+
+final textEditingShapeIdProvider = StateProvider<String?>((ref) => null);
+
+// ---------------------------------------------------------------------------
 // UI state providers
 // ---------------------------------------------------------------------------
 

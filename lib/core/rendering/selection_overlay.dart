@@ -41,6 +41,9 @@ class SelectionOverlayPainter extends CustomPainter {
     // Rotation handle (line + circle above top center)
     _drawRotationHandle(canvas, rect);
 
+    // Pivot point indicator
+    _drawPivotHandle(canvas, t);
+
     // Dimension label
     _drawDimensionLabel(canvas, rect, t);
 
@@ -129,6 +132,28 @@ class SelectionOverlayPainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.2 / zoom,
     );
+  }
+
+  void _drawPivotHandle(Canvas canvas, VecTransform t) {
+    final px = t.pivot?.x ?? (t.width / 2);
+    final py = t.pivot?.y ?? (t.height / 2);
+    final pivot = Offset(px, py);
+
+    final armLen = 5.0 / zoom;
+    final radius = 3.5 / zoom;
+
+    final paint = Paint()
+      ..color = selectionColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2 / zoom;
+
+    // Crosshair
+    canvas.drawLine(Offset(pivot.dx - armLen, pivot.dy), Offset(pivot.dx + armLen, pivot.dy), paint);
+    canvas.drawLine(Offset(pivot.dx, pivot.dy - armLen), Offset(pivot.dx, pivot.dy + armLen), paint);
+
+    // Circle
+    canvas.drawCircle(pivot, radius, Paint()..color = handleColor);
+    canvas.drawCircle(pivot, radius, paint);
   }
 
   void _drawDimensionLabel(Canvas canvas, Rect rect, VecTransform t) {

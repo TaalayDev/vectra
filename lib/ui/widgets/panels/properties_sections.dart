@@ -527,7 +527,309 @@ class _StrokeRow extends HookWidget {
 }
 
 // ---------------------------------------------------------------------------
-// 4. Blend Mode Section (shape-level blendMode)
+// 4. Text Section (text shapes only)
+// ---------------------------------------------------------------------------
+
+class TextSection extends StatelessWidget {
+  const TextSection({
+    super.key,
+    required this.shape,
+    required this.theme,
+    required this.onUpdate,
+  });
+
+  final VecTextShape shape;
+  final AppTheme theme;
+  final ShapeCommit onUpdate;
+
+  @override
+  Widget build(BuildContext context) {
+    return CollapsibleSection(
+      title: 'Text',
+      theme: theme,
+      content: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Font family + size
+          Row(
+            children: [
+              Expanded(child: _FontFamilyField(shape: shape, theme: theme, onUpdate: onUpdate)),
+              const SizedBox(width: 8),
+              NumericInput(
+                label: 'Size',
+                value: shape.fontSize,
+                min: 1,
+                width: 60,
+                theme: theme,
+                onChanged: (v) => onUpdate(
+                  (s) => s.maybeMap(text: (t) => t.copyWith(fontSize: v), orElse: () => s),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          // Font weight + alignment
+          Row(
+            children: [
+              Expanded(child: _FontWeightDropdown(shape: shape, theme: theme, onUpdate: onUpdate)),
+              const SizedBox(width: 8),
+              _AlignmentButtons(shape: shape, theme: theme, onUpdate: onUpdate),
+            ],
+          ),
+          const SizedBox(height: 8),
+          // Tracking + Leading
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            children: [
+              NumericInput(
+                label: 'Tracking',
+                value: shape.tracking,
+                width: 76,
+                theme: theme,
+                onChanged: (v) => onUpdate(
+                  (s) => s.maybeMap(text: (t) => t.copyWith(tracking: v), orElse: () => s),
+                ),
+              ),
+              NumericInput(
+                label: 'Leading',
+                value: shape.leading,
+                min: 0.1,
+                width: 76,
+                theme: theme,
+                onChanged: (v) => onUpdate(
+                  (s) => s.maybeMap(text: (t) => t.copyWith(leading: v), orElse: () => s),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FontFamilyField extends HookWidget {
+  const _FontFamilyField({required this.shape, required this.theme, required this.onUpdate});
+
+  final VecTextShape shape;
+  final AppTheme theme;
+  final ShapeCommit onUpdate;
+
+  static const _commonFonts = [
+    'Inter', 'Roboto', 'Arial', 'Helvetica', 'Georgia',
+    'Times New Roman', 'Courier New', 'Verdana', 'Trebuchet MS',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final ctrl = useTextEditingController(text: shape.fontFamily);
+    final focus = useFocusNode();
+
+    useEffect(() {
+      // Sync controller when shape updates externally
+      if (ctrl.text != shape.fontFamily) ctrl.text = shape.fontFamily;
+      return null;
+    }, [shape.fontFamily]);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Font', style: TextStyle(fontSize: 10, color: theme.textDisabled, fontWeight: FontWeight.w500)),
+        const SizedBox(height: 2),
+        Container(
+          height: 26,
+          padding: const EdgeInsets.symmetric(horizontal: 6),
+          decoration: BoxDecoration(
+            color: theme.surfaceVariant,
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(
+              color: focus.hasFocus ? theme.primaryColor : theme.divider,
+              width: focus.hasFocus ? 1.0 : 0.5,
+            ),
+          ),
+          child: TextField(
+            controller: ctrl,
+            focusNode: focus,
+            style: TextStyle(fontSize: 11, color: theme.textPrimary),
+            decoration: const InputDecoration(isDense: true, border: InputBorder.none, contentPadding: EdgeInsets.zero),
+            onSubmitted: (v) {
+              final font = v.trim().isEmpty ? 'Inter' : v.trim();
+              onUpdate((s) => s.maybeMap(text: (t) => t.copyWith(fontFamily: font), orElse: () => s));
+            },
+            onEditingComplete: () {
+              final font = ctrl.text.trim().isEmpty ? 'Inter' : ctrl.text.trim();
+              onUpdate((s) => s.maybeMap(text: (t) => t.copyWith(fontFamily: font), orElse: () => s));
+              focus.unfocus();
+            },
+          ),
+        ),
+        // Quick-select chips for common fonts
+        const SizedBox(height: 4),
+        Wrap(
+          spacing: 3,
+          runSpacing: 3,
+          children: _commonFonts.map((f) {
+            final active = shape.fontFamily == f;
+            return GestureDetector(
+              onTap: () {
+                ctrl.text = f;
+                onUpdate((s) => s.maybeMap(text: (t) => t.copyWith(fontFamily: f), orElse: () => s));
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                decoration: BoxDecoration(
+                  color: active ? theme.primaryColor : theme.surfaceVariant,
+                  borderRadius: BorderRadius.circular(3),
+                  border: Border.all(color: active ? theme.primaryColor : theme.divider, width: 0.5),
+                ),
+                child: Text(
+                  f,
+                  style: TextStyle(
+                    fontSize: 9,
+                    color: active ? theme.onPrimary : theme.textDisabled,
+                    fontFamily: f,
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+}
+
+class _FontWeightDropdown extends StatelessWidget {
+  const _FontWeightDropdown({required this.shape, required this.theme, required this.onUpdate});
+
+  final VecTextShape shape;
+  final AppTheme theme;
+  final ShapeCommit onUpdate;
+
+  static const _weights = [
+    (100, 'Thin'),
+    (200, 'ExtraLight'),
+    (300, 'Light'),
+    (400, 'Regular'),
+    (500, 'Medium'),
+    (600, 'SemiBold'),
+    (700, 'Bold'),
+    (800, 'ExtraBold'),
+    (900, 'Black'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    // Snap to nearest weight step
+    final current = (shape.fontWeight ~/ 100) * 100;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Weight', style: TextStyle(fontSize: 10, color: theme.textDisabled, fontWeight: FontWeight.w500)),
+        const SizedBox(height: 2),
+        Container(
+          height: 26,
+          padding: const EdgeInsets.symmetric(horizontal: 6),
+          decoration: BoxDecoration(
+            color: theme.surfaceVariant,
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(color: theme.divider, width: 0.5),
+          ),
+          child: DropdownButton<int>(
+            value: _weights.any((w) => w.$1 == current) ? current : 400,
+            onChanged: (v) {
+              if (v != null) {
+                onUpdate((s) => s.maybeMap(text: (t) => t.copyWith(fontWeight: v), orElse: () => s));
+              }
+            },
+            isExpanded: true,
+            underline: const SizedBox.shrink(),
+            icon: Icon(Icons.expand_more, size: 12, color: theme.textDisabled),
+            dropdownColor: theme.surface,
+            style: TextStyle(fontSize: 11, color: theme.textPrimary),
+            items: _weights.map((w) {
+              return DropdownMenuItem<int>(
+                value: w.$1,
+                child: Text(
+                  '${w.$2} ${w.$1}',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: theme.textPrimary,
+                    fontWeight: FontWeight.values[((w.$1 / 100).round() - 1).clamp(0, 8)],
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _AlignmentButtons extends StatelessWidget {
+  const _AlignmentButtons({required this.shape, required this.theme, required this.onUpdate});
+
+  final VecTextShape shape;
+  final AppTheme theme;
+  final ShapeCommit onUpdate;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Text('Align', style: TextStyle(fontSize: 10, color: theme.textDisabled, fontWeight: FontWeight.w500)),
+        const SizedBox(height: 2),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _AlignBtn(icon: Icons.format_align_left, active: shape.alignment == VecTextAlign.left, theme: theme,
+                onTap: () => onUpdate((s) => s.maybeMap(text: (t) => t.copyWith(alignment: VecTextAlign.left), orElse: () => s))),
+            _AlignBtn(icon: Icons.format_align_center, active: shape.alignment == VecTextAlign.center, theme: theme,
+                onTap: () => onUpdate((s) => s.maybeMap(text: (t) => t.copyWith(alignment: VecTextAlign.center), orElse: () => s))),
+            _AlignBtn(icon: Icons.format_align_right, active: shape.alignment == VecTextAlign.right, theme: theme,
+                onTap: () => onUpdate((s) => s.maybeMap(text: (t) => t.copyWith(alignment: VecTextAlign.right), orElse: () => s))),
+            _AlignBtn(icon: Icons.format_align_justify, active: shape.alignment == VecTextAlign.justify, theme: theme,
+                onTap: () => onUpdate((s) => s.maybeMap(text: (t) => t.copyWith(alignment: VecTextAlign.justify), orElse: () => s))),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _AlignBtn extends StatelessWidget {
+  const _AlignBtn({required this.icon, required this.active, required this.theme, required this.onTap});
+
+  final IconData icon;
+  final bool active;
+  final AppTheme theme;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 24,
+        height: 26,
+        margin: const EdgeInsets.only(left: 2),
+        decoration: BoxDecoration(
+          color: active ? theme.primaryColor : theme.surfaceVariant,
+          borderRadius: BorderRadius.circular(3),
+          border: Border.all(color: active ? theme.primaryColor : theme.divider, width: 0.5),
+        ),
+        child: Icon(icon, size: 12, color: active ? theme.onPrimary : theme.textDisabled),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 5. Blend Mode Section (shape-level blendMode)
 // ---------------------------------------------------------------------------
 
 class BlendSection extends StatelessWidget {

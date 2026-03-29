@@ -70,6 +70,13 @@ class EditorScreen extends HookConsumerWidget {
           }
         },
         onEscape: () {
+          // Exit inline text editing first
+          final textEditingId = ref.read(textEditingShapeIdProvider);
+          if (textEditingId != null) {
+            ref.read(vecDocumentStateProvider.notifier).commitCurrentState();
+            ref.read(textEditingShapeIdProvider.notifier).state = null;
+            return;
+          }
           // Cancel motion path drawing if active
           final mpTarget = ref.read(motionPathDrawTargetProvider);
           if (mpTarget != null) {

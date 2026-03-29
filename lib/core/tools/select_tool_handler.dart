@@ -14,6 +14,7 @@ class SelectToolHandler {
   // 5:bottomLeft 6:bottomCenter 7:bottomRight
   static const _handleSize = 8.0;
   static const _rotateHandleOffset = 20.0;
+  static const _pivotHandleSize = 10.0;
 
   // ---------------------------------------------------------------------------
   // Coordinate conversions
@@ -79,6 +80,15 @@ class SelectToolHandler {
     }
 
     return -1;
+  }
+
+  /// Returns true if [canvasPoint] is within the pivot handle.
+  static bool hitTestPivot(VecTransform t, double zoom, Offset canvasPoint) {
+    final px = t.pivot?.x ?? (t.width / 2);
+    final py = t.pivot?.y ?? (t.height / 2);
+    final pivotCanvas = localToCanvas(t, Offset(px, py));
+    final hitRadius = _pivotHandleSize / zoom;
+    return (canvasPoint - pivotCanvas).distance < hitRadius;
   }
 
   /// Returns true if [canvasPoint] is inside the shape's bounding box.

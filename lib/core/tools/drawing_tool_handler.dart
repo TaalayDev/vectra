@@ -64,7 +64,17 @@ class DrawingToolHandler {
   /// Creates a text shape from a drag region.
   VecShape createText(DrawingState drawing) {
     return VecShape.text(
-      data: _shapeData(drawing),
+      data: VecShapeData(
+        id: _uuid.v4(),
+        transform: VecTransform(
+          x: drawing.left,
+          y: drawing.top,
+          width: drawing.width,
+          height: drawing.height,
+        ),
+        fills: _defaultTextFills,
+        strokes: const [],
+      ),
       content: 'Text',
       fontSize: 24,
     );
@@ -152,6 +162,10 @@ class DrawingToolHandler {
 
   static const _defaultFills = [
     VecFill(color: VecColor(a: 255, r: 120, g: 160, b: 230), opacity: 1.0),
+  ];
+
+  static const _defaultTextFills = [
+    VecFill(color: VecColor(a: 255, r: 0, g: 0, b: 0), opacity: 1.0),
   ];
 
   static const _defaultStrokes = [

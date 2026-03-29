@@ -42,12 +42,10 @@ class ShapeRenderer {
       );
     }
 
-    // Compound shapes carry pre-computed canvas-space paths — skip local transform.
-    final isCompound = shape is VecCompoundShape;
-    if (!isCompound) {
-      // Apply affine transform: translate to position, rotate around pivot, scale, skew
-      _applyTransform(canvas, transform);
-    }
+    // Apply affine transform: translate to position, rotate around pivot, scale, skew.
+    // Compounds also go through this now — _renderCompound normalises the path
+    // to local-origin coordinates so it can be positioned/rotated like any shape.
+    _applyTransform(canvas, transform);
 
     // Build path and paint
     shape.map(
@@ -475,8 +473,16 @@ class ShapeRenderer {
   static const _shapeToPath = ShapeToPath();
 
   void _renderCompound(Canvas canvas, VecCompoundShape s) {
-    // Path is already in canvas space (transform was skipped in render())
-    final path = _shapeToPath.computeCompoundPath(s);
+    // computeCompoundPath() returns a path in the original canvas space of the
+    // input shapes (absolute coordinates).  We normalise it to local-origin
+    // space (top-left = 0,0) so that _applyTransform (already applied to the
+    // canvas above) positions, rotates, and scales it correctly — just like
+    // any other shape type.
+    var path = _shapeToPath.computeCompoundPath(s);
+    final naturalBounds = path.getBounds();
+    if (!naturalBounds.isEmpty) {
+      path = path.shift(Offset(-naturalBounds.left, -naturalBounds.top));
+    }
     _applyFillsAndStrokes(canvas, path, s.data.fills, s.data.strokes);
   }
 
