@@ -240,28 +240,42 @@ class _LayerRowState extends ConsumerState<LayerRow> {
         // Shape sub-rows (when expanded)
         // -----------------------------------------------------------------------
         if (_isExpanded && hasShapes)
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              for (var i = layer.shapes.length - 1; i >= 0; i--)
-                _ShapeRow(
-                  shape: layer.shapes[i],
-                  layerId: layer.id,
-                  isSelected: layer.shapes[i].id == selectedShapeId,
-                  theme: t,
-                  onTap: () {
-                    ref
-                        .read(selectedShapeIdProvider.notifier)
-                        .set(layer.shapes[i].id);
-                    ref
-                        .read(selectedShapeIdsProvider.notifier)
-                        .setSingle(layer.shapes[i].id);
-                    ref
-                        .read(activeLayerIdProvider.notifier)
-                        .set(layer.id);
-                  },
-                ),
-            ],
+          // Shapes are stored bottom→top (index 0 = bottom).
+          // Display top→bottom so the visually-topmost shape appears first.
+          ReorderableListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: layer.shapes.length,
+            // visibleIndex 0 = top of stack = last in shapes list
+            itemBuilder: (context, visibleIndex) {
+              final shapeIndex = layer.shapes.length - 1 - visibleIndex;
+              final shape = layer.shapes[shapeIndex];
+              return _ShapeRow(
+                key: ValueKey(shape.id),
+                shape: shape,
+                layerId: layer.id,
+                sceneId: widget.sceneId,
+                visibleIndex: visibleIndex,
+                isSelected: shape.id == selectedShapeId,
+                theme: t,
+                onTap: () {
+                  ref.read(selectedShapeIdProvider.notifier).set(shape.id);
+                  ref.read(selectedShapeIdsProvider.notifier).setSingle(shape.id);
+                  ref.read(activeLayerIdProvider.notifier).set(layer.id);
+                },
+              );
+            },
+            onReorder: (oldVisible, newVisible) {
+              // Convert visible indices back to storage indices
+              final n = layer.shapes.length;
+              final fromIndex = n - 1 - oldVisible;
+              var toIndex = n - 1 - newVisible;
+              // ReorderableListView adjusts index after removal — compensate
+              if (newVisible > oldVisible) toIndex += 1;
+              ref.read(vecDocumentStateProvider.notifier)
+                  .reorderShape(widget.sceneId, layer.id, fromIndex, toIndex);
+            },
+            buildDefaultDragHandles: false,
           ),
       ],
     );
@@ -316,10 +330,13 @@ class _RenameField extends StatelessWidget {
 // Shape sub-row
 // =============================================================================
 
-class _ShapeRow extends StatelessWidget {
+class _ShapeRow extends ConsumerWidget {
   const _ShapeRow({
+    super.key,
     required this.shape,
     required this.layerId,
+    required this.sceneId,
+    required this.visibleIndex,
     required this.isSelected,
     required this.theme,
     required this.onTap,
@@ -327,23 +344,36 @@ class _ShapeRow extends StatelessWidget {
 
   final VecShape shape;
   final String layerId;
+  final String sceneId;
+  final int visibleIndex;
   final bool isSelected;
   final AppTheme theme;
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return GestureDetector(
       onTap: onTap,
+      onSecondaryTapUp: (details) =>
+          _showContextMenu(context, ref, details.globalPosition),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 100),
         height: 28,
-        padding: const EdgeInsets.only(left: 40, right: 8),
         color: isSelected
             ? theme.primaryColor.withAlpha(20)
             : Colors.transparent,
         child: Row(
           children: [
+            // Drag handle
+            ReorderableDragStartListener(
+              index: visibleIndex,
+              child: Padding(
+                padding: const EdgeInsets.only(left: 40),
+                child: Icon(Icons.drag_indicator,
+                    size: 12, color: theme.textDisabled.withAlpha(100)),
+              ),
+            ),
+            const SizedBox(width: 4),
             Icon(_shapeIcon(), size: 12, color: theme.textDisabled),
             const SizedBox(width: 6),
             Expanded(
@@ -351,17 +381,43 @@ class _ShapeRow extends StatelessWidget {
                 _shapeName(),
                 style: TextStyle(
                   fontSize: 11,
-                  color: isSelected
-                      ? theme.textPrimary
-                      : theme.textSecondary,
+                  color: isSelected ? theme.textPrimary : theme.textSecondary,
                 ),
                 overflow: TextOverflow.ellipsis,
               ),
             ),
+            const SizedBox(width: 8),
           ],
         ),
       ),
     );
+  }
+
+  void _showContextMenu(
+      BuildContext context, WidgetRef ref, Offset globalPos) {
+    final notifier = ref.read(vecDocumentStateProvider.notifier);
+    showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+          globalPos.dx, globalPos.dy, globalPos.dx, globalPos.dy),
+      items: [
+        const PopupMenuItem(value: 'front', child: Text('Bring to Front')),
+        const PopupMenuItem(value: 'forward', child: Text('Bring Forward')),
+        const PopupMenuItem(value: 'backward', child: Text('Send Backward')),
+        const PopupMenuItem(value: 'back', child: Text('Send to Back')),
+      ],
+    ).then((value) {
+      switch (value) {
+        case 'front':
+          notifier.bringToFront(sceneId, layerId, shape.id);
+        case 'forward':
+          notifier.bringForward(sceneId, layerId, shape.id);
+        case 'backward':
+          notifier.sendBackward(sceneId, layerId, shape.id);
+        case 'back':
+          notifier.sendToBack(sceneId, layerId, shape.id);
+      }
+    });
   }
 
   String _shapeName() => shape.map(

@@ -13,14 +13,22 @@ _$VecFillImpl _$$VecFillImplFromJson(Map<String, dynamic> json) =>
       blendMode:
           $enumDecodeNullable(_$VecBlendModeEnumMap, json['blendMode']) ??
           VecBlendMode.normal,
+      gradient: json['gradient'] == null
+          ? null
+          : VecGradient.fromJson(json['gradient'] as Map<String, dynamic>),
     );
 
-Map<String, dynamic> _$$VecFillImplToJson(_$VecFillImpl instance) =>
-    <String, dynamic>{
-      'color': instance.color,
-      'opacity': instance.opacity,
-      'blendMode': _$VecBlendModeEnumMap[instance.blendMode]!,
-    };
+Map<String, dynamic> _$$VecFillImplToJson(_$VecFillImpl instance) {
+  final val = <String, dynamic>{
+    'color': instance.color,
+    'opacity': instance.opacity,
+    'blendMode': _$VecBlendModeEnumMap[instance.blendMode]!,
+  };
+  if (instance.gradient != null) {
+    val['gradient'] = instance.gradient!.toJson();
+  }
+  return val;
+}
 
 const _$VecBlendModeEnumMap = {
   VecBlendMode.normal: 'normal',

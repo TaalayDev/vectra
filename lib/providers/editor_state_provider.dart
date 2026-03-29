@@ -186,6 +186,51 @@ class EditingSymbolId extends _$EditingSymbolId {
 }
 
 // ---------------------------------------------------------------------------
+// Snap settings
+// ---------------------------------------------------------------------------
+
+class SnapSettings {
+  const SnapSettings({
+    this.toGrid = false,
+    this.toObjects = true,
+    this.showRulers = true,
+    this.gridSize = 8,
+  });
+
+  final bool toGrid;
+  final bool toObjects;
+  final bool showRulers;
+  final int gridSize;
+
+  SnapSettings copyWith({
+    bool? toGrid,
+    bool? toObjects,
+    bool? showRulers,
+    int? gridSize,
+  }) =>
+      SnapSettings(
+        toGrid: toGrid ?? this.toGrid,
+        toObjects: toObjects ?? this.toObjects,
+        showRulers: showRulers ?? this.showRulers,
+        gridSize: gridSize ?? this.gridSize,
+      );
+}
+
+class SnapSettingsNotifier extends StateNotifier<SnapSettings> {
+  SnapSettingsNotifier() : super(const SnapSettings());
+
+  void toggleGrid() => state = state.copyWith(toGrid: !state.toGrid);
+  void toggleObjects() => state = state.copyWith(toObjects: !state.toObjects);
+  void toggleRulers() => state = state.copyWith(showRulers: !state.showRulers);
+  void setGridSize(int size) => state = state.copyWith(gridSize: size);
+}
+
+final snapSettingsProvider =
+    StateNotifierProvider<SnapSettingsNotifier, SnapSettings>(
+  (ref) => SnapSettingsNotifier(),
+);
+
+// ---------------------------------------------------------------------------
 // Derived state providers
 // ---------------------------------------------------------------------------
 

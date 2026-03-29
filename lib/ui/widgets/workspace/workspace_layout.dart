@@ -8,6 +8,7 @@ import '../panels/layers_panel.dart';
 import '../panels/properties_panel.dart';
 import '../panels/symbols_panel.dart';
 import '../panels/timeline_panel.dart';
+import '../common/toast_overlay.dart';
 import '../toolbar/editor_toolbar.dart';
 import 'scene_tabs_bar.dart';
 import 'status_bar.dart';
@@ -22,65 +23,70 @@ class WorkspaceLayout extends ConsumerWidget {
     final panels = ref.watch(panelVisibilityProvider);
     final timelineHeight = ref.watch(timelineHeightProvider);
 
-    return Column(
+    return Stack(
       children: [
-        // Toolbar
-        EditorToolbar(theme: theme),
+        Column(
+          children: [
+            // Toolbar
+            EditorToolbar(theme: theme),
 
-        // Main content area
-        Expanded(
-          child: Row(
-            children: [
-              // Left: Layers/Symbols tabbed panel or collapse strip
-              if (panels.layers)
-                SizedBox(width: 240, child: _LeftPanel(theme: theme))
-              else
-                _PanelCollapseStrip(
-                  label: 'Layers',
-                  theme: theme,
-                  onTap: () => ref.read(panelVisibilityProvider.notifier).toggleLayers(),
-                ),
+            // Main content area
+            Expanded(
+              child: Row(
+                children: [
+                  // Left: Layers/Symbols tabbed panel or collapse strip
+                  if (panels.layers)
+                    SizedBox(width: 240, child: _LeftPanel(theme: theme))
+                  else
+                    _PanelCollapseStrip(
+                      label: 'Layers',
+                      theme: theme,
+                      onTap: () => ref.read(panelVisibilityProvider.notifier).toggleLayers(),
+                    ),
 
-              // Center: Canvas
-              Expanded(child: EditorCanvas(theme: theme)),
+                  // Center: Canvas
+                  Expanded(child: EditorCanvas(theme: theme)),
 
-              // Right: Properties panel or collapse strip
-              if (panels.properties)
-                SizedBox(width: 280, child: PropertiesPanel(theme: theme))
-              else
-                _PanelCollapseStrip(
-                  label: 'Properties',
-                  theme: theme,
-                  onTap: () => ref.read(panelVisibilityProvider.notifier).toggleProperties(),
-                  alignRight: true,
-                ),
-            ],
-          ),
-        ),
-
-        // Scene tabs bar
-        SceneTabsBar(theme: theme),
-
-        // Bottom: Timeline or collapse strip
-        if (panels.timeline)
-          SizedBox(
-            height: timelineHeight,
-            child: TimelinePanel(
-              theme: theme,
-              onResizeDrag: (delta) {
-                ref.read(timelineHeightProvider.notifier).set(timelineHeight - delta);
-              },
+                  // Right: Properties panel or collapse strip
+                  if (panels.properties)
+                    SizedBox(width: 280, child: PropertiesPanel(theme: theme))
+                  else
+                    _PanelCollapseStrip(
+                      label: 'Properties',
+                      theme: theme,
+                      onTap: () => ref.read(panelVisibilityProvider.notifier).toggleProperties(),
+                      alignRight: true,
+                    ),
+                ],
+              ),
             ),
-          )
-        else
-          _HorizontalCollapseStrip(
-            label: 'Timeline',
-            theme: theme,
-            onTap: () => ref.read(panelVisibilityProvider.notifier).toggleTimeline(),
-          ),
 
-        // Status bar
-        StatusBar(theme: theme),
+            // Scene tabs bar
+            SceneTabsBar(theme: theme),
+
+            // Bottom: Timeline or collapse strip
+            if (panels.timeline)
+              SizedBox(
+                height: timelineHeight,
+                child: TimelinePanel(
+                  theme: theme,
+                  onResizeDrag: (delta) {
+                    ref.read(timelineHeightProvider.notifier).set(timelineHeight - delta);
+                  },
+                ),
+              )
+            else
+              _HorizontalCollapseStrip(
+                label: 'Timeline',
+                theme: theme,
+                onTap: () => ref.read(panelVisibilityProvider.notifier).toggleTimeline(),
+              ),
+
+            // Status bar
+            StatusBar(theme: theme),
+          ],
+        ),
+        const ToastOverlay(),
       ],
     );
   }
@@ -126,9 +132,7 @@ class _LeftPanelState extends ConsumerState<_LeftPanel> {
             ),
           ),
           Expanded(
-            child: _tab == 0
-                ? LayersPanel(theme: theme)
-                : SymbolsPanel(theme: theme),
+            child: _tab == 0 ? LayersPanel(theme: theme) : SymbolsPanel(theme: theme),
           ),
         ],
       ),
@@ -154,12 +158,7 @@ class _Tab extends StatelessWidget {
           duration: const Duration(milliseconds: 150),
           padding: const EdgeInsets.symmetric(horizontal: 12),
           decoration: BoxDecoration(
-            border: Border(
-              bottom: BorderSide(
-                color: selected ? theme.accentColor : Colors.transparent,
-                width: 2,
-              ),
-            ),
+            border: Border(bottom: BorderSide(color: selected ? theme.accentColor : Colors.transparent, width: 2)),
           ),
           child: Center(
             child: Text(

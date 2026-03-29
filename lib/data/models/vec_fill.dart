@@ -1,6 +1,7 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 import 'vec_color.dart';
+import 'vec_gradient.dart';
 
 part 'vec_fill.freezed.dart';
 part 'vec_fill.g.dart';
@@ -30,6 +31,7 @@ class VecFill with _$VecFill {
     required VecColor color,
     @Default(1.0) double opacity,
     @Default(VecBlendMode.normal) VecBlendMode blendMode,
+    VecGradient? gradient,
   }) = _VecFill;
 
   factory VecFill.fromJson(Map<String, dynamic> json) =>

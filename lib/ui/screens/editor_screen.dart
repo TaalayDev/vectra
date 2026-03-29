@@ -1,3 +1,4 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:uuid/uuid.dart';
@@ -9,8 +10,10 @@ import '../../providers/document_provider.dart';
 import '../../providers/drawing_state_provider.dart';
 import '../../providers/editor_state_provider.dart';
 import '../../providers/motion_path_provider.dart';
+import '../../providers/toast_provider.dart';
 import '../../ui/contents/dialogs/export_dialog.dart';
 import '../../ui/contents/theme_selector.dart';
+import '../contents/dialogs/shortcut_sheet.dart';
 import '../contents/shortcuts_wrapper.dart';
 import '../widgets/workspace/workspace_layout.dart';
 
@@ -34,12 +37,64 @@ class EditorScreen extends HookConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = ref.watch(themeProvider).theme;
 
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        final notifier = ref.read(vecDocumentStateProvider.notifier);
+        if (!notifier.isDirty) {
+          if (context.mounted) Navigator.of(context).pop();
+          return;
+        }
+        // Show "unsaved changes" confirmation
+        final leave = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Unsaved changes'),
+            content: const Text('You have unsaved changes that will be lost if you leave. Continue?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                child: const Text('Leave'),
+              ),
+            ],
+          ),
+        );
+        if ((leave ?? false) && context.mounted) Navigator.of(context).pop();
+      },
+      child: Scaffold(
       backgroundColor: theme.background,
       body: ShortcutsWrapper(
         onUndo: () => ref.read(vecDocumentStateProvider.notifier).undo(),
         onRedo: () => ref.read(vecDocumentStateProvider.notifier).redo(),
-        onSave: () => ref.read(vecDocumentStateProvider.notifier).save(),
+        onSave: () async {
+          // Ctrl+S — only saves if document already has a file path.
+          // For new documents use Ctrl+Shift+S (Save As).
+          final notifier = ref.read(vecDocumentStateProvider.notifier);
+          if (notifier.hasFilePath) {
+            await notifier.save();
+            ref.read(toastProvider.notifier).show('Saved');
+          }
+        },
+        onSaveAs: () async {
+          final notifier = ref.read(vecDocumentStateProvider.notifier);
+          final docName = ref.read(vecDocumentStateProvider).meta.name;
+          final path = await FilePicker.platform.saveFile(
+            dialogTitle: 'Save document as',
+            fileName: '$docName.vct',
+            type: FileType.custom,
+            allowedExtensions: ['vct'],
+          );
+          if (path != null) {
+            await notifier.saveAs(path);
+            final fileName = path.split('/').last;
+            ref.read(toastProvider.notifier).show('Saved as $fileName');
+          }
+        },
         onZoomIn: () => ref.read(zoomLevelProvider.notifier).zoomIn(),
         onZoomOut: () => ref.read(zoomLevelProvider.notifier).zoomOut(),
         onZoomFit: () => ref.read(fitRequestProvider.notifier).request(),
@@ -220,6 +275,9 @@ class EditorScreen extends HookConsumerWidget {
             final shapes = layer.shapes.where((s) => selectedIds.contains(s.id)).toList();
             if (shapes.isNotEmpty) {
               ref.read(clipboardProvider.notifier).set(shapes);
+              ref.read(toastProvider.notifier).show(
+                'Copied ${shapes.length} shape${shapes.length > 1 ? 's' : ''}',
+              );
             }
             return;
           }
@@ -234,6 +292,22 @@ class EditorScreen extends HookConsumerWidget {
           ref.read(vecDocumentStateProvider.notifier).addShapes(scene.id, layerId, clones);
           ref.read(selectedShapeIdsProvider.notifier).setAll(clones.map((s) => s.id).toList());
           ref.read(selectedShapeIdProvider.notifier).set(clones.last.id);
+          ref.read(toastProvider.notifier).show(
+            'Pasted ${clones.length} shape${clones.length > 1 ? 's' : ''}',
+          );
+        },
+        onPasteInPlace: () {
+          // Paste at exact same coordinates (no offset)
+          final clipboard = ref.read(clipboardProvider);
+          if (clipboard.isEmpty) return;
+          final scene = ref.read(activeSceneProvider);
+          final layerId = ref.read(activeLayerIdProvider);
+          if (scene == null || layerId == null) return;
+          final clones = clipboard.map((s) => _cloneShape(s, offset: 0)).toList();
+          ref.read(vecDocumentStateProvider.notifier).addShapes(scene.id, layerId, clones);
+          ref.read(selectedShapeIdsProvider.notifier).setAll(clones.map((s) => s.id).toList());
+          ref.read(selectedShapeIdProvider.notifier).set(clones.last.id);
+          ref.read(toastProvider.notifier).show('Pasted in place');
         },
         onCut: () {
           final scene = ref.read(activeSceneProvider);
@@ -254,6 +328,7 @@ class EditorScreen extends HookConsumerWidget {
           ref.read(vecDocumentStateProvider.notifier).removeShapes(scene.id, layerId, selectedIds.toList());
           ref.read(selectedShapeIdProvider.notifier).clear();
           ref.read(selectedShapeIdsProvider.notifier).clear();
+          ref.read(toastProvider.notifier).show('Cut');
         },
         onDuplicate: () {
           final scene = ref.read(activeSceneProvider);
@@ -268,6 +343,7 @@ class EditorScreen extends HookConsumerWidget {
             ref.read(vecDocumentStateProvider.notifier).addShapes(scene.id, layerId, clones);
             ref.read(selectedShapeIdsProvider.notifier).setAll(clones.map((s) => s.id).toList());
             ref.read(selectedShapeIdProvider.notifier).set(clones.last.id);
+            ref.read(toastProvider.notifier).show('Duplicated');
             return;
           }
         },
@@ -282,6 +358,7 @@ class EditorScreen extends HookConsumerWidget {
               .groupShapes(scene.id, layerId, selectedIds.toList());
           ref.read(selectedShapeIdProvider.notifier).set(groupId);
           ref.read(selectedShapeIdsProvider.notifier).setSingle(groupId);
+          ref.read(toastProvider.notifier).show('Grouped');
         },
         onUngroup: () {
           final scene = ref.read(activeSceneProvider);
@@ -293,15 +370,83 @@ class EditorScreen extends HookConsumerWidget {
           if (childIds.isNotEmpty) {
             ref.read(selectedShapeIdsProvider.notifier).setAll(childIds);
             ref.read(selectedShapeIdProvider.notifier).set(childIds.last);
+            ref.read(toastProvider.notifier).show('Ungrouped');
           } else {
             ref.read(selectedShapeIdProvider.notifier).clear();
             ref.read(selectedShapeIdsProvider.notifier).clear();
           }
         },
+        onBringForward: () {
+          final scene = ref.read(activeSceneProvider);
+          final layerId = ref.read(activeLayerIdProvider);
+          final shapeId = ref.read(selectedShapeIdProvider);
+          if (scene != null && layerId != null && shapeId != null) {
+            ref.read(vecDocumentStateProvider.notifier).bringForward(scene.id, layerId, shapeId);
+          }
+        },
+        onSendBackward: () {
+          final scene = ref.read(activeSceneProvider);
+          final layerId = ref.read(activeLayerIdProvider);
+          final shapeId = ref.read(selectedShapeIdProvider);
+          if (scene != null && layerId != null && shapeId != null) {
+            ref.read(vecDocumentStateProvider.notifier).sendBackward(scene.id, layerId, shapeId);
+          }
+        },
+        onBringToFront: () {
+          final scene = ref.read(activeSceneProvider);
+          final layerId = ref.read(activeLayerIdProvider);
+          final shapeId = ref.read(selectedShapeIdProvider);
+          if (scene != null && layerId != null && shapeId != null) {
+            ref.read(vecDocumentStateProvider.notifier).bringToFront(scene.id, layerId, shapeId);
+          }
+        },
+        onSendToBack: () {
+          final scene = ref.read(activeSceneProvider);
+          final layerId = ref.read(activeLayerIdProvider);
+          final shapeId = ref.read(selectedShapeIdProvider);
+          if (scene != null && layerId != null && shapeId != null) {
+            ref.read(vecDocumentStateProvider.notifier).sendToBack(scene.id, layerId, shapeId);
+          }
+        },
         onExport: () => ExportDialog.show(context),
-        onImport: () {},
+        onHelpSheet: () => showShortcutSheet(context, theme),
+        onImport: () async {
+          final notifier = ref.read(vecDocumentStateProvider.notifier);
+          // Warn about unsaved changes before opening another file
+          if (notifier.isDirty) {
+            final proceed = await showDialog<bool>(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                title: const Text('Unsaved changes'),
+                content: const Text('Opening a new file will discard unsaved changes. Continue?'),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(ctx).pop(false),
+                    child: const Text('Cancel'),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.of(ctx).pop(true),
+                    child: const Text('Open'),
+                  ),
+                ],
+              ),
+            );
+            if (!(proceed ?? false)) return;
+          }
+          final result = await FilePicker.platform.pickFiles(
+            type: FileType.custom,
+            allowedExtensions: ['vct'],
+            dialogTitle: 'Open document',
+          );
+          if (result != null && result.files.single.path != null) {
+            await notifier.openFile(result.files.single.path!);
+            final fileName = result.files.single.path!.split('/').last;
+            ref.read(toastProvider.notifier).show('Opened $fileName');
+          }
+        },
         child: WorkspaceLayout(theme: theme),
       ),
-    );
+    ), // Scaffold
+    ); // PopScope
   }
 }

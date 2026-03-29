@@ -24,6 +24,7 @@ mixin _$VecFill {
   VecColor get color => throw _privateConstructorUsedError;
   double get opacity => throw _privateConstructorUsedError;
   VecBlendMode get blendMode => throw _privateConstructorUsedError;
+  VecGradient? get gradient => throw _privateConstructorUsedError;
 
   /// Serializes this VecFill to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -39,7 +40,7 @@ abstract class $VecFillCopyWith<$Res> {
   factory $VecFillCopyWith(VecFill value, $Res Function(VecFill) then) =
       _$VecFillCopyWithImpl<$Res, VecFill>;
   @useResult
-  $Res call({VecColor color, double opacity, VecBlendMode blendMode});
+  $Res call({VecColor color, double opacity, VecBlendMode blendMode, VecGradient? gradient});
 
   $VecColorCopyWith<$Res> get color;
 }
@@ -62,6 +63,7 @@ class _$VecFillCopyWithImpl<$Res, $Val extends VecFill>
     Object? color = null,
     Object? opacity = null,
     Object? blendMode = null,
+    Object? gradient = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -77,6 +79,10 @@ class _$VecFillCopyWithImpl<$Res, $Val extends VecFill>
                 ? _value.blendMode
                 : blendMode // ignore: cast_nullable_to_non_nullable
                       as VecBlendMode,
+            gradient: freezed == gradient
+                ? _value.gradient
+                : gradient // ignore: cast_nullable_to_non_nullable
+                      as VecGradient?,
           )
           as $Val,
     );
@@ -101,7 +107,7 @@ abstract class _$$VecFillImplCopyWith<$Res> implements $VecFillCopyWith<$Res> {
   ) = __$$VecFillImplCopyWithImpl<$Res>;
   @override
   @useResult
-  $Res call({VecColor color, double opacity, VecBlendMode blendMode});
+  $Res call({VecColor color, double opacity, VecBlendMode blendMode, VecGradient? gradient});
 
   @override
   $VecColorCopyWith<$Res> get color;
@@ -124,6 +130,7 @@ class __$$VecFillImplCopyWithImpl<$Res>
     Object? color = null,
     Object? opacity = null,
     Object? blendMode = null,
+    Object? gradient = freezed,
   }) {
     return _then(
       _$VecFillImpl(
@@ -139,6 +146,10 @@ class __$$VecFillImplCopyWithImpl<$Res>
             ? _value.blendMode
             : blendMode // ignore: cast_nullable_to_non_nullable
                   as VecBlendMode,
+        gradient: freezed == gradient
+            ? _value.gradient
+            : gradient // ignore: cast_nullable_to_non_nullable
+                  as VecGradient?,
       ),
     );
   }
@@ -151,6 +162,7 @@ class _$VecFillImpl implements _VecFill {
     required this.color,
     this.opacity = 1.0,
     this.blendMode = VecBlendMode.normal,
+    this.gradient,
   });
 
   factory _$VecFillImpl.fromJson(Map<String, dynamic> json) =>
@@ -164,10 +176,12 @@ class _$VecFillImpl implements _VecFill {
   @override
   @JsonKey()
   final VecBlendMode blendMode;
+  @override
+  final VecGradient? gradient;
 
   @override
   String toString() {
-    return 'VecFill(color: $color, opacity: $opacity, blendMode: $blendMode)';
+    return 'VecFill(color: $color, opacity: $opacity, blendMode: $blendMode, gradient: $gradient)';
   }
 
   @override
@@ -177,13 +191,13 @@ class _$VecFillImpl implements _VecFill {
             other is _$VecFillImpl &&
             (identical(other.color, color) || other.color == color) &&
             (identical(other.opacity, opacity) || other.opacity == opacity) &&
-            (identical(other.blendMode, blendMode) ||
-                other.blendMode == blendMode));
+            (identical(other.blendMode, blendMode) || other.blendMode == blendMode) &&
+            (identical(other.gradient, gradient) || other.gradient == gradient));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode => Object.hash(runtimeType, color, opacity, blendMode);
+  int get hashCode => Object.hash(runtimeType, color, opacity, blendMode, gradient);
 
   /// Create a copy of VecFill
   /// with the given fields replaced by the non-null parameter values.
@@ -204,6 +218,7 @@ abstract class _VecFill implements VecFill {
     required final VecColor color,
     final double opacity,
     final VecBlendMode blendMode,
+    final VecGradient? gradient,
   }) = _$VecFillImpl;
 
   factory _VecFill.fromJson(Map<String, dynamic> json) = _$VecFillImpl.fromJson;
@@ -214,6 +229,8 @@ abstract class _VecFill implements VecFill {
   double get opacity;
   @override
   VecBlendMode get blendMode;
+  @override
+  VecGradient? get gradient;
 
   /// Create a copy of VecFill
   /// with the given fields replaced by the non-null parameter values.

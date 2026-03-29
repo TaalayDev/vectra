@@ -4,6 +4,7 @@ import 'package:flutter_hooks/flutter_hooks.dart';
 import '../../../app/theme/theme.dart';
 import '../../../data/models/vec_color.dart';
 import '../../../data/models/vec_fill.dart';
+import '../../../data/models/vec_gradient.dart';
 import '../../../data/models/vec_motion_path.dart';
 import '../../../data/models/vec_shape.dart';
 import '../../../data/models/vec_stroke.dart';
@@ -130,7 +131,7 @@ class TransformSection extends StatelessWidget {
                     Row(
                       children: [
                         Expanded(
-                          child: _SliderCompact(
+                          child: PanelSlider(
                             value: opacity,
                             theme: theme,
                             onChanged: (v) => onLiveUpdate((s) => s.copyWith(data: s.data.copyWith(opacity: v))),
@@ -149,6 +150,35 @@ class TransformSection extends StatelessWidget {
                       ],
                     ),
                   ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          // Row 3: Skew X / Skew Y
+          Row(
+            children: [
+              NumericInput(
+                label: 'SkewX°',
+                value: transform.skewX,
+                theme: theme,
+                width: 76,
+                onChanged: (v) => onUpdate(
+                  (s) => s.copyWith(
+                    data: s.data.copyWith(transform: s.transform.copyWith(skewX: v)),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              NumericInput(
+                label: 'SkewY°',
+                value: transform.skewY,
+                theme: theme,
+                width: 76,
+                onChanged: (v) => onUpdate(
+                  (s) => s.copyWith(
+                    data: s.data.copyWith(transform: s.transform.copyWith(skewY: v)),
+                  ),
                 ),
               ),
             ],
@@ -244,47 +274,45 @@ class _FillRow extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final i = index;
+    final isGradient = fill.gradient != null;
+    final gradType = fill.gradient?.type ?? VecGradientType.linear;
 
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Type toggle: Solid | Linear | Radial
         Row(
           children: [
-            // Color swatch
-            ColorSwatchButton(
-              color: fill.color.toFlutterColor(),
+            _FillTypeButton(
+              label: 'Solid',
+              active: !isGradient,
               theme: theme,
-              onTap: () async {
-                final picked = await showColorPicker(
-                  context: context,
-                  initialColor: fill.color.toFlutterColor(),
-                  theme: theme,
-                );
-                if (picked != null) {
-                  onUpdate((s) => _updateFill(s, i, s.fills[i].copyWith(color: VecColor.fromFlutterColor(picked))));
-                }
+              onTap: () => onUpdate((s) => _updateFill(s, i, s.fills[i].copyWith(gradient: null))),
+            ),
+            const SizedBox(width: 4),
+            _FillTypeButton(
+              label: 'Linear',
+              active: isGradient && gradType == VecGradientType.linear,
+              theme: theme,
+              onTap: () {
+                final g = fill.gradient?.copyWith(type: VecGradientType.linear) ??
+                    VecGradient.defaultLinear;
+                onUpdate((s) => _updateFill(s, i, s.fills[i].copyWith(gradient: g)));
               },
             ),
-            const SizedBox(width: 8),
-            // Opacity slider
-            Expanded(
-              child: _SliderCompact(
-                value: fill.opacity,
-                theme: theme,
-                onChanged: (v) => onLiveUpdate((s) => _updateFill(s, i, s.fills[i].copyWith(opacity: v))),
-                onChangeEnd: (_) => onCommit(),
-              ),
-            ),
             const SizedBox(width: 4),
-            SizedBox(
-              width: 30,
-              child: Text(
-                '${(fill.opacity * 100).round()}%',
-                style: TextStyle(fontSize: 10, color: theme.textDisabled),
-                textAlign: TextAlign.right,
-              ),
+            _FillTypeButton(
+              label: 'Radial',
+              active: isGradient && gradType == VecGradientType.radial,
+              theme: theme,
+              onTap: () {
+                final g = (fill.gradient?.copyWith(type: VecGradientType.radial)) ??
+                    VecGradient.defaultLinear.copyWith(type: VecGradientType.radial);
+                onUpdate((s) => _updateFill(s, i, s.fills[i].copyWith(gradient: g)));
+              },
             ),
-            const SizedBox(width: 4),
-            // Remove button
+            const Spacer(),
+            // Remove fill
             GestureDetector(
               onTap: () => onUpdate(
                 (s) => s.copyWith(
@@ -300,8 +328,60 @@ class _FillRow extends HookWidget {
             ),
           ],
         ),
+        const SizedBox(height: 6),
+
+        if (!isGradient) ...[
+          // Solid fill: color + opacity
+          Row(
+            children: [
+              ColorSwatchButton(
+                color: fill.color.toFlutterColor(),
+                theme: theme,
+                onTap: () async {
+                  final picked = await showColorPicker(
+                    context: context,
+                    initialColor: fill.color.toFlutterColor(),
+                    theme: theme,
+                  );
+                  if (picked != null) {
+                    onUpdate((s) => _updateFill(s, i, s.fills[i].copyWith(color: VecColor.fromFlutterColor(picked))));
+                  }
+                },
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: PanelSlider(
+                  value: fill.opacity,
+                  theme: theme,
+                  onChanged: (v) => onLiveUpdate((s) => _updateFill(s, i, s.fills[i].copyWith(opacity: v))),
+                  onChangeEnd: (_) => onCommit(),
+                ),
+              ),
+              const SizedBox(width: 4),
+              SizedBox(
+                width: 30,
+                child: Text(
+                  '${(fill.opacity * 100).round()}%',
+                  style: TextStyle(fontSize: 10, color: theme.textDisabled),
+                  textAlign: TextAlign.right,
+                ),
+              ),
+            ],
+          ),
+        ] else ...[
+          // Gradient: stop list + angle/opacity
+          _GradientEditor(
+            gradient: fill.gradient!,
+            opacity: fill.opacity,
+            theme: theme,
+            onUpdateGradient: (g) => onUpdate((s) => _updateFill(s, i, s.fills[i].copyWith(gradient: g))),
+            onUpdateOpacity: (v) => onLiveUpdate((s) => _updateFill(s, i, s.fills[i].copyWith(opacity: v))),
+            onCommit: onCommit,
+          ),
+        ],
+
         const SizedBox(height: 4),
-        // Blend mode row
+        // Blend mode
         _BlendDropdown(
           value: fill.blendMode,
           theme: theme,
@@ -319,6 +399,232 @@ class _FillRow extends HookWidget {
             if (j == i) updated else s.fills[j],
         ],
       ),
+    );
+  }
+}
+
+class _FillTypeButton extends StatelessWidget {
+  const _FillTypeButton({
+    required this.label,
+    required this.active,
+    required this.theme,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool active;
+  final AppTheme theme;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: active ? theme.primaryColor.withAlpha(30) : theme.surfaceVariant,
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(
+              color: active ? theme.primaryColor.withAlpha(100) : theme.divider,
+              width: 0.5,
+            ),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w500,
+              color: active ? theme.primaryColor : theme.textSecondary,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _GradientEditor extends HookWidget {
+  const _GradientEditor({
+    required this.gradient,
+    required this.opacity,
+    required this.theme,
+    required this.onUpdateGradient,
+    required this.onUpdateOpacity,
+    required this.onCommit,
+  });
+
+  final VecGradient gradient;
+  final double opacity;
+  final AppTheme theme;
+  final void Function(VecGradient) onUpdateGradient;
+  final void Function(double) onUpdateOpacity;
+  final VoidCallback onCommit;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Gradient preview bar
+        Container(
+          height: 20,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(4),
+            gradient: LinearGradient(
+              colors: gradient.stops
+                  .map((s) => s.color.toFlutterColor())
+                  .toList(),
+              stops: gradient.stops.map((s) => s.position.toDouble()).toList(),
+            ),
+            border: Border.all(color: theme.divider, width: 0.5),
+          ),
+        ),
+        const SizedBox(height: 6),
+
+        // Stops
+        for (var si = 0; si < gradient.stops.length; si++)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Row(
+              children: [
+                ColorSwatchButton(
+                  color: gradient.stops[si].color.toFlutterColor(),
+                  theme: theme,
+                  onTap: () async {
+                    final picked = await showColorPicker(
+                      context: context,
+                      initialColor: gradient.stops[si].color.toFlutterColor(),
+                      theme: theme,
+                    );
+                    if (picked != null) {
+                      final newStops = List<VecGradientStop>.from(gradient.stops);
+                      newStops[si] = newStops[si].copyWith(color: VecColor.fromFlutterColor(picked));
+                      onUpdateGradient(gradient.copyWith(stops: newStops));
+                    }
+                  },
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: PanelSlider(
+                    value: gradient.stops[si].position,
+                    theme: theme,
+                    onChanged: (v) {
+                      final newStops = List<VecGradientStop>.from(gradient.stops);
+                      newStops[si] = newStops[si].copyWith(position: v);
+                      onUpdateGradient(gradient.copyWith(stops: newStops));
+                    },
+                    onChangeEnd: (_) => onCommit(),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  '${(gradient.stops[si].position * 100).round()}%',
+                  style: TextStyle(fontSize: 10, color: theme.textDisabled),
+                ),
+                const SizedBox(width: 4),
+                if (gradient.stops.length > 2)
+                  GestureDetector(
+                    onTap: () {
+                      final newStops = List<VecGradientStop>.from(gradient.stops)..removeAt(si);
+                      onUpdateGradient(gradient.copyWith(stops: newStops));
+                    },
+                    child: Icon(Icons.close, size: 12, color: theme.textDisabled),
+                  ),
+              ],
+            ),
+          ),
+
+        // Add stop button
+        GestureDetector(
+          onTap: () {
+            final newStops = List<VecGradientStop>.from(gradient.stops)
+              ..add(const VecGradientStop(
+                color: VecColor(r: 128, g: 128, b: 128),
+                position: 0.5,
+              ));
+            onUpdateGradient(gradient.copyWith(stops: newStops));
+          },
+          child: MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.add, size: 12, color: theme.textDisabled),
+                const SizedBox(width: 2),
+                Text('Add stop', style: TextStyle(fontSize: 10, color: theme.textDisabled)),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 4),
+
+        // Angle (linear) or Center X/Y (radial) + opacity
+        if (gradient.type == VecGradientType.linear)
+          Row(
+            children: [
+              Icon(Icons.rotate_right_outlined, size: 12, color: theme.textDisabled),
+              const SizedBox(width: 4),
+              SizedBox(
+                width: 64,
+                child: NumericInput(
+                  label: '°',
+                  value: gradient.angle,
+                  theme: theme,
+                  min: -360,
+                  max: 360,
+                  onChanged: (v) => onUpdateGradient(gradient.copyWith(angle: v)),
+                ),
+              ),
+              const Spacer(),
+              PanelSlider(
+                value: opacity,
+                theme: theme,
+                onChanged: onUpdateOpacity,
+                onChangeEnd: (_) => onCommit(),
+              ),
+              const SizedBox(width: 4),
+              Text(
+                '${(opacity * 100).round()}%',
+                style: TextStyle(fontSize: 10, color: theme.textDisabled),
+              ),
+            ],
+          )
+        else
+          Row(
+            children: [
+              Text('CX', style: TextStyle(fontSize: 10, color: theme.textDisabled)),
+              const SizedBox(width: 4),
+              SizedBox(
+                width: 48,
+                child: NumericInput(
+                  label: '',
+                  value: gradient.centerX,
+                  theme: theme,
+                  min: 0,
+                  max: 1,
+                  onChanged: (v) => onUpdateGradient(gradient.copyWith(centerX: v)),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text('CY', style: TextStyle(fontSize: 10, color: theme.textDisabled)),
+              const SizedBox(width: 4),
+              SizedBox(
+                width: 48,
+                child: NumericInput(
+                  label: '',
+                  value: gradient.centerY,
+                  theme: theme,
+                  min: 0,
+                  max: 1,
+                  onChanged: (v) => onUpdateGradient(gradient.copyWith(centerY: v)),
+                ),
+              ),
+            ],
+          ),
+      ],
     );
   }
 }
@@ -440,7 +746,7 @@ class _StrokeRow extends HookWidget {
             ),
             const SizedBox(width: 8),
             Expanded(
-              child: _SliderCompact(
+              child: PanelSlider(
                 value: stroke.opacity,
                 theme: theme,
                 onChanged: (v) => onLiveUpdate((s) => _updateStroke(s, i, s.strokes[i].copyWith(opacity: v))),
@@ -510,6 +816,14 @@ class _StrokeRow extends HookWidget {
           theme: theme,
           onChanged: (mode) => onUpdate((s) => _updateStroke(s, i, s.strokes[i].copyWith(blendMode: mode))),
         ),
+        const SizedBox(height: 4),
+        // Dash pattern
+        _DashPatternRow(
+          stroke: stroke,
+          index: i,
+          theme: theme,
+          onUpdate: onUpdate,
+        ),
       ],
     );
   }
@@ -522,6 +836,140 @@ class _StrokeRow extends HookWidget {
             if (j == i) updated else s.strokes[j],
         ],
       ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Dash Pattern row (used inside _StrokeRow)
+// ---------------------------------------------------------------------------
+
+class _DashPatternRow extends HookWidget {
+  const _DashPatternRow({
+    required this.stroke,
+    required this.index,
+    required this.theme,
+    required this.onUpdate,
+  });
+
+  final VecStroke stroke;
+  final int index;
+  final AppTheme theme;
+  final ShapeCommit onUpdate;
+
+  String _patternToText(List<double> pattern) =>
+      pattern.map((v) => v % 1 == 0 ? v.toInt().toString() : v.toStringAsFixed(1)).join(', ');
+
+  List<double> _parsePattern(String text) {
+    final parts = text.split(RegExp(r'[,\s]+'));
+    final result = <double>[];
+    for (final p in parts) {
+      final v = double.tryParse(p.trim());
+      if (v != null && v >= 0) result.add(v);
+    }
+    return result;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final i = index;
+    final hasDash = stroke.dashPattern.isNotEmpty;
+    final ctrl = useTextEditingController(text: _patternToText(stroke.dashPattern));
+
+    useEffect(() {
+      final updated = _patternToText(stroke.dashPattern);
+      if (ctrl.text != updated) ctrl.text = updated;
+      return null;
+    }, [stroke.dashPattern]);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Toggle dash on/off
+        Row(
+          children: [
+            Text('Dash', style: TextStyle(fontSize: 10, color: theme.textDisabled, fontWeight: FontWeight.w500)),
+            const Spacer(),
+            GestureDetector(
+              onTap: () {
+                final newPattern = hasDash ? <double>[] : [4.0, 2.0];
+                onUpdate((s) => _StrokeRow._updateStroke(
+                    s, i, s.strokes[i].copyWith(dashPattern: newPattern)));
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 120),
+                width: 28,
+                height: 14,
+                decoration: BoxDecoration(
+                  color: hasDash ? theme.primaryColor : theme.divider,
+                  borderRadius: BorderRadius.circular(7),
+                ),
+                child: AnimatedAlign(
+                  duration: const Duration(milliseconds: 120),
+                  alignment: hasDash ? Alignment.centerRight : Alignment.centerLeft,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 2),
+                    child: Container(
+                      width: 10, height: 10,
+                      decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        if (hasDash) ...[
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              // Pattern text field
+              Expanded(
+                child: Container(
+                  height: 24,
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  decoration: BoxDecoration(
+                    color: theme.surfaceVariant,
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: theme.divider, width: 0.5),
+                  ),
+                  child: TextField(
+                    controller: ctrl,
+                    style: TextStyle(fontSize: 10, color: theme.textPrimary),
+                    decoration: const InputDecoration(
+                      isDense: true,
+                      border: InputBorder.none,
+                      contentPadding: EdgeInsets.zero,
+                      hintText: '4, 2, 1, 2',
+                    ),
+                    onSubmitted: (v) {
+                      final pattern = _parsePattern(v);
+                      onUpdate((s) => _StrokeRow._updateStroke(
+                          s, i, s.strokes[i].copyWith(dashPattern: pattern)));
+                    },
+                    onTapOutside: (_) {
+                      final pattern = _parsePattern(ctrl.text);
+                      onUpdate((s) => _StrokeRow._updateStroke(
+                          s, i, s.strokes[i].copyWith(dashPattern: pattern)));
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              // Dash offset
+              NumericInput(
+                label: 'Off',
+                value: stroke.dashOffset,
+                theme: theme,
+                width: 52,
+                min: 0,
+                onChanged: (v) => onUpdate(
+                    (s) => _StrokeRow._updateStroke(s, i, s.strokes[i].copyWith(dashOffset: v))),
+              ),
+            ],
+          ),
+        ],
+      ],
     );
   }
 }
@@ -829,6 +1277,228 @@ class _AlignBtn extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
+// 5a. Ellipse Section (arcs / donuts — ellipse shapes only)
+// ---------------------------------------------------------------------------
+
+class EllipseSection extends StatelessWidget {
+  const EllipseSection({
+    super.key,
+    required this.shape,
+    required this.theme,
+    required this.onUpdate,
+    required this.onLiveUpdate,
+    required this.onCommit,
+  });
+
+  final VecEllipseShape shape;
+  final AppTheme theme;
+  final ShapeCommit onUpdate;
+  final ShapeLiveUpdate onLiveUpdate;
+  final VoidCallback onCommit;
+
+  @override
+  Widget build(BuildContext context) {
+    return CollapsibleSection(
+      title: 'Arc / Donut',
+      theme: theme,
+      content: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Start / End angles
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            children: [
+              NumericInput(
+                label: 'Start°',
+                value: shape.startAngle,
+                min: 0,
+                max: 360,
+                theme: theme,
+                width: 72,
+                onChanged: (v) => onUpdate(
+                  (s) => s.maybeMap(
+                    ellipse: (e) => e.copyWith(startAngle: v.clamp(0, 360)),
+                    orElse: () => s,
+                  ),
+                ),
+              ),
+              NumericInput(
+                label: 'End°',
+                value: shape.endAngle,
+                min: 0,
+                max: 360,
+                theme: theme,
+                width: 72,
+                onChanged: (v) => onUpdate(
+                  (s) => s.maybeMap(
+                    ellipse: (e) => e.copyWith(endAngle: v.clamp(0, 360)),
+                    orElse: () => s,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          // Inner radius (donut hole)
+          Text('Inner Radius', style: TextStyle(fontSize: 10, color: theme.textDisabled, fontWeight: FontWeight.w500)),
+          const SizedBox(height: 2),
+          Row(
+            children: [
+              Expanded(
+                child: PanelSlider(
+                  value: shape.innerRadius.clamp(0.0, 1.0),
+                  theme: theme,
+                  onChanged: (v) => onLiveUpdate(
+                    (s) => s.maybeMap(
+                      ellipse: (e) => e.copyWith(innerRadius: v),
+                      orElse: () => s,
+                    ),
+                  ),
+                  onChangeEnd: (_) => onCommit(),
+                ),
+              ),
+              const SizedBox(width: 4),
+              SizedBox(
+                width: 36,
+                child: Text(
+                  '${(shape.innerRadius * 100).round()}%',
+                  style: TextStyle(fontSize: 10, color: theme.textDisabled),
+                  textAlign: TextAlign.right,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 5b. Polygon Section (sides + star depth — polygon shapes only)
+// ---------------------------------------------------------------------------
+
+class PolygonSection extends StatelessWidget {
+  const PolygonSection({
+    super.key,
+    required this.shape,
+    required this.theme,
+    required this.onUpdate,
+    required this.onLiveUpdate,
+    required this.onCommit,
+  });
+
+  final VecPolygonShape shape;
+  final AppTheme theme;
+  final ShapeCommit onUpdate;
+  final ShapeLiveUpdate onLiveUpdate;
+  final VoidCallback onCommit;
+
+  @override
+  Widget build(BuildContext context) {
+    final isStar = shape.starDepth != null;
+    return CollapsibleSection(
+      title: 'Polygon',
+      theme: theme,
+      content: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Side count
+          Row(
+            children: [
+              NumericInput(
+                label: 'Sides',
+                value: shape.sideCount.toDouble(),
+                min: 3,
+                max: 64,
+                step: 1,
+                theme: theme,
+                width: 72,
+                onChanged: (v) => onUpdate(
+                  (s) => s.maybeMap(
+                    polygon: (p) => p.copyWith(sideCount: v.round().clamp(3, 64)),
+                    orElse: () => s,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              // Star toggle
+              GestureDetector(
+                onTap: () => onUpdate(
+                  (s) => s.maybeMap(
+                    polygon: (p) => p.copyWith(starDepth: isStar ? null : 0.5),
+                    orElse: () => s,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 120),
+                      width: 28,
+                      height: 14,
+                      decoration: BoxDecoration(
+                        color: isStar ? theme.primaryColor : theme.divider,
+                        borderRadius: BorderRadius.circular(7),
+                      ),
+                      child: AnimatedAlign(
+                        duration: const Duration(milliseconds: 120),
+                        alignment: isStar ? Alignment.centerRight : Alignment.centerLeft,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 2),
+                          child: Container(
+                            width: 10, height: 10,
+                            decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Text('Star', style: TextStyle(fontSize: 10, color: theme.textDisabled)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (isStar) ...[
+            const SizedBox(height: 8),
+            Text('Star Depth', style: TextStyle(fontSize: 10, color: theme.textDisabled, fontWeight: FontWeight.w500)),
+            const SizedBox(height: 2),
+            Row(
+              children: [
+                Expanded(
+                  child: PanelSlider(
+                    value: (shape.starDepth ?? 0.5).clamp(0.0, 1.0),
+                    theme: theme,
+                    onChanged: (v) => onLiveUpdate(
+                      (s) => s.maybeMap(
+                        polygon: (p) => p.copyWith(starDepth: v),
+                        orElse: () => s,
+                      ),
+                    ),
+                    onChangeEnd: (_) => onCommit(),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                SizedBox(
+                  width: 36,
+                  child: Text(
+                    '${((shape.starDepth ?? 0.5) * 100).round()}%',
+                    style: TextStyle(fontSize: 10, color: theme.textDisabled),
+                    textAlign: TextAlign.right,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
 // 5. Blend Mode Section (shape-level blendMode)
 // ---------------------------------------------------------------------------
 
@@ -1052,8 +1722,8 @@ class _IndependentToggle extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 /// Compact slider without the big Material height.
-class _SliderCompact extends StatelessWidget {
-  const _SliderCompact({required this.value, required this.theme, required this.onChanged, this.onChangeEnd});
+class PanelSlider extends StatelessWidget {
+  const PanelSlider({super.key, required this.value, required this.theme, required this.onChanged, this.onChangeEnd});
 
   final double value;
   final AppTheme theme;

@@ -9,6 +9,7 @@ class ShortcutsWrapper extends StatefulWidget {
     required this.onUndo,
     required this.onRedo,
     required this.onSave,
+    this.onSaveAs,
     this.onZoomIn,
     this.onZoomOut,
     this.onZoomFit,
@@ -30,13 +31,19 @@ class ShortcutsWrapper extends StatefulWidget {
     this.onDeselectAll,
     this.onCopy,
     this.onPaste,
+    this.onPasteInPlace,
     this.onCut,
     this.onDuplicate,
     this.onGroup,
     this.onUngroup,
+    this.onBringForward,
+    this.onSendBackward,
+    this.onBringToFront,
+    this.onSendToBack,
     this.onCtrlEnter,
     this.onEscape,
     this.onEnter,
+    this.onHelpSheet,
     this.onToolSwitch,
     this.onNudge,
     this.currentBrushSize = 1,
@@ -51,6 +58,7 @@ class ShortcutsWrapper extends StatefulWidget {
   final VoidCallback onUndo;
   final VoidCallback onRedo;
   final VoidCallback onSave;
+  final VoidCallback? onSaveAs;
 
   // View actions
   final VoidCallback? onZoomIn;
@@ -84,13 +92,20 @@ class ShortcutsWrapper extends StatefulWidget {
   final VoidCallback? onDeselectAll;
   final VoidCallback? onCopy;
   final VoidCallback? onPaste;
+  final VoidCallback? onPasteInPlace;
   final VoidCallback? onCut;
   final VoidCallback? onDuplicate;
   final VoidCallback? onGroup;
   final VoidCallback? onUngroup;
+  // Z-order actions
+  final VoidCallback? onBringForward;
+  final VoidCallback? onSendBackward;
+  final VoidCallback? onBringToFront;
+  final VoidCallback? onSendToBack;
   final VoidCallback? onCtrlEnter;
   final VoidCallback? onEscape;
   final VoidCallback? onEnter;
+  final VoidCallback? onHelpSheet;
   final void Function(String key)? onToolSwitch;
 
   /// Called when Arrow keys are pressed while the select tool is active.
@@ -193,6 +208,16 @@ class _ShortcutsWrapperState extends State<ShortcutsWrapper> {
       widget.onEscape?.call();
     }
 
+    // Handle '?' key — open keyboard shortcut help sheet
+    if (event is KeyDownEvent &&
+        event.logicalKey == LogicalKeyboardKey.slash &&
+        HardwareKeyboard.instance.isShiftPressed &&
+        !HardwareKeyboard.instance.isControlPressed &&
+        !HardwareKeyboard.instance.isMetaPressed) {
+      widget.onHelpSheet?.call();
+      return;
+    }
+
     // Handle Enter key (without modifiers — Ctrl+Enter is in shortcuts map)
     if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.enter) {
       if (!HardwareKeyboard.instance.isControlPressed &&
@@ -259,6 +284,7 @@ class _ShortcutsWrapperState extends State<ShortcutsWrapper> {
       LogicalKeySet(controlKey, LogicalKeyboardKey.keyY): const RedoIntent(),
       LogicalKeySet(controlKey, LogicalKeyboardKey.shift, LogicalKeyboardKey.keyZ): const RedoIntent(),
       LogicalKeySet(controlKey, LogicalKeyboardKey.keyS): const SaveIntent(),
+      LogicalKeySet(controlKey, LogicalKeyboardKey.shift, LogicalKeyboardKey.keyS): const SaveAsIntent(),
 
       // File operations
       LogicalKeySet(controlKey, LogicalKeyboardKey.keyE): const ExportIntent(),
@@ -299,10 +325,16 @@ class _ShortcutsWrapperState extends State<ShortcutsWrapper> {
       LogicalKeySet(controlKey, LogicalKeyboardKey.keyD): const DeselectAllIntent(),
       LogicalKeySet(controlKey, LogicalKeyboardKey.keyC): const CopyIntent(),
       LogicalKeySet(controlKey, LogicalKeyboardKey.keyV): const PasteIntent(),
+      LogicalKeySet(controlKey, LogicalKeyboardKey.shift, LogicalKeyboardKey.keyV): const PasteInPlaceIntent(),
       LogicalKeySet(controlKey, LogicalKeyboardKey.keyX): const CutIntent(),
       LogicalKeySet(controlKey, LogicalKeyboardKey.keyJ): const DuplicateIntent(),
       LogicalKeySet(controlKey, LogicalKeyboardKey.keyG): const GroupIntent(),
       LogicalKeySet(controlKey, LogicalKeyboardKey.shift, LogicalKeyboardKey.keyG): const UngroupIntent(),
+      // Z-order
+      LogicalKeySet(controlKey, LogicalKeyboardKey.bracketRight): const BringForwardIntent(),
+      LogicalKeySet(controlKey, LogicalKeyboardKey.bracketLeft): const SendBackwardIntent(),
+      LogicalKeySet(controlKey, LogicalKeyboardKey.shift, LogicalKeyboardKey.bracketRight): const BringToFrontIntent(),
+      LogicalKeySet(controlKey, LogicalKeyboardKey.shift, LogicalKeyboardKey.bracketLeft): const SendToBackIntent(),
       LogicalKeySet(controlKey, LogicalKeyboardKey.enter): CallbackIntent(widget.onCtrlEnter ?? () {}),
     };
   }
@@ -312,6 +344,7 @@ class _ShortcutsWrapperState extends State<ShortcutsWrapper> {
       UndoIntent: CallbackAction<UndoIntent>(onInvoke: (intent) => widget.onUndo()),
       RedoIntent: CallbackAction<RedoIntent>(onInvoke: (intent) => widget.onRedo()),
       SaveIntent: CallbackAction<SaveIntent>(onInvoke: (intent) => widget.onSave()),
+      SaveAsIntent: CallbackAction<SaveAsIntent>(onInvoke: (intent) => widget.onSaveAs?.call()),
       ExportIntent: CallbackAction<ExportIntent>(onInvoke: (intent) => widget.onExport?.call()),
       ImportIntent: CallbackAction<ImportIntent>(onInvoke: (intent) => widget.onImport?.call()),
       ZoomInIntent: CallbackAction<ZoomInIntent>(onInvoke: (intent) => widget.onZoomIn?.call()),
@@ -343,10 +376,15 @@ class _ShortcutsWrapperState extends State<ShortcutsWrapper> {
       DeselectAllIntent: CallbackAction<DeselectAllIntent>(onInvoke: (intent) => widget.onDeselectAll?.call()),
       CopyIntent: CallbackAction<CopyIntent>(onInvoke: (intent) => widget.onCopy?.call()),
       PasteIntent: CallbackAction<PasteIntent>(onInvoke: (intent) => widget.onPaste?.call()),
+      PasteInPlaceIntent: CallbackAction<PasteInPlaceIntent>(onInvoke: (intent) => widget.onPasteInPlace?.call()),
       CutIntent: CallbackAction<CutIntent>(onInvoke: (intent) => widget.onCut?.call()),
       DuplicateIntent: CallbackAction<DuplicateIntent>(onInvoke: (intent) => widget.onDuplicate?.call()),
       GroupIntent: CallbackAction<GroupIntent>(onInvoke: (intent) => widget.onGroup?.call()),
       UngroupIntent: CallbackAction<UngroupIntent>(onInvoke: (intent) => widget.onUngroup?.call()),
+      BringForwardIntent: CallbackAction<BringForwardIntent>(onInvoke: (_) => widget.onBringForward?.call()),
+      SendBackwardIntent: CallbackAction<SendBackwardIntent>(onInvoke: (_) => widget.onSendBackward?.call()),
+      BringToFrontIntent: CallbackAction<BringToFrontIntent>(onInvoke: (_) => widget.onBringToFront?.call()),
+      SendToBackIntent: CallbackAction<SendToBackIntent>(onInvoke: (_) => widget.onSendToBack?.call()),
       CallbackIntent: CallbackAction<CallbackIntent>(onInvoke: (intent) => intent.callback()),
     };
   }
@@ -363,6 +401,26 @@ class RedoIntent extends Intent {
 
 class SaveIntent extends Intent {
   const SaveIntent();
+}
+
+class SaveAsIntent extends Intent {
+  const SaveAsIntent();
+}
+
+class BringForwardIntent extends Intent {
+  const BringForwardIntent();
+}
+
+class SendBackwardIntent extends Intent {
+  const SendBackwardIntent();
+}
+
+class BringToFrontIntent extends Intent {
+  const BringToFrontIntent();
+}
+
+class SendToBackIntent extends Intent {
+  const SendToBackIntent();
 }
 
 class ExportIntent extends Intent {
@@ -436,6 +494,10 @@ class CopyIntent extends Intent {
 
 class PasteIntent extends Intent {
   const PasteIntent();
+}
+
+class PasteInPlaceIntent extends Intent {
+  const PasteInPlaceIntent();
 }
 
 class CutIntent extends Intent {

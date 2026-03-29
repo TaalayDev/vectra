@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import '../../../app/theme/theme.dart';
+import '../../../data/models/vec_timeline.dart';
 import '../../../providers/document_provider.dart';
 import '../../../providers/editor_state_provider.dart';
 
@@ -21,6 +22,8 @@ class PlaybackControls extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final isPlaying = ref.watch(isPlayingProvider);
     final playhead = ref.watch(playheadFrameProvider);
+    final scene = ref.watch(activeSceneProvider);
+    final loopType = scene?.timeline.loopType ?? VecLoopType.loop;
 
     return Container(
       height: 32,
@@ -78,12 +81,31 @@ class PlaybackControls extends ConsumerWidget {
             style: TextStyle(fontSize: 10, color: theme.textDisabled),
           ),
           const SizedBox(width: 12),
-          // Loop toggle
-          _ControlButton(
-            icon: Icons.repeat,
-            onTap: () {},
-            theme: theme,
-            isAccent: true,
+          // Loop toggle — cycles: loop → pingPong → playOnce → loop
+          Tooltip(
+            message: switch (loopType) {
+              VecLoopType.loop     => 'Loop',
+              VecLoopType.pingPong => 'Ping-Pong',
+              VecLoopType.playOnce => 'Play Once',
+            },
+            child: _ControlButton(
+              icon: switch (loopType) {
+                VecLoopType.loop     => Icons.repeat,
+                VecLoopType.pingPong => Icons.repeat_one,
+                VecLoopType.playOnce => Icons.arrow_right_alt,
+              },
+              onTap: () {
+                if (scene == null) return;
+                final next = switch (loopType) {
+                  VecLoopType.loop     => VecLoopType.pingPong,
+                  VecLoopType.pingPong => VecLoopType.playOnce,
+                  VecLoopType.playOnce => VecLoopType.loop,
+                };
+                ref.read(vecDocumentStateProvider.notifier).setLoopType(scene.id, next);
+              },
+              theme: theme,
+              isAccent: loopType != VecLoopType.playOnce,
+            ),
           ),
         ],
       ),

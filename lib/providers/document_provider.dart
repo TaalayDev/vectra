@@ -147,6 +147,12 @@ class VecDocumentState extends _$VecDocumentState {
   // File operations
   // ===========================================================================
 
+  /// Whether the document has already been saved to a file path.
+  bool get hasFilePath => _service.currentFilePath != null;
+
+  /// Whether the document has unsaved changes.
+  bool get isDirty => _service.isDirty;
+
   Future<void> openFile(String filePath) async {
     final doc = await _service.openFile(filePath);
     _resetHistory(doc);
@@ -837,6 +843,84 @@ class VecDocumentState extends _$VecDocumentState {
     return newId;
   }
 
+  // ===========================================================================
+  // Z-order
+  // ===========================================================================
+
+  /// Moves [shapeId] one step toward the top (higher index = renders on top).
+  void bringForward(String sceneId, String layerId, String shapeId) =>
+      _commitZOrder(sceneId, layerId, shapeId, _moveUp);
+
+  /// Moves [shapeId] one step toward the bottom.
+  void sendBackward(String sceneId, String layerId, String shapeId) =>
+      _commitZOrder(sceneId, layerId, shapeId, _moveDown);
+
+  /// Moves [shapeId] to the very top (last in list).
+  void bringToFront(String sceneId, String layerId, String shapeId) =>
+      _commitZOrder(sceneId, layerId, shapeId, _moveToEnd);
+
+  /// Moves [shapeId] to the very bottom (first in list).
+  void sendToBack(String sceneId, String layerId, String shapeId) =>
+      _commitZOrder(sceneId, layerId, shapeId, _moveToStart);
+
+  /// Moves a shape from [fromIndex] to [toIndex] (used by drag-to-reorder).
+  void reorderShape(String sceneId, String layerId, int fromIndex, int toIndex) {
+    _commit(_withLayer(sceneId, layerId, (layer) {
+      final shapes = [...layer.shapes];
+      final shape = shapes.removeAt(fromIndex);
+      final clampedTo = toIndex.clamp(0, shapes.length);
+      shapes.insert(clampedTo, shape);
+      return layer.copyWith(shapes: shapes);
+    }));
+  }
+
+  void _commitZOrder(
+    String sceneId,
+    String layerId,
+    String shapeId,
+    List<VecShape> Function(List<VecShape>, int) fn,
+  ) {
+    _commit(_withLayer(sceneId, layerId, (layer) {
+      final idx = layer.shapes.indexWhere((s) => s.id == shapeId);
+      if (idx < 0) return layer;
+      return layer.copyWith(shapes: fn(layer.shapes, idx));
+    }));
+  }
+
+  static List<VecShape> _moveUp(List<VecShape> list, int i) {
+    if (i >= list.length - 1) return list;
+    final copy = [...list];
+    final tmp = copy[i];
+    copy[i] = copy[i + 1];
+    copy[i + 1] = tmp;
+    return copy;
+  }
+
+  static List<VecShape> _moveDown(List<VecShape> list, int i) {
+    if (i <= 0) return list;
+    final copy = [...list];
+    final tmp = copy[i];
+    copy[i] = copy[i - 1];
+    copy[i - 1] = tmp;
+    return copy;
+  }
+
+  static List<VecShape> _moveToEnd(List<VecShape> list, int i) {
+    if (i >= list.length - 1) return list;
+    final copy = [...list];
+    final shape = copy.removeAt(i);
+    copy.add(shape);
+    return copy;
+  }
+
+  static List<VecShape> _moveToStart(List<VecShape> list, int i) {
+    if (i <= 0) return list;
+    final copy = [...list];
+    final shape = copy.removeAt(i);
+    copy.insert(0, shape);
+    return copy;
+  }
+
   void removeShape(String sceneId, String layerId, String shapeId) {
     _commit(_withScene(sceneId, (scene) {
       return scene.copyWith(
@@ -1268,6 +1352,11 @@ class VecDocumentState extends _$VecDocumentState {
     if (duration < 1) return;
     _commit(_withScene(
         sceneId, (s) => s.copyWith(timeline: s.timeline.copyWith(duration: duration))));
+  }
+
+  void setLoopType(String sceneId, VecLoopType loopType) {
+    _commit(_withScene(
+        sceneId, (s) => s.copyWith(timeline: s.timeline.copyWith(loopType: loopType))));
   }
 
   void removeKeyframe(String sceneId, String trackId, int frame) {

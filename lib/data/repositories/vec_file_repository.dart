@@ -17,15 +17,15 @@ class VecFileRepository {
     return VecDocument.fromJson(json);
   }
 
-  /// Saves a [VecDocument] to [filePath] using an atomic write.
+  /// Saves a [VecDocument] to [filePath].
   ///
-  /// Writes to a temporary `.tmp` file first, then renames to the target path
-  /// to avoid corruption if the process is interrupted.
+  /// Writes directly to the target path. On macOS the sandbox entitlement
+  /// `files.user-selected.read-write` grants access only to the file the user
+  /// selected — a sibling `.tmp` file would be denied, so an atomic
+  /// write-then-rename strategy cannot be used here.
   Future<void> saveToFile(String filePath, VecDocument document) async {
     final json = jsonEncode(document.toJson());
-    final tmpFile = File('$filePath.tmp');
-    await tmpFile.writeAsString(json, flush: true);
-    await tmpFile.rename(filePath);
+    await File(filePath).writeAsString(json, flush: true);
   }
 
   /// Saves an autosave snapshot alongside the main file.

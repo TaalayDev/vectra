@@ -5,8 +5,8 @@ import 'dart:ui';
 import 'package:flutter/painting.dart';
 
 import '../../core/pathfinder/pathfinder.dart';
-import '../../data/models/vec_color.dart';
 import '../../data/models/vec_fill.dart';
+import '../../data/models/vec_gradient.dart';
 import '../../data/models/vec_layer.dart';
 import '../../data/models/vec_path_node.dart';
 import '../../data/models/vec_shape.dart';
@@ -498,18 +498,57 @@ class ShapeRenderer {
   ) {
     // Fills first (bottom), then strokes (on top)
     for (final fill in fills) {
-      final color = fill.color.toFlutterColor().withAlpha((fill.opacity * 255).round());
-      canvas.drawPath(
-        path,
-        Paint()
-          ..color = color
-          ..style = PaintingStyle.fill
-          ..blendMode = mapBlendMode(fill.blendMode),
-      );
+      final paint = Paint()
+        ..style = PaintingStyle.fill
+        ..blendMode = mapBlendMode(fill.blendMode);
+
+      if (fill.gradient != null) {
+        final bounds = path.getBounds();
+        if (!bounds.isEmpty) {
+          paint.shader = _buildGradientShader(fill.gradient!, bounds, fill.opacity);
+        }
+      } else {
+        paint.color = fill.color.toFlutterColor().withAlpha((fill.opacity * 255).round());
+      }
+
+      canvas.drawPath(path, paint);
     }
 
     for (final stroke in strokes) {
       _applyStroke(canvas, path, stroke);
+    }
+  }
+
+  Shader _buildGradientShader(VecGradient g, Rect bounds, double opacity) {
+    final alphaFactor = opacity.clamp(0.0, 1.0);
+    final colors = g.stops
+        .map((s) => s.color.toFlutterColor().withAlpha((alphaFactor * 255).round()))
+        .toList();
+    final positions = g.stops.map((s) => s.position.toDouble()).toList();
+
+    if (g.type == VecGradientType.linear) {
+      // angle 0° = left→right, 90° = top→bottom (CSS-like)
+      final rad = g.angle * math.pi / 180.0;
+      final cx = bounds.left + bounds.width * 0.5;
+      final cy = bounds.top + bounds.height * 0.5;
+      final halfDiag = math.sqrt(bounds.width * bounds.width + bounds.height * bounds.height) / 2;
+      final bx = math.cos(rad) * halfDiag;
+      final by = math.sin(rad) * halfDiag;
+      return LinearGradient(
+        begin: Alignment.centerLeft,
+        end: Alignment.centerRight,
+        colors: colors,
+        stops: positions,
+      ).createShader(Rect.fromLTWH(
+        cx - bx, cy - by, bx * 2, by * 2,
+      ));
+    } else {
+      return RadialGradient(
+        center: Alignment(g.centerX * 2 - 1, g.centerY * 2 - 1),
+        radius: g.radius,
+        colors: colors,
+        stops: positions,
+      ).createShader(bounds);
     }
   }
 

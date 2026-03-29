@@ -5,8 +5,7 @@ import '../models/vec_document.dart';
 import '../repositories/vec_file_repository.dart';
 
 class VecDocumentService {
-  VecDocumentService({required VecFileRepository repository})
-      : _repository = repository;
+  VecDocumentService({required VecFileRepository repository}) : _repository = repository;
 
   final VecFileRepository _repository;
   Timer? _autosaveTimer;
@@ -39,15 +38,11 @@ class VecDocumentService {
   /// Opens a `.vct` file. If a newer autosave exists, [onAutosaveFound] is
   /// called with the recovered document so the caller can decide whether to
   /// use it.
-  Future<VecDocument> openFile(
-    String filePath, {
-    Future<bool> Function(VecDocument recovered)? onAutosaveFound,
-  }) async {
+  Future<VecDocument> openFile(String filePath, {Future<bool> Function(VecDocument recovered)? onAutosaveFound}) async {
     _currentFilePath = filePath;
     _isDirty = false;
 
-    if (onAutosaveFound != null &&
-        await _repository.hasNewerAutosave(filePath)) {
+    if (onAutosaveFound != null && await _repository.hasNewerAutosave(filePath)) {
       final recovered = await _repository.loadAutosave(filePath);
       if (recovered != null) {
         final useRecovered = await onAutosaveFound(recovered);
@@ -64,9 +59,7 @@ class VecDocumentService {
   /// Throws [StateError] if no file path has been set (use [saveAs] instead).
   Future<void> save(VecDocument document) async {
     if (_currentFilePath == null) {
-      throw StateError(
-        'No file path set. Use saveAs() for new documents.',
-      );
+      throw StateError('No file path set. Use saveAs() for new documents.');
     }
     await _repository.saveToFile(_currentFilePath!, document);
     await _repository.deleteAutosave(_currentFilePath!);
@@ -88,17 +81,11 @@ class VecDocumentService {
 
   /// Starts periodic autosave. [getCurrentDocument] is called each interval
   /// to get the latest document state.
-  void startAutosave(
-    VecDocument Function() getCurrentDocument, {
-    Duration interval = const Duration(seconds: 30),
-  }) {
+  void startAutosave(VecDocument Function() getCurrentDocument, {Duration interval = const Duration(seconds: 30)}) {
     stopAutosave();
     _autosaveTimer = Timer.periodic(interval, (_) async {
       if (_isDirty && _currentFilePath != null) {
-        await _repository.saveAutosave(
-          _currentFilePath!,
-          getCurrentDocument(),
-        );
+        await _repository.saveAutosave(_currentFilePath!, getCurrentDocument());
       }
     });
   }
@@ -110,8 +97,7 @@ class VecDocumentService {
   }
 
   /// Returns the default save directory.
-  Future<String> getDefaultSaveDirectory() =>
-      _repository.getDefaultSaveDirectory();
+  Future<String> getDefaultSaveDirectory() => _repository.getDefaultSaveDirectory();
 
   void dispose() {
     stopAutosave();

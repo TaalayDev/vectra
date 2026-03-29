@@ -123,6 +123,10 @@ class EditorToolbar extends HookConsumerWidget {
           const SizedBox(width: 8),
           Container(width: 1, height: 20, color: theme.divider),
           const SizedBox(width: 8),
+          _SnapControls(theme: theme),
+          const SizedBox(width: 8),
+          Container(width: 1, height: 20, color: theme.divider),
+          const SizedBox(width: 8),
           _ExportButton(theme: theme),
           const SizedBox(width: 12),
         ],
@@ -232,41 +236,124 @@ class _CanvasSizeControls extends HookConsumerWidget {
       );
     }
 
-    return Tooltip(
-      message: 'Canvas size (click to edit)',
-      waitDuration: const Duration(milliseconds: 500),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(4),
-          hoverColor: theme.primaryColor.withAlpha(20),
-          onTap: () {
-            widthController.text = meta.stageWidth.round().toString();
-            heightController.text = meta.stageHeight.round().toString();
-            isEditing.value = true;
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              widthFocus.requestFocus();
-              widthController.selection = TextSelection(baseOffset: 0, extentOffset: widthController.text.length);
-            });
-          },
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.crop, size: 14, color: theme.textSecondary),
-                const SizedBox(width: 6),
-                Text(
-                  '${meta.stageWidth.round()} × ${meta.stageHeight.round()}',
-                  style: TextStyle(fontSize: 11, color: theme.textSecondary, fontWeight: FontWeight.w500),
+    void applyPreset(double w, double h) {
+      ref.read(vecDocumentStateProvider.notifier)
+          .updateMeta(meta.copyWith(stageWidth: w, stageHeight: h));
+    }
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Tooltip(
+          message: 'Canvas size (click to edit)',
+          waitDuration: const Duration(milliseconds: 500),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(4),
+              hoverColor: theme.primaryColor.withAlpha(20),
+              onTap: () {
+                widthController.text = meta.stageWidth.round().toString();
+                heightController.text = meta.stageHeight.round().toString();
+                isEditing.value = true;
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  widthFocus.requestFocus();
+                  widthController.selection = TextSelection(
+                      baseOffset: 0,
+                      extentOffset: widthController.text.length);
+                });
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.crop, size: 14, color: theme.textSecondary),
+                    const SizedBox(width: 6),
+                    Text(
+                      '${meta.stageWidth.round()} × ${meta.stageHeight.round()}',
+                      style: TextStyle(
+                          fontSize: 11,
+                          color: theme.textSecondary,
+                          fontWeight: FontWeight.w500),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         ),
-      ),
+        // Preset sizes dropdown
+        Tooltip(
+          message: 'Preset sizes',
+          waitDuration: const Duration(milliseconds: 500),
+          child: PopupMenuButton<(double, double)>(
+            onSelected: (size) => applyPreset(size.$1, size.$2),
+            color: theme.surface,
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(6),
+                side: BorderSide(color: theme.divider, width: 0.5)),
+            itemBuilder: (_) => [
+              _presetHeader('Mobile'),
+              _presetItem(theme, 'iPhone 15 Pro', 393, 852),
+              _presetItem(theme, 'iPhone SE', 375, 667),
+              _presetItem(theme, 'Android', 360, 800),
+              _presetHeader('Tablet'),
+              _presetItem(theme, 'iPad', 820, 1180),
+              _presetItem(theme, 'iPad Pro 12.9"', 1024, 1366),
+              _presetHeader('Desktop'),
+              _presetItem(theme, '1920 × 1080', 1920, 1080),
+              _presetItem(theme, '1440 × 900', 1440, 900),
+              _presetItem(theme, '1280 × 720', 1280, 720),
+              _presetHeader('Social'),
+              _presetItem(theme, 'Instagram Post', 1080, 1080),
+              _presetItem(theme, 'Twitter / X Banner', 1500, 500),
+              _presetItem(theme, 'YouTube Thumbnail', 1280, 720),
+              _presetHeader('Icons'),
+              _presetItem(theme, '512 × 512', 512, 512),
+              _presetItem(theme, '256 × 256', 256, 256),
+              _presetItem(theme, '64 × 64', 64, 64),
+            ],
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+              child: Icon(Icons.expand_more,
+                  size: 14, color: theme.textDisabled),
+            ),
+          ),
+        ),
+      ],
     );
   }
+
+  static PopupMenuEntry<(double, double)> _presetHeader(String label) =>
+      PopupMenuItem<(double, double)>(
+        enabled: false,
+        height: 24,
+        child: Text(
+          label.toUpperCase(),
+          style: const TextStyle(
+              fontSize: 9, fontWeight: FontWeight.w700, letterSpacing: 0.8),
+        ),
+      );
+
+  static PopupMenuItem<(double, double)> _presetItem(
+          AppTheme theme, String name, double w, double h) =>
+      PopupMenuItem<(double, double)>(
+        value: (w, h),
+        height: 28,
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(name,
+                  style: TextStyle(fontSize: 11, color: theme.textPrimary)),
+            ),
+            Text(
+              '${w.round()}×${h.round()}',
+              style: TextStyle(fontSize: 10, color: theme.textDisabled),
+            ),
+          ],
+        ),
+      );
 }
 
 class _SizeField extends StatelessWidget {
@@ -384,6 +471,93 @@ class _UndoRedoButtons extends ConsumerWidget {
           enabled: availability.canRedo,
         ),
       ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Snap + Ruler toggle controls
+// ---------------------------------------------------------------------------
+
+class _SnapControls extends ConsumerWidget {
+  const _SnapControls({required this.theme});
+
+  final AppTheme theme;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final snap = ref.watch(snapSettingsProvider);
+    final notifier = ref.read(snapSettingsProvider.notifier);
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _SnapToggle(
+          icon: Icons.straighten_outlined,
+          active: snap.showRulers,
+          onTap: notifier.toggleRulers,
+          tooltip: 'Toggle rulers',
+          theme: theme,
+        ),
+        _SnapToggle(
+          icon: Icons.grid_4x4_outlined,
+          active: snap.toGrid,
+          onTap: notifier.toggleGrid,
+          tooltip: 'Snap to grid (${snap.gridSize}px)',
+          theme: theme,
+        ),
+        _SnapToggle(
+          icon: Icons.near_me_outlined,
+          active: snap.toObjects,
+          onTap: notifier.toggleObjects,
+          tooltip: 'Snap to objects',
+          theme: theme,
+        ),
+      ],
+    );
+  }
+}
+
+class _SnapToggle extends StatelessWidget {
+  const _SnapToggle({
+    required this.icon,
+    required this.active,
+    required this.onTap,
+    required this.tooltip,
+    required this.theme,
+  });
+
+  final IconData icon;
+  final bool active;
+  final VoidCallback onTap;
+  final String tooltip;
+  final AppTheme theme;
+
+  @override
+  Widget build(BuildContext context) {
+    final iconColor = active ? theme.primaryColor : theme.inactiveIcon;
+    return Tooltip(
+      message: tooltip,
+      waitDuration: const Duration(milliseconds: 500),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(4),
+          hoverColor: theme.primaryColor.withAlpha(20),
+          child: Container(
+            width: 28,
+            height: 28,
+            decoration: active
+                ? BoxDecoration(
+                    color: theme.primaryColor.withAlpha(18),
+                    borderRadius: BorderRadius.circular(4),
+                  )
+                : null,
+            child: Icon(icon, size: 15, color: iconColor),
+          ),
+        ),
+      ),
     );
   }
 }

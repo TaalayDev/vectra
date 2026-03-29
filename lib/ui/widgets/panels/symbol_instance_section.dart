@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import '../../../app/theme/theme.dart';
+import '../../../data/models/vec_color.dart';
 import '../../../data/models/vec_shape.dart';
 import '../../../data/models/vec_symbol.dart';
 import '../../../data/models/vec_timeline.dart';
 import '../../../providers/document_provider.dart';
 import '../../../providers/editor_state_provider.dart';
 import '../common/collapsible_section.dart';
+import '../common/color_picker.dart';
 import '../common/numeric_input.dart';
 import 'properties_sections.dart';
 
@@ -169,6 +171,82 @@ class SymbolInstanceSection extends ConsumerWidget {
                 orElse: () => s,
               ),
             ),
+          ),
+
+          const SizedBox(height: 12),
+
+          // Color Tint
+          _buildLabel('Color Tint'),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              // Swatch — tapping opens picker; when tint is null shows a dashed/transparent swatch
+              GestureDetector(
+                onTap: () async {
+                  final initial = shape.colorTint?.toFlutterColor() ?? Colors.white;
+                  final picked = await showColorPicker(
+                    context: context,
+                    initialColor: initial,
+                    theme: theme,
+                  );
+                  if (picked != null) {
+                    onUpdate((s) => s.maybeMap(
+                      symbolInstance: (si) => si.copyWith(
+                        colorTint: VecColor.fromFlutterColor(picked),
+                        tintAmount: si.tintAmount == 0 ? 1.0 : si.tintAmount,
+                      ),
+                      orElse: () => s,
+                    ));
+                  }
+                },
+                child: Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    color: shape.colorTint?.toFlutterColor() ?? Colors.transparent,
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: theme.divider),
+                  ),
+                  child: shape.colorTint == null
+                      ? Icon(Icons.block, size: 14, color: theme.textDisabled)
+                      : null,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: PanelSlider(
+                  value: shape.tintAmount.clamp(0.0, 1.0),
+                  theme: theme,
+                  onChanged: (v) => onLiveUpdate(
+                    (s) => s.maybeMap(
+                      symbolInstance: (si) => si.copyWith(tintAmount: v),
+                      orElse: () => s,
+                    ),
+                  ),
+                  onChangeEnd: (_) => onCommit(),
+                ),
+              ),
+              const SizedBox(width: 4),
+              SizedBox(
+                width: 36,
+                child: Text(
+                  '${(shape.tintAmount * 100).round()}%',
+                  style: TextStyle(fontSize: 10, color: theme.textDisabled),
+                  textAlign: TextAlign.right,
+                ),
+              ),
+              // Clear tint button
+              if (shape.colorTint != null) ...[
+                const SizedBox(width: 4),
+                GestureDetector(
+                  onTap: () => onUpdate((s) => s.maybeMap(
+                    symbolInstance: (si) => si.copyWith(colorTint: null, tintAmount: 0),
+                    orElse: () => s,
+                  )),
+                  child: Icon(Icons.close, size: 12, color: theme.textDisabled),
+                ),
+              ],
+            ],
           ),
         ],
       ),

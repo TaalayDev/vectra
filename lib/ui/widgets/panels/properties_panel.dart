@@ -29,7 +29,14 @@ class PropertiesPanel extends ConsumerWidget {
       ),
       child: Column(
         children: [
-          PanelHeader(title: shape != null ? _shapeTypeName(shape) : 'Properties', theme: theme),
+          PanelHeader(
+            title: selectedIds.length >= 2
+                ? '${selectedIds.length} Selected'
+                : shape != null
+                    ? _shapeTypeName(shape)
+                    : 'Properties',
+            theme: theme,
+          ),
           Expanded(
             child: shape == null && selectedIds.length < 2
                 ? _buildEmptyState()
@@ -77,13 +84,13 @@ class PropertiesPanel extends ConsumerWidget {
     if (scene == null || layerId == null) return const SizedBox.shrink();
     final sceneId = scene.id;
 
-    // When only multi-selection (no single shape), show pathfinder only
-    if (shape == null) {
-      return ListView(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        children: [PathfinderPanel(theme: theme)],
-      );
+    // Multi-selection: show dedicated multi-select panel
+    if (selectedIds.length >= 2) {
+      return _buildMultiSections(ref, scene, layerId, sceneId, docNotifier, selectedIds);
     }
+
+    // Edge case: selectedIds >= 2 but shape == null already handled above
+    if (shape == null) return const SizedBox.shrink();
 
     // Committed update — goes to undo history
     void onUpdate(VecShape Function(VecShape) updater) {
@@ -118,6 +125,34 @@ class PropertiesPanel extends ConsumerWidget {
           rectangle: (r) => [
             Divider(height: 1, color: theme.divider.withAlpha(60)),
             CornerSection(shape: r, theme: theme, onUpdate: onUpdate),
+          ],
+          orElse: () => const <Widget>[],
+        ),
+        // Arc / Donut — ellipses only
+        ...shape.maybeMap(
+          ellipse: (e) => [
+            Divider(height: 1, color: theme.divider.withAlpha(60)),
+            EllipseSection(
+              shape: e,
+              theme: theme,
+              onUpdate: onUpdate,
+              onLiveUpdate: onLiveUpdate,
+              onCommit: onCommit,
+            ),
+          ],
+          orElse: () => const <Widget>[],
+        ),
+        // Polygon sides + star depth — polygons only
+        ...shape.maybeMap(
+          polygon: (p) => [
+            Divider(height: 1, color: theme.divider.withAlpha(60)),
+            PolygonSection(
+              shape: p,
+              theme: theme,
+              onUpdate: onUpdate,
+              onLiveUpdate: onLiveUpdate,
+              onCommit: onCommit,
+            ),
           ],
           orElse: () => const <Widget>[],
         ),
@@ -201,6 +236,175 @@ class PropertiesPanel extends ConsumerWidget {
   }
 
   // ---------------------------------------------------------------------------
+  // Multi-selection panel
+  // ---------------------------------------------------------------------------
+
+  Widget _buildMultiSections(
+    WidgetRef ref,
+    dynamic scene,
+    String layerId,
+    String sceneId,
+    dynamic docNotifier,
+    List<String> selectedIds,
+  ) {
+    // Gather the selected shapes from the scene
+    final selectedShapes = <dynamic>[];
+    for (final layer in scene.layers) {
+      for (final shape in layer.shapes) {
+        if (selectedIds.contains(shape.id)) selectedShapes.add(shape);
+      }
+    }
+
+    // Compute average opacity across selected shapes
+    final avgOpacity = selectedShapes.isEmpty
+        ? 1.0
+        : selectedShapes.fold<double>(0, (sum, s) => sum + (s.opacity as double)) /
+            selectedShapes.length;
+
+    void applyToAll(VecShape Function(VecShape) updater) {
+      for (final id in selectedIds) {
+        docNotifier.updateShapeNoHistory(sceneId, layerId, id, updater);
+      }
+      docNotifier.commitCurrentState();
+    }
+
+    void liveApplyToAll(VecShape Function(VecShape) updater) {
+      for (final id in selectedIds) {
+        docNotifier.updateShapeNoHistory(sceneId, layerId, id, updater);
+      }
+    }
+
+    return ListView(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      children: [
+        // Info row
+        Padding(
+          padding: const EdgeInsets.fromLTRB(14, 4, 14, 12),
+          child: Row(
+            children: [
+              Icon(Icons.select_all_outlined, size: 14, color: theme.textDisabled),
+              const SizedBox(width: 6),
+              Text(
+                '${selectedIds.length} shapes selected',
+                style: TextStyle(fontSize: 11, color: theme.textDisabled),
+              ),
+            ],
+          ),
+        ),
+
+        Divider(height: 1, color: theme.divider.withAlpha(60)),
+
+        // Opacity
+        Padding(
+          padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Opacity',
+                style: TextStyle(
+                    fontSize: 10,
+                    color: theme.textDisabled,
+                    fontWeight: FontWeight.w500),
+              ),
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  Expanded(
+                    child: PanelSlider(
+                      value: avgOpacity.clamp(0.0, 1.0),
+                      theme: theme,
+                      onChanged: (v) => liveApplyToAll(
+                        (s) => s.copyWith(data: s.data.copyWith(opacity: v)),
+                      ),
+                      onChangeEnd: (_) => docNotifier.commitCurrentState(),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  SizedBox(
+                    width: 36,
+                    child: Text(
+                      '${(avgOpacity * 100).round()}%',
+                      style: TextStyle(fontSize: 10, color: theme.textDisabled),
+                      textAlign: TextAlign.right,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+
+        Divider(height: 1, color: theme.divider.withAlpha(60)),
+
+        // Nudge position
+        Padding(
+          padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Move All',
+                style: TextStyle(
+                    fontSize: 10,
+                    color: theme.textDisabled,
+                    fontWeight: FontWeight.w500),
+              ),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  _NudgeButton(
+                    label: '← −10',
+                    theme: theme,
+                    onTap: () => applyToAll((s) => s.copyWith(
+                          data: s.data.copyWith(
+                              transform: s.transform
+                                  .copyWith(x: s.transform.x - 10)),
+                        )),
+                  ),
+                  const SizedBox(width: 4),
+                  _NudgeButton(
+                    label: '→ +10',
+                    theme: theme,
+                    onTap: () => applyToAll((s) => s.copyWith(
+                          data: s.data.copyWith(
+                              transform: s.transform
+                                  .copyWith(x: s.transform.x + 10)),
+                        )),
+                  ),
+                  const SizedBox(width: 8),
+                  _NudgeButton(
+                    label: '↑ −10',
+                    theme: theme,
+                    onTap: () => applyToAll((s) => s.copyWith(
+                          data: s.data.copyWith(
+                              transform: s.transform
+                                  .copyWith(y: s.transform.y - 10)),
+                        )),
+                  ),
+                  const SizedBox(width: 4),
+                  _NudgeButton(
+                    label: '↓ +10',
+                    theme: theme,
+                    onTap: () => applyToAll((s) => s.copyWith(
+                          data: s.data.copyWith(
+                              transform: s.transform
+                                  .copyWith(y: s.transform.y + 10)),
+                        )),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+
+        Divider(height: 1, color: theme.divider.withAlpha(60)),
+        PathfinderPanel(theme: theme),
+      ],
+    );
+  }
+
+  // ---------------------------------------------------------------------------
   // Helpers
   // ---------------------------------------------------------------------------
 
@@ -274,6 +478,40 @@ class _ConvertToSymbolButton extends ConsumerWidget {
               result.name,
             );
           },
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Nudge button for multi-select panel
+// ---------------------------------------------------------------------------
+
+class _NudgeButton extends StatelessWidget {
+  const _NudgeButton({required this.label, required this.theme, required this.onTap});
+
+  final String label;
+  final AppTheme theme;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+          decoration: BoxDecoration(
+            color: theme.surfaceVariant,
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(color: theme.divider, width: 0.5),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(fontSize: 10, color: theme.textSecondary),
+          ),
         ),
       ),
     );

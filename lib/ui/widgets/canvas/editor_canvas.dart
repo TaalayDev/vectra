@@ -12,6 +12,7 @@ import '../../../core/rendering/corner_radius_overlay.dart';
 import '../../../core/rendering/drawing_preview_painter.dart';
 import '../../../core/rendering/motion_path_overlay.dart';
 import '../../../core/rendering/path_edit_overlay.dart';
+import '../../../core/rendering/rulers_painter.dart';
 import '../../../core/rendering/scene_painter.dart';
 import '../../../core/rendering/selection_overlay.dart';
 import '../../../core/tools/drawing_tool_handler.dart';
@@ -95,6 +96,13 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
   // Motion path node drag
   String? _mpDragPathId;
   int _mpDragNodeIndex = -1;
+
+  // Drag info overlay (dimensions / position label shown during select-tool drag)
+  String? _dragInfoText;
+  Offset _dragInfoPos = Offset.zero;
+
+  // Smart guide lines shown during move/resize
+  List<_SnapGuide> _activeGuides = const [];
 
   AppTheme get theme => widget.theme;
 
@@ -194,6 +202,8 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
     final zoom = ref.watch(zoomLevelProvider);
     final panOffset = ref.watch(canvasOffsetProvider);
     final fitRequest = ref.watch(fitRequestProvider);
+    final snapSettings = ref.watch(snapSettingsProvider);
+    final cursorPosition = ref.watch(cursorPositionProvider);
     // Start/stop the playback timer automatically
     ref.watch(playbackTickerProvider);
     // Use the animation-interpolated scene for rendering
@@ -568,6 +578,73 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
                         left: 0,
                         right: 0,
                         child: _SymbolEditBanner(symbolId: editingSymbolId, theme: theme),
+                      ),
+
+                    // Group edit mode breadcrumb banner
+                    if (activeGroupId != null && editingSymbolId == null)
+                      Positioned(
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        child: _GroupEditBanner(groupId: activeGroupId, theme: theme),
+                      ),
+
+                    // Smart guide lines
+                    if (_activeGuides.isNotEmpty)
+                      Positioned.fill(
+                        child: IgnorePointer(
+                          child: CustomPaint(
+                            painter: _SmartGuidePainter(
+                              guides: _activeGuides,
+                              stageLeft: stageLeft,
+                              stageTop: stageTop,
+                              zoom: zoom,
+                            ),
+                          ),
+                        ),
+                      ),
+
+                    // Rulers overlay
+                    if (snapSettings.showRulers)
+                      Positioned.fill(
+                        child: IgnorePointer(
+                          child: CustomPaint(
+                            painter: RulersPainter(
+                              zoom: zoom,
+                              stageLeft: stageLeft,
+                              stageTop: stageTop,
+                              cursorPos: cursorPosition,
+                              bgColor: theme.surface,
+                              tickColor: theme.textDisabled,
+                              borderColor: theme.divider,
+                            ),
+                          ),
+                        ),
+                      ),
+
+                    // Drag info badge — shows position/size/angle during select-tool drag
+                    if (_dragInfoText != null)
+                      Positioned(
+                        left: (_dragInfoPos.dx + 14).clamp(0, viewportSize.width - 140),
+                        top: (_dragInfoPos.dy + 14).clamp(0, viewportSize.height - 28),
+                        child: IgnorePointer(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: const Color(0xE6111827),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              _dragInfoText!,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w500,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ),
+                        ),
                       ),
                   ],
                 ),
@@ -1210,9 +1287,36 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
 
     dynamic newCanvasTransform;
 
+    final snapSettings = ref.read(snapSettingsProvider);
+
     switch (_selectDragMode) {
       case _SelectDragMode.move:
-        newCanvasTransform = start.copyWith(x: start.x + delta.dx, y: start.y + delta.dy);
+        double nx = start.x + delta.dx;
+        double ny = start.y + delta.dy;
+
+        // Snap to grid
+        if (snapSettings.toGrid && snapSettings.gridSize > 0) {
+          final gs = snapSettings.gridSize.toDouble();
+          nx = (nx / gs).round() * gs;
+          ny = (ny / gs).round() * gs;
+        }
+
+        newCanvasTransform = start.copyWith(x: nx, y: ny);
+
+        // Snap to objects + compute smart guides
+        if (snapSettings.toObjects && scene != null) {
+          final snapped = _snapToObjects(
+            scene: scene,
+            proposedX: nx,
+            proposedY: ny,
+            width: start.width,
+            height: start.height,
+            excludeId: selectedShape.id,
+            zoom: zoom,
+          );
+          newCanvasTransform = start.copyWith(x: snapped.$1, y: snapped.$2);
+          setState(() => _activeGuides = snapped.$3);
+        }
 
       case _SelectDragMode.resizeHandle:
         newCanvasTransform = SelectToolHandler.applyResizeHandle(start, _resizeHandleIndex, delta);
@@ -1313,6 +1417,20 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
         return;
     }
 
+    // Update drag info overlay label
+    if (newCanvasTransform != null) {
+      _dragInfoText = switch (_selectDragMode) {
+        _SelectDragMode.move =>
+          'X ${newCanvasTransform.x.round()}  Y ${newCanvasTransform.y.round()}',
+        _SelectDragMode.resizeHandle =>
+          '${newCanvasTransform.width.round()} × ${newCanvasTransform.height.round()}',
+        _SelectDragMode.rotate =>
+          '${(newCanvasTransform.rotation % 360).toStringAsFixed(1)}°',
+        _ => null,
+      };
+      _dragInfoPos = details.localPosition;
+    }
+
     if (_dragGroupTransform != null) {
       // Group-edit mode: convert canvas-space transform back to group-local
       final gt = _dragGroupTransform!;
@@ -1371,6 +1489,8 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
       _dragGroupTransform = null;
       _dragStartTransforms = {};
       _dragStartPivot = null;
+      _dragInfoText = null;
+      _activeGuides = const [];
     });
   }
 
@@ -1530,6 +1650,121 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
     final canvasPoint = _toCanvasPoint(screenPos);
     final hit = BendHandleOverlayPainter.hitTestHandle(lineShape, zoom, canvasPoint) == 0;
     if (hit != _hoverBendHandle) setState(() => _hoverBendHandle = hit);
+  }
+
+  // ===========================================================================
+  // Snap to objects + smart guides
+  // ===========================================================================
+
+  /// Returns (snappedX, snappedY, guides) for the proposed move position.
+  (double, double, List<_SnapGuide>) _snapToObjects({
+    required dynamic scene,
+    required double proposedX,
+    required double proposedY,
+    required double width,
+    required double height,
+    required String excludeId,
+    required double zoom,
+  }) {
+    const threshold = 5.0; // canvas units
+
+    // Dragged shape edges/centers
+    final dLeft = proposedX;
+    final dRight = proposedX + width;
+    final dTop = proposedY;
+    final dBottom = proposedY + height;
+    final dCX = proposedX + width / 2;
+    final dCY = proposedY + height / 2;
+
+    double? snapDx; // best horizontal snap correction (applied to X)
+    double? snapDy; // best vertical snap correction (applied to Y)
+    double? bestAbsDx;
+    double? bestAbsDy;
+
+    final staticBboxes = <Rect>[];
+
+    for (final layer in scene.layers) {
+      if (!layer.visible || layer.locked) continue;
+      for (final shape in layer.shapes) {
+        if (shape.id == excludeId) continue;
+        final t = shape.data.transform;
+        staticBboxes.add(Rect.fromLTWH(t.x, t.y, t.width, t.height));
+      }
+    }
+
+    for (final bbox in staticBboxes) {
+      final sLeft = bbox.left;
+      final sRight = bbox.right;
+      final sCX = bbox.center.dx;
+      final sTop = bbox.top;
+      final sBottom = bbox.bottom;
+      final sCY = bbox.center.dy;
+
+      // X-axis alignment candidates: left-left, left-right, right-left, right-right, cx-cx
+      for (final pair in [
+        (dLeft, sLeft),
+        (dLeft, sRight),
+        (dRight, sLeft),
+        (dRight, sRight),
+        (dCX, sCX),
+      ]) {
+        final diff = pair.$2 - pair.$1;
+        if (diff.abs() < threshold) {
+          if (bestAbsDx == null || diff.abs() < bestAbsDx) {
+            bestAbsDx = diff.abs();
+            snapDx = diff;
+          }
+        }
+      }
+
+      // Y-axis alignment candidates
+      for (final pair in [
+        (dTop, sTop),
+        (dTop, sBottom),
+        (dBottom, sTop),
+        (dBottom, sBottom),
+        (dCY, sCY),
+      ]) {
+        final diff = pair.$2 - pair.$1;
+        if (diff.abs() < threshold) {
+          if (bestAbsDy == null || diff.abs() < bestAbsDy) {
+            bestAbsDy = diff.abs();
+            snapDy = diff;
+          }
+        }
+      }
+    }
+
+    final snappedX = proposedX + (snapDx ?? 0);
+    final snappedY = proposedY + (snapDy ?? 0);
+
+    // Build guide lines for each snapped axis
+    final guides = <_SnapGuide>[];
+    if (snapDx != null) {
+      final sx = snappedX + (snapDx > 0 ? 0 : width); // which edge snapped
+      // find all shapes that align at this X
+      for (final bbox in staticBboxes) {
+        if ((bbox.left - sx).abs() < 0.5 || (bbox.right - sx).abs() < 0.5 || (bbox.center.dx - sx).abs() < 0.5) {
+          final minY = math.min(math.min(bbox.top, snappedY), bbox.top);
+          final maxY = math.max(math.max(bbox.bottom, snappedY + height), bbox.bottom);
+          guides.add(_SnapGuide(isVertical: true, pos: sx, extStart: minY, extEnd: maxY));
+          break;
+        }
+      }
+    }
+    if (snapDy != null) {
+      final sy = snappedY + (snapDy > 0 ? 0 : height);
+      for (final bbox in staticBboxes) {
+        if ((bbox.top - sy).abs() < 0.5 || (bbox.bottom - sy).abs() < 0.5 || (bbox.center.dy - sy).abs() < 0.5) {
+          final minX = math.min(math.min(bbox.left, snappedX), bbox.left);
+          final maxX = math.max(math.max(bbox.right, snappedX + width), bbox.right);
+          guides.add(_SnapGuide(isVertical: false, pos: sy, extStart: minX, extEnd: maxX));
+          break;
+        }
+      }
+    }
+
+    return (snappedX, snappedY, guides);
   }
 
   // ===========================================================================
@@ -2007,6 +2242,156 @@ class _CheckerboardPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _CheckerboardPainter old) => old.color1 != color1 || old.color2 != color2;
+}
+
+// =============================================================================
+// Group edit mode banner
+// =============================================================================
+
+class _GroupEditBanner extends ConsumerWidget {
+  const _GroupEditBanner({required this.groupId, required this.theme});
+
+  final String groupId;
+  final AppTheme theme;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Find the group name from the current scene
+    final scene = ref.watch(animatedSceneProvider);
+    String groupName = 'Group';
+    if (scene != null) {
+      for (final layer in scene.layers) {
+        for (final shape in layer.shapes) {
+          if (shape.id == groupId) {
+            final n = shape.data.name;
+            if (n != null && n.isNotEmpty) groupName = n;
+            break;
+          }
+        }
+      }
+    }
+
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        height: 28,
+        color: theme.primaryColor.withAlpha(220),
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        child: Row(
+          children: [
+            Icon(Icons.folder_open_outlined, size: 12, color: theme.onPrimary),
+            const SizedBox(width: 6),
+            Text(
+              'Editing: $groupName',
+              style: TextStyle(
+                  color: theme.onPrimary,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600),
+            ),
+            const Spacer(),
+            GestureDetector(
+              onTap: () {
+                ref.read(activeGroupIdProvider.notifier).clear();
+                ref.read(selectedShapeIdProvider.notifier).set(groupId);
+                ref.read(selectedShapeIdsProvider.notifier).setSingle(groupId);
+              },
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Exit Group',
+                      style: TextStyle(color: theme.onPrimary, fontSize: 11),
+                    ),
+                    const SizedBox(width: 4),
+                    Icon(Icons.close, size: 12, color: theme.onPrimary),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// =============================================================================
+// Smart guide data + painter  (viewport-space)
+// =============================================================================
+
+/// A single alignment guide line (in canvas coordinates).
+class _SnapGuide {
+  const _SnapGuide({
+    required this.isVertical,
+    required this.pos,
+    required this.extStart,
+    required this.extEnd,
+  });
+
+  /// true = vertical line (x = pos), false = horizontal line (y = pos)
+  final bool isVertical;
+
+  /// Canvas-coordinate position of the line.
+  final double pos;
+
+  /// Canvas-coordinate start of the visible extent.
+  final double extStart;
+
+  /// Canvas-coordinate end of the visible extent.
+  final double extEnd;
+}
+
+class _SmartGuidePainter extends CustomPainter {
+  const _SmartGuidePainter({
+    required this.guides,
+    required this.stageLeft,
+    required this.stageTop,
+    required this.zoom,
+  });
+
+  final List<_SnapGuide> guides;
+  final double stageLeft;
+  final double stageTop;
+  final double zoom;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = const Color(0xFFFF3BFF).withAlpha(200)
+      ..strokeWidth = 1.0;
+
+    for (final g in guides) {
+      if (g.isVertical) {
+        // Vertical line at canvas-x = g.pos
+        final sx = stageLeft + g.pos * zoom;
+        if (sx < 0 || sx > size.width) continue;
+        final syStart = stageTop + g.extStart * zoom;
+        final syEnd = stageTop + g.extEnd * zoom;
+        canvas.drawLine(
+          Offset(sx, syStart.clamp(0.0, size.height)),
+          Offset(sx, syEnd.clamp(0.0, size.height)),
+          paint,
+        );
+      } else {
+        // Horizontal line at canvas-y = g.pos
+        final sy = stageTop + g.pos * zoom;
+        if (sy < 0 || sy > size.height) continue;
+        final sxStart = stageLeft + g.extStart * zoom;
+        final sxEnd = stageLeft + g.extEnd * zoom;
+        canvas.drawLine(
+          Offset(sxStart.clamp(0.0, size.width), sy),
+          Offset(sxEnd.clamp(0.0, size.width), sy),
+          paint,
+        );
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _SmartGuidePainter old) =>
+      old.guides != guides || old.stageLeft != stageLeft || old.stageTop != stageTop || old.zoom != zoom;
 }
 
 // =============================================================================

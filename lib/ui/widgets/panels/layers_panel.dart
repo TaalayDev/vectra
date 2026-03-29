@@ -1,13 +1,35 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import '../../../app/theme/theme.dart';
+import '../../../data/models/vec_layer.dart';
+import '../../../data/models/vec_shape.dart';
 import '../../../providers/document_provider.dart';
 import '../../../providers/editor_state_provider.dart';
 import '../common/panel_header.dart';
 import 'layer_row.dart';
 
-class LayersPanel extends ConsumerWidget {
+String _shapeDisplayName(VecShape shape) => shape.map(
+      path: (_) => 'Path',
+      rectangle: (_) => 'Rectangle',
+      ellipse: (_) => 'Ellipse',
+      polygon: (_) => 'Polygon',
+      text: (s) => s.content.trim().isEmpty ? 'Text' : s.content.trim(),
+      group: (_) => 'Group',
+      symbolInstance: (_) => 'Symbol',
+      compound: (_) => 'Compound',
+    );
+
+bool _layerMatchesQuery(VecLayer layer, String query) {
+  if (query.isEmpty) return true;
+  if (layer.name.toLowerCase().contains(query)) return true;
+  return layer.shapes.any(
+    (s) => _shapeDisplayName(s).toLowerCase().contains(query),
+  );
+}
+
+class LayersPanel extends HookConsumerWidget {
   const LayersPanel({super.key, required this.theme});
 
   final AppTheme theme;
@@ -17,6 +39,13 @@ class LayersPanel extends ConsumerWidget {
     final scene = ref.watch(activeSceneProvider);
     final activeLayerId = ref.watch(activeLayerIdProvider);
     final layers = scene?.layers ?? [];
+
+    final searchCtrl = useTextEditingController();
+    useListenable(searchCtrl);
+    final query = searchCtrl.text.toLowerCase().trim();
+    final filteredLayers = query.isEmpty
+        ? layers
+        : layers.where((l) => _layerMatchesQuery(l, query)).toList();
 
     return Container(
       decoration: BoxDecoration(
@@ -75,7 +104,15 @@ class LayersPanel extends ConsumerWidget {
           ),
 
           // ----------------------------------------------------------------
-          // Layer list — reorderable
+          // Search field
+          // ----------------------------------------------------------------
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
+            child: _SearchField(ctrl: searchCtrl, theme: theme),
+          ),
+
+          // ----------------------------------------------------------------
+          // Layer list — reorderable (disabled when search is active)
           // ----------------------------------------------------------------
           Expanded(
             child: layers.isEmpty
@@ -88,41 +125,65 @@ class LayersPanel extends ConsumerWidget {
                       ),
                     ),
                   )
-                : ReorderableListView.builder(
-                    padding: const EdgeInsets.symmetric(vertical: 2),
-                    buildDefaultDragHandles: false,
-                    itemCount: layers.length,
-                    onReorder: (oldDisplayIdx, newDisplayIdx) {
-                      if (scene == null) return;
-                      // Layers are displayed in reverse order: display[i] = actual[n-1-i]
-                      // Build the new display-order ID list, perform the move, then reverse.
-                      final n = layers.length;
-                      final displayIds = List<String>.generate(
-                          n, (i) => layers[n - 1 - i].id);
-                      final id = displayIds.removeAt(oldDisplayIdx);
-                      final insertAt = newDisplayIdx > oldDisplayIdx
-                          ? newDisplayIdx - 1
-                          : newDisplayIdx;
-                      displayIds.insert(insertAt, id);
-                      // Reverse back to actual order for the provider
-                      final actualIds = displayIds.reversed.toList();
-                      ref
-                          .read(vecDocumentStateProvider.notifier)
-                          .reorderLayers(scene.id, actualIds);
-                    },
-                    itemBuilder: (_, displayIdx) {
-                      final n = layers.length;
-                      final layer = layers[n - 1 - displayIdx];
-                      return LayerRow(
-                        key: ValueKey(layer.id),
-                        layer: layer,
-                        sceneId: scene!.id,
-                        isActive: layer.id == activeLayerId,
-                        theme: theme,
-                        index: displayIdx,
-                      );
-                    },
-                  ),
+                : query.isNotEmpty
+                    // ---- Search results: non-reorderable flat list ----
+                    ? filteredLayers.isEmpty
+                        ? Center(
+                            child: Text(
+                              'No results',
+                              style: TextStyle(
+                                  fontSize: 11, color: theme.textDisabled),
+                            ),
+                          )
+                        : ListView.builder(
+                            padding: const EdgeInsets.symmetric(vertical: 2),
+                            itemCount: filteredLayers.length,
+                            itemBuilder: (_, i) {
+                              final layer = filteredLayers[
+                                  filteredLayers.length - 1 - i];
+                              return LayerRow(
+                                key: ValueKey(layer.id),
+                                layer: layer,
+                                sceneId: scene!.id,
+                                isActive: layer.id == activeLayerId,
+                                theme: theme,
+                                index: i,
+                              );
+                            },
+                          )
+                    // ---- Normal reorderable list ----
+                    : ReorderableListView.builder(
+                        padding: const EdgeInsets.symmetric(vertical: 2),
+                        buildDefaultDragHandles: false,
+                        itemCount: layers.length,
+                        onReorder: (oldDisplayIdx, newDisplayIdx) {
+                          if (scene == null) return;
+                          final n = layers.length;
+                          final displayIds = List<String>.generate(
+                              n, (i) => layers[n - 1 - i].id);
+                          final id = displayIds.removeAt(oldDisplayIdx);
+                          final insertAt = newDisplayIdx > oldDisplayIdx
+                              ? newDisplayIdx - 1
+                              : newDisplayIdx;
+                          displayIds.insert(insertAt, id);
+                          final actualIds = displayIds.reversed.toList();
+                          ref
+                              .read(vecDocumentStateProvider.notifier)
+                              .reorderLayers(scene.id, actualIds);
+                        },
+                        itemBuilder: (_, displayIdx) {
+                          final n = layers.length;
+                          final layer = layers[n - 1 - displayIdx];
+                          return LayerRow(
+                            key: ValueKey(layer.id),
+                            layer: layer,
+                            sceneId: scene!.id,
+                            isActive: layer.id == activeLayerId,
+                            theme: theme,
+                            index: displayIdx,
+                          );
+                        },
+                      ),
           ),
 
           // ----------------------------------------------------------------
@@ -153,6 +214,58 @@ class LayersPanel extends ConsumerWidget {
                 ],
               ),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+// =============================================================================
+// Search field
+// =============================================================================
+
+class _SearchField extends StatelessWidget {
+  const _SearchField({required this.ctrl, required this.theme});
+
+  final TextEditingController ctrl;
+  final AppTheme theme;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 26,
+      decoration: BoxDecoration(
+        color: theme.surfaceVariant,
+        borderRadius: BorderRadius.circular(5),
+        border: Border.all(color: theme.divider, width: 0.5),
+      ),
+      child: Row(
+        children: [
+          const SizedBox(width: 6),
+          Icon(Icons.search, size: 12, color: theme.textDisabled),
+          const SizedBox(width: 4),
+          Expanded(
+            child: TextField(
+              controller: ctrl,
+              style: TextStyle(fontSize: 11, color: theme.textPrimary),
+              decoration: InputDecoration(
+                hintText: 'Search layers…',
+                hintStyle: TextStyle(fontSize: 11, color: theme.textDisabled),
+                isDense: true,
+                border: InputBorder.none,
+                contentPadding: EdgeInsets.zero,
+              ),
+            ),
+          ),
+          if (ctrl.text.isNotEmpty) ...[
+            GestureDetector(
+              onTap: ctrl.clear,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: Icon(Icons.close, size: 11, color: theme.textDisabled),
+              ),
+            ),
+          ],
         ],
       ),
     );
