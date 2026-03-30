@@ -5,7 +5,7 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Picell",
+            "name": "Vectra",
             "request": "launch",
             "type": "dart",
             "args": [
@@ -13,13 +13,13 @@
             ]
         },
         {
-            "name": "Picell (profile mode)",
+            "name": "Vectra (profile mode)",
             "request": "launch",
             "type": "dart",
             "flutterMode": "profile"
         },
         {
-            "name": "Picell (release mode)",
+            "name": "Vectra (release mode)",
             "request": "launch",
             "type": "dart",
             "flutterMode": "release"

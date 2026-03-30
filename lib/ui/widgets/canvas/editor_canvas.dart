@@ -457,7 +457,11 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
                       ref.read(activeGroupIdProvider.notifier).set(selectedShape.id);
                       ref.read(selectedShapeIdProvider.notifier).clear();
                       ref.read(selectedShapeIdsProvider.notifier).clear();
+                      return;
                     }
+
+                    // All other shapes: double-tap starts inline rename in properties panel.
+                    ref.read(renamingShapeIdProvider.notifier).state = selectedShape.id;
                   }
                 : null,
 
@@ -1147,7 +1151,15 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
     }
 
     // --- Single-select: handle/body/rotate/resize ---
-    if (displaySelectedShape == null) return;
+    // Nothing selected → start marquee immediately.
+    if (displaySelectedShape == null) {
+      setState(() {
+        _isMarqueeDrag = true;
+        _marqueeStartCanvas = canvasPoint;
+        _marqueeCurrentCanvas = canvasPoint;
+      });
+      return;
+    }
     // Use effective canvas-space transform for handle/body testing
     final t = displaySelectedShape.transform;
 

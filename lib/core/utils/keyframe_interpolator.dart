@@ -1,6 +1,7 @@
 import '../../data/models/vec_color.dart';
 import '../../data/models/vec_fill.dart';
 import '../../data/models/vec_keyframe.dart';
+import '../../data/models/vec_point.dart';
 import '../../data/models/vec_shape.dart';
 import '../../data/models/vec_stroke.dart';
 import '../../data/models/vec_transform.dart';
@@ -125,6 +126,18 @@ class KeyframeInterpolator {
   }
 
   static VecTransform _lerpTransform(VecTransform a, VecTransform b, double t) {
+    final VecPoint? pivot;
+    if (a.pivot != null && b.pivot != null) {
+      pivot = VecPoint(
+        x: _ld(a.pivot!.x, b.pivot!.x, t),
+        y: _ld(a.pivot!.y, b.pivot!.y, t),
+      );
+    } else {
+      // If only one keyframe has a pivot, hold the defined value rather than
+      // snapping to null at the midpoint.
+      pivot = a.pivot ?? b.pivot;
+    }
+
     return VecTransform(
       x: _ld(a.x, b.x, t),
       y: _ld(a.y, b.y, t),
@@ -135,6 +148,7 @@ class KeyframeInterpolator {
       scaleY: _ld(a.scaleY, b.scaleY, t),
       skewX: _ld(a.skewX, b.skewX, t),
       skewY: _ld(a.skewY, b.skewY, t),
+      pivot: pivot,
     );
   }
 

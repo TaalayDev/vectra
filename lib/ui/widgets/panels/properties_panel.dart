@@ -29,12 +29,9 @@ class PropertiesPanel extends ConsumerWidget {
       ),
       child: Column(
         children: [
-          PanelHeader(
-            title: selectedIds.length >= 2
-                ? '${selectedIds.length} Selected'
-                : shape != null
-                    ? _shapeTypeName(shape)
-                    : 'Properties',
+          _PropertiesHeader(
+            shape: shape,
+            selectedCount: selectedIds.length,
             theme: theme,
           ),
           Expanded(
@@ -408,16 +405,199 @@ class PropertiesPanel extends ConsumerWidget {
   // Helpers
   // ---------------------------------------------------------------------------
 
-  String _shapeTypeName(VecShape shape) {
-    return shape.map(
-      path: (_) => 'Path',
-      rectangle: (_) => 'Rectangle',
-      ellipse: (_) => 'Ellipse',
-      polygon: (_) => 'Polygon',
-      text: (_) => 'Text',
-      group: (_) => 'Group',
-      symbolInstance: (_) => 'Symbol',
-      compound: (s) => '${s.op.name[0].toUpperCase()}${s.op.name.substring(1)}',
+}
+
+String _shapeTypeNameOf(VecShape shape) {
+  return shape.map(
+    path: (_) => 'Path',
+    rectangle: (_) => 'Rectangle',
+    ellipse: (_) => 'Ellipse',
+    polygon: (_) => 'Polygon',
+    text: (_) => 'Text',
+    group: (_) => 'Group',
+    symbolInstance: (_) => 'Symbol',
+    compound: (s) => '${s.op.name[0].toUpperCase()}${s.op.name.substring(1)}',
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Properties panel header — shows shape name, double-tap to rename
+// ---------------------------------------------------------------------------
+
+class _PropertiesHeader extends ConsumerStatefulWidget {
+  const _PropertiesHeader({
+    required this.shape,
+    required this.selectedCount,
+    required this.theme,
+  });
+
+  final VecShape? shape;
+  final int selectedCount;
+  final AppTheme theme;
+
+  @override
+  ConsumerState<_PropertiesHeader> createState() => _PropertiesHeaderState();
+}
+
+class _PropertiesHeaderState extends ConsumerState<_PropertiesHeader> {
+  final _ctrl = TextEditingController();
+  final _focus = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    _focus.addListener(_onFocusChanged);
+  }
+
+  @override
+  void dispose() {
+    _focus.removeListener(_onFocusChanged);
+    _ctrl.dispose();
+    _focus.dispose();
+    super.dispose();
+  }
+
+  void _onFocusChanged() {
+    if (!_focus.hasFocus) _commitRename();
+  }
+
+  void _startRename() {
+    final shape = widget.shape;
+    if (shape == null) return;
+    _populateController(shape);
+    ref.read(renamingShapeIdProvider.notifier).state = shape.id;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _focus.requestFocus();
+    });
+  }
+
+  void _populateController(VecShape shape) {
+    final name = shape.data.name;
+    _ctrl.text = (name != null && name.isNotEmpty) ? name : _shapeTypeNameOf(shape);
+    _ctrl.selection = TextSelection(baseOffset: 0, extentOffset: _ctrl.text.length);
+  }
+
+  void _commitRename() {
+    final shape = widget.shape;
+    if (shape == null) return;
+    final scene = ref.read(activeSceneProvider);
+    final layerId = ref.read(activeLayerIdProvider);
+    if (scene == null || layerId == null) {
+      ref.read(renamingShapeIdProvider.notifier).state = null;
+      return;
+    }
+
+    final newName = _ctrl.text.trim();
+    final typeName = _shapeTypeNameOf(shape);
+    // Store empty string when user types the type name (means "use type as display")
+    final nameToSave = (newName == typeName) ? '' : newName;
+    final currentName = shape.data.name ?? '';
+
+    if (nameToSave != currentName) {
+      ref.read(vecDocumentStateProvider.notifier).updateShape(
+        scene.id,
+        layerId,
+        shape.id,
+        (s) => s.copyWith(data: s.data.copyWith(name: nameToSave)),
+      );
+    }
+    ref.read(renamingShapeIdProvider.notifier).state = null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final renamingId = ref.watch(renamingShapeIdProvider);
+    final shape = widget.shape;
+    final isRenaming = shape != null && renamingId == shape.id;
+
+    // React to external rename trigger (from canvas double-tap)
+    ref.listen<String?>(renamingShapeIdProvider, (prev, next) {
+      if (next != null && next == shape?.id && prev != next) {
+        _populateController(shape!);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _focus.requestFocus();
+        });
+      }
+    });
+
+    // Multi-select or no selection
+    if (widget.selectedCount >= 2 || shape == null) {
+      return PanelHeader(
+        title: widget.selectedCount >= 2 ? '${widget.selectedCount} Selected' : 'Properties',
+        theme: widget.theme,
+      );
+    }
+
+    final customName = shape.data.name;
+    final hasCustomName = customName != null && customName.isNotEmpty;
+    final displayName = hasCustomName ? customName : _shapeTypeNameOf(shape);
+
+    if (isRenaming) {
+      return Container(
+        height: 32,
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        decoration: BoxDecoration(
+          color: widget.theme.surfaceVariant,
+          border: Border(bottom: BorderSide(color: widget.theme.divider, width: 0.5)),
+        ),
+        child: Center(
+          child: TextField(
+            controller: _ctrl,
+            focusNode: _focus,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: widget.theme.textPrimary,
+              letterSpacing: 0.3,
+            ),
+            decoration: InputDecoration(
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+              filled: true,
+              fillColor: widget.theme.surface,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(3),
+                borderSide: BorderSide(color: widget.theme.primaryColor, width: 1),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(3),
+                borderSide: BorderSide(color: widget.theme.primaryColor, width: 1.5),
+              ),
+            ),
+            onSubmitted: (_) => _commitRename(),
+            onTapOutside: (_) => _commitRename(),
+          ),
+        ),
+      );
+    }
+
+    return GestureDetector(
+      onDoubleTap: _startRename,
+      child: Container(
+        height: 32,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: widget.theme.surfaceVariant,
+          border: Border(bottom: BorderSide(color: widget.theme.divider, width: 0.5)),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                displayName.toUpperCase(),
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: hasCustomName ? widget.theme.textPrimary : widget.theme.textSecondary,
+                  letterSpacing: 1.2,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            Icon(Icons.edit_outlined, size: 10, color: widget.theme.textDisabled.withAlpha(100)),
+          ],
+        ),
+      ),
     );
   }
 }

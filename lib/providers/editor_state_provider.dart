@@ -163,6 +163,10 @@ class IsPlaying extends _$IsPlaying {
   void set(bool value) => state = value;
 }
 
+/// The ID of the shape whose name is currently being edited inline.
+/// Set to a shape ID to enter rename mode; null to exit.
+final renamingShapeIdProvider = StateProvider<String?>((ref) => null);
+
 /// The ID of the group shape currently being edited in isolate mode.
 /// Null when not in group-edit mode.
 @riverpod
@@ -194,24 +198,28 @@ class SnapSettings {
     this.toGrid = false,
     this.toObjects = true,
     this.showRulers = true,
+    this.showGrid = false,
     this.gridSize = 8,
   });
 
   final bool toGrid;
   final bool toObjects;
   final bool showRulers;
+  final bool showGrid;
   final int gridSize;
 
   SnapSettings copyWith({
     bool? toGrid,
     bool? toObjects,
     bool? showRulers,
+    bool? showGrid,
     int? gridSize,
   }) =>
       SnapSettings(
         toGrid: toGrid ?? this.toGrid,
         toObjects: toObjects ?? this.toObjects,
         showRulers: showRulers ?? this.showRulers,
+        showGrid: showGrid ?? this.showGrid,
         gridSize: gridSize ?? this.gridSize,
       );
 }
@@ -222,12 +230,70 @@ class SnapSettingsNotifier extends StateNotifier<SnapSettings> {
   void toggleGrid() => state = state.copyWith(toGrid: !state.toGrid);
   void toggleObjects() => state = state.copyWith(toObjects: !state.toObjects);
   void toggleRulers() => state = state.copyWith(showRulers: !state.showRulers);
+  void toggleShowGrid() => state = state.copyWith(showGrid: !state.showGrid);
   void setGridSize(int size) => state = state.copyWith(gridSize: size);
 }
 
 final snapSettingsProvider =
     StateNotifierProvider<SnapSettingsNotifier, SnapSettings>(
   (ref) => SnapSettingsNotifier(),
+);
+
+// ---------------------------------------------------------------------------
+// Canvas guides (dragged from rulers)
+// ---------------------------------------------------------------------------
+
+class GuidesState {
+  const GuidesState({
+    this.horizontal = const [],
+    this.vertical = const [],
+  });
+
+  /// Canvas-coordinate Y positions of horizontal guides (y = constant lines).
+  final List<double> horizontal;
+
+  /// Canvas-coordinate X positions of vertical guides (x = constant lines).
+  final List<double> vertical;
+
+  GuidesState copyWith({List<double>? horizontal, List<double>? vertical}) =>
+      GuidesState(
+        horizontal: horizontal ?? this.horizontal,
+        vertical: vertical ?? this.vertical,
+      );
+}
+
+class GuidesNotifier extends StateNotifier<GuidesState> {
+  GuidesNotifier() : super(const GuidesState());
+
+  void addHorizontal(double y) =>
+      state = state.copyWith(horizontal: [...state.horizontal, y]);
+  void addVertical(double x) =>
+      state = state.copyWith(vertical: [...state.vertical, x]);
+
+  void removeHorizontal(double y) =>
+      state = state.copyWith(
+        horizontal: state.horizontal.where((v) => (v - y).abs() > 0.01).toList(),
+      );
+  void removeVertical(double x) =>
+      state = state.copyWith(
+        vertical: state.vertical.where((v) => (v - x).abs() > 0.01).toList(),
+      );
+
+  void moveHorizontal(double oldY, double newY) =>
+      state = state.copyWith(
+        horizontal: [for (final y in state.horizontal) (y - oldY).abs() < 0.5 ? newY : y],
+      );
+  void moveVertical(double oldX, double newX) =>
+      state = state.copyWith(
+        vertical: [for (final x in state.vertical) (x - oldX).abs() < 0.5 ? newX : x],
+      );
+
+  void clear() => state = const GuidesState();
+}
+
+final guidesProvider =
+    StateNotifierProvider<GuidesNotifier, GuidesState>(
+  (ref) => GuidesNotifier(),
 );
 
 // ---------------------------------------------------------------------------

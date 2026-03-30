@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
@@ -63,7 +64,8 @@ class FrameGrid extends ConsumerStatefulWidget {
   ConsumerState<FrameGrid> createState() => _FrameGridState();
 }
 
-class _FrameGridState extends ConsumerState<FrameGrid> {
+class _FrameGridState extends ConsumerState<FrameGrid>
+    with SingleTickerProviderStateMixin {
   int _hoverFrame = -1;
   int _hoverRow = -1;
 
@@ -76,6 +78,73 @@ class _FrameGridState extends ConsumerState<FrameGrid> {
   int _dragPreviewFrame = -1;
   // duration
   int _previewDuration = -1;
+
+  // Auto-scroll during duration drag
+  double _viewportWidth = 400;
+  Offset _lastDurationDragPos = Offset.zero;
+  Ticker? _autoScrollTicker;
+  Duration? _autoScrollPrevTime;
+  /// Independent canvas-X accumulator so duration grows even when
+  /// maxScrollExtent is 0 (content not yet expanded).
+  double _targetCanvasX = 0;
+  static const _autoScrollZone = 48.0; // px from right edge to trigger
+  static const _autoScrollSpeed = 240.0; // canvas px per second
+
+  @override
+  void dispose() {
+    _stopAutoScroll();
+    super.dispose();
+  }
+
+  void _startAutoScroll() {
+    if (_autoScrollTicker?.isActive == true) return;
+    _autoScrollTicker?.dispose();
+    _autoScrollPrevTime = null;
+    // Seed the accumulator at current canvas position so duration doesn't jump
+    _targetCanvasX = _lastDurationDragPos.dx + _scrollOffset;
+    _autoScrollTicker = createTicker(_onAutoScrollTick)..start();
+  }
+
+  void _stopAutoScroll() {
+    _autoScrollTicker?.dispose();
+    _autoScrollTicker = null;
+    _autoScrollPrevTime = null;
+  }
+
+  void _onAutoScrollTick(Duration elapsed) {
+    if (_dragMode != _DragMode.duration || !mounted) {
+      _stopAutoScroll();
+      return;
+    }
+
+    // Compute delta time
+    final prev = _autoScrollPrevTime;
+    _autoScrollPrevTime = elapsed;
+    if (prev == null) return; // skip first tick (no dt yet)
+    final dt = (elapsed - prev).inMicroseconds / 1e6;
+
+    // Grow the independent canvas-X accumulator.  This drives the preview
+    // duration regardless of whether the scroll controller has caught up yet.
+    _targetCanvasX += _autoScrollSpeed * dt;
+
+    final newDuration =
+        (_targetCanvasX / FrameGrid.frameWidth).round().clamp(1, 9999);
+
+    if (newDuration != _previewDuration) {
+      setState(() => _previewDuration = newDuration);
+    }
+
+    // After the frame is rebuilt (content is now wider), scroll to follow.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final sc = widget.scrollController;
+      if (sc == null || !sc.hasClients) return;
+      // Target: keep the duration handle roughly 80 % from the left edge.
+      final targetOffset = _targetCanvasX - _viewportWidth * 0.8;
+      if (targetOffset > sc.offset) {
+        sc.jumpTo(targetOffset.clamp(0.0, sc.position.maxScrollExtent));
+      }
+    });
+  }
 
   double get _scrollOffset =>
       widget.scrollController?.hasClients == true
@@ -143,6 +212,21 @@ class _FrameGridState extends ConsumerState<FrameGrid> {
       if (t.shapeId != null) trackMap[t.shapeId!] = t;
     }
 
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        _viewportWidth = constraints.maxWidth;
+        return _buildContent(trackMap, playhead, selectedKf, effectiveDuration, totalWidth);
+      },
+    );
+  }
+
+  Widget _buildContent(
+    Map<String, VecTrack> trackMap,
+    int playhead,
+    int selectedKf,
+    int effectiveDuration,
+    double totalWidth,
+  ) {
     return MouseRegion(
       onHover: (e) {
         final canvasX = e.localPosition.dx + _scrollOffset;
@@ -236,10 +320,21 @@ class _FrameGridState extends ConsumerState<FrameGrid> {
         setState(() => _dragPreviewFrame = frame);
         ref.read(playheadFrameProvider.notifier).set(frame);
       case _DragMode.duration:
-        final canvasX = localPos.dx + _scrollOffset;
-        final newDuration =
-            (canvasX / FrameGrid.frameWidth).round().clamp(1, 9999);
-        setState(() => _previewDuration = newDuration);
+        _lastDurationDragPos = localPos;
+        // Auto-scroll when pointer is near the right edge of the viewport
+        if (localPos.dx >= _viewportWidth - _autoScrollZone) {
+          _startAutoScroll();
+        } else {
+          _stopAutoScroll();
+          // Pointer is not in auto-scroll zone — drive duration directly from
+          // the pointer and keep _targetCanvasX in sync so re-entering the
+          // zone doesn't jump.
+          final canvasX = localPos.dx + _scrollOffset;
+          _targetCanvasX = canvasX;
+          final newDuration =
+              (canvasX / FrameGrid.frameWidth).round().clamp(1, 9999);
+          setState(() => _previewDuration = newDuration);
+        }
       case _DragMode.none:
         break;
     }
@@ -273,6 +368,7 @@ class _FrameGridState extends ConsumerState<FrameGrid> {
           _dragPreviewFrame = -1;
         });
       case _DragMode.duration:
+        _stopAutoScroll();
         if (_previewDuration > 0) {
           final scene = ref.read(activeSceneProvider);
           if (scene != null) {

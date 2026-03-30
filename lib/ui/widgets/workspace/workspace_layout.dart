@@ -27,14 +27,11 @@ class WorkspaceLayout extends ConsumerWidget {
       children: [
         Column(
           children: [
-            // Toolbar
             EditorToolbar(theme: theme),
 
-            // Main content area
             Expanded(
               child: Row(
                 children: [
-                  // Left: Layers/Symbols tabbed panel or collapse strip
                   if (panels.layers)
                     SizedBox(width: 240, child: _LeftPanel(theme: theme))
                   else
@@ -44,10 +41,8 @@ class WorkspaceLayout extends ConsumerWidget {
                       onTap: () => ref.read(panelVisibilityProvider.notifier).toggleLayers(),
                     ),
 
-                  // Center: Canvas
                   Expanded(child: EditorCanvas(theme: theme)),
 
-                  // Right: Properties panel or collapse strip
                   if (panels.properties)
                     SizedBox(width: 280, child: PropertiesPanel(theme: theme))
                   else
@@ -61,10 +56,8 @@ class WorkspaceLayout extends ConsumerWidget {
               ),
             ),
 
-            // Scene tabs bar
             SceneTabsBar(theme: theme),
 
-            // Bottom: Timeline or collapse strip
             if (panels.timeline)
               SizedBox(
                 height: timelineHeight,
@@ -92,10 +85,6 @@ class WorkspaceLayout extends ConsumerWidget {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Left panel — Layers / Symbols tab switcher
-// ---------------------------------------------------------------------------
-
 class _LeftPanel extends ConsumerStatefulWidget {
   const _LeftPanel({required this.theme});
   final AppTheme theme;
@@ -117,7 +106,6 @@ class _LeftPanelState extends ConsumerState<_LeftPanel> {
       ),
       child: Column(
         children: [
-          // Tab bar
           Container(
             height: 28,
             decoration: BoxDecoration(
@@ -177,7 +165,6 @@ class _Tab extends StatelessWidget {
   }
 }
 
-/// Vertical collapse strip for side panels (24px wide).
 class _PanelCollapseStrip extends StatelessWidget {
   const _PanelCollapseStrip({required this.label, required this.theme, required this.onTap, this.alignRight = false});
 
@@ -231,7 +218,6 @@ class _PanelCollapseStrip extends StatelessWidget {
   }
 }
 
-/// Horizontal collapse strip for the timeline (24px tall).
 class _HorizontalCollapseStrip extends StatelessWidget {
   const _HorizontalCollapseStrip({required this.label, required this.theme, required this.onTap});
 

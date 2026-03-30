@@ -3,12 +3,15 @@ import 'dart:math' as math;
 import '../../data/models/vec_color.dart';
 import '../../data/models/vec_document.dart';
 import '../../data/models/vec_fill.dart';
+import '../../data/models/vec_keyframe.dart';
 import '../../data/models/vec_layer.dart';
 import '../../data/models/vec_path_node.dart';
 import '../../data/models/vec_scene.dart';
 import '../../data/models/vec_shape.dart';
 import '../../data/models/vec_stroke.dart';
 import '../../data/models/vec_symbol.dart';
+import '../../data/models/vec_timeline.dart';
+import '../../data/models/vec_track.dart';
 import '../../data/models/vec_transform.dart';
 
 /// Exports a [VecScene] to an SVG string.
