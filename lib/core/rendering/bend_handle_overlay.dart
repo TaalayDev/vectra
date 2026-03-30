@@ -14,12 +14,7 @@ import '../tools/select_tool_handler.dart';
 /// Dragging H updates both C1 and C2 so the Bézier passes through H at t=0.5
 /// using a symmetric quadratic-to-cubic conversion.
 class BendHandleOverlayPainter extends CustomPainter {
-  BendHandleOverlayPainter({
-    required this.shape,
-    required this.zoom,
-    required this.isHovered,
-    required this.color,
-  });
+  BendHandleOverlayPainter({required this.shape, required this.zoom, required this.isHovered, required this.color});
 
   final VecPathShape shape;
   final double zoom;
@@ -62,8 +57,7 @@ class BendHandleOverlayPainter extends CustomPainter {
   static int hitTestHandle(VecPathShape shape, double zoom, Offset canvasPoint) {
     final localPos = bendHandleLocalPos(shape);
     if (localPos == null) return -1;
-    final canvasPos =
-        SelectToolHandler.localToCanvas(shape.data.transform, localPos);
+    final canvasPos = SelectToolHandler.localToCanvas(shape.data.transform, localPos);
     final hitRadius = 8.0 / zoom;
     return (canvasPoint - canvasPos).distance < hitRadius ? 0 : -1;
   }
@@ -162,10 +156,7 @@ class BendHandleOverlayPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant BendHandleOverlayPainter old) =>
-      old.shape != shape ||
-      old.zoom != zoom ||
-      old.isHovered != isHovered ||
-      old.color != color;
+      old.shape != shape || old.zoom != zoom || old.isHovered != isHovered || old.color != color;
 }
 
 // =============================================================================
@@ -207,10 +198,7 @@ class SegmentBendOverlayPainter extends CustomPainter {
 
   static Offset _evalCubic(Offset p0, Offset c1, Offset c2, Offset p1, double t) {
     final mt = 1.0 - t;
-    return p0 * (mt * mt * mt) +
-        c1 * (3 * mt * mt * t) +
-        c2 * (3 * mt * t * t) +
-        p1 * (t * t * t);
+    return p0 * (mt * mt * mt) + c1 * (3 * mt * mt * t) + c2 * (3 * mt * t * t) + p1 * (t * t * t);
   }
 
   /// Returns the midpoint (t = 0.5) of segment [segmentIndex] in **local**
@@ -345,8 +333,5 @@ class SegmentBendOverlayPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant SegmentBendOverlayPainter old) =>
-      old.shape != shape ||
-      old.zoom != zoom ||
-      old.hoveredSegment != hoveredSegment ||
-      old.color != color;
+      old.shape != shape || old.zoom != zoom || old.hoveredSegment != hoveredSegment || old.color != color;
 }
