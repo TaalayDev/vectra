@@ -18,6 +18,7 @@ class ToolButtonGroup extends ConsumerWidget {
     (VecTool.ellipse, Icons.circle_outlined, 'Ellipse (E)'),
     (VecTool.text, Icons.text_fields, 'Text (T)'),
     (VecTool.width, Icons.line_weight, 'Width (W)'),
+    (VecTool.bend, Icons.architecture, 'Bend (U)'),
   ];
 
   @override

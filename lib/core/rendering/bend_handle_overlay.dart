@@ -234,6 +234,107 @@ class SegmentBendOverlayPainter extends CustomPainter {
     return -1;
   }
 
+  /// Returns the index of the nearest segment whose curve passes within
+  /// [thresholdPx] / [zoom] canvas-space units of [canvasPoint], or -1 if
+  /// none is close enough.  Uses 20-sample uniform search along the Bézier.
+  static int nearestSegmentToPoint(VecPathShape shape, double zoom, Offset canvasPoint, {double thresholdPx = 20.0}) {
+    final count = _segmentCount(shape);
+    if (count == 0) return -1;
+    final tr = shape.data.transform;
+    final hitRadius = thresholdPx / zoom;
+    final n = shape.nodes.length;
+    var nearestIdx = -1;
+    var nearestDist = double.infinity;
+    for (var i = 0; i < count; i++) {
+      final i1 = (i + 1) % n;
+      final nd0 = shape.nodes[i];
+      final nd1 = shape.nodes[i1];
+      final p0 = SelectToolHandler.localToCanvas(tr, Offset(nd0.position.x, nd0.position.y));
+      final p1 = SelectToolHandler.localToCanvas(tr, Offset(nd1.position.x, nd1.position.y));
+      final c1 = nd0.handleOut != null
+          ? SelectToolHandler.localToCanvas(tr, Offset(nd0.handleOut!.x, nd0.handleOut!.y))
+          : p0;
+      final c2 = nd1.handleIn != null
+          ? SelectToolHandler.localToCanvas(tr, Offset(nd1.handleIn!.x, nd1.handleIn!.y))
+          : p1;
+      final dist = _nearestDistOnCubic(p0, c1, c2, p1, canvasPoint);
+      if (dist < nearestDist) {
+        nearestDist = dist;
+        nearestIdx = i;
+      }
+    }
+    return nearestDist < hitRadius ? nearestIdx : -1;
+  }
+
+  static double _nearestDistOnCubic(Offset p0, Offset c1, Offset c2, Offset p1, Offset query) {
+    var minDist = double.infinity;
+    for (var j = 0; j <= 20; j++) {
+      final pt = _evalCubic(p0, c1, c2, p1, j / 20.0);
+      final d = (pt - query).distance;
+      if (d < minDist) minDist = d;
+    }
+    return minDist;
+  }
+
+  /// Finds the parameter t ∈ [0,1] on segment [segIndex] of [shape] (in local
+  /// space) that is closest to [localPoint].
+  static double nearestTOnSegment(VecPathShape shape, int segIndex, Offset localPoint) {
+    final n = shape.nodes.length;
+    final i1 = (segIndex + 1) % n;
+    final nd0 = shape.nodes[segIndex];
+    final nd1 = shape.nodes[i1];
+    final p0 = Offset(nd0.position.x, nd0.position.y);
+    final p1 = Offset(nd1.position.x, nd1.position.y);
+    final c1 = nd0.handleOut != null ? Offset(nd0.handleOut!.x, nd0.handleOut!.y) : p0;
+    final c2 = nd1.handleIn != null ? Offset(nd1.handleIn!.x, nd1.handleIn!.y) : p1;
+    // Coarse pass: 20 uniform samples.
+    var bestT = 0.5;
+    var bestDist = double.infinity;
+    for (var j = 0; j <= 20; j++) {
+      final tt = j / 20.0;
+      final d = (_evalCubic(p0, c1, c2, p1, tt) - localPoint).distance;
+      if (d < bestDist) {
+        bestDist = d;
+        bestT = tt;
+      }
+    }
+    // Refine with bisection.
+    var lo = (bestT - 0.05).clamp(0.0, 1.0);
+    var hi = (bestT + 0.05).clamp(0.0, 1.0);
+    for (var k = 0; k < 10; k++) {
+      final mid = (lo + hi) / 2;
+      final dLo = (_evalCubic(p0, c1, c2, p1, lo) - localPoint).distance;
+      final dHi = (_evalCubic(p0, c1, c2, p1, hi) - localPoint).distance;
+      if (dLo < dHi) {
+        hi = mid;
+      } else {
+        lo = mid;
+      }
+    }
+    return (lo + hi) / 2;
+  }
+
+  /// De Casteljau subdivision of a cubic Bézier at parameter [t].
+  ///
+  /// Returns `(leftC1, leftC2, midPt, rightC1, rightC2)` where:
+  /// - Left sub-segment:  p0 → [leftC1,  leftC2]  → midPt
+  /// - Right sub-segment: midPt → [rightC1, rightC2] → p1
+  static (Offset, Offset, Offset, Offset, Offset) subdivideSegment(
+    Offset p0,
+    Offset c1,
+    Offset c2,
+    Offset p1,
+    double t,
+  ) {
+    final m0 = Offset.lerp(p0, c1, t)!;
+    final m1 = Offset.lerp(c1, c2, t)!;
+    final m2 = Offset.lerp(c2, p1, t)!;
+    final n0 = Offset.lerp(m0, m1, t)!;
+    final n1 = Offset.lerp(m1, m2, t)!;
+    final midPt = Offset.lerp(n0, n1, t)!;
+    return (m0, n0, midPt, n1, m2);
+  }
+
   // ---------------------------------------------------------------------------
   // Painting
   // ---------------------------------------------------------------------------
