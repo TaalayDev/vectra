@@ -53,9 +53,7 @@ class ZoomLevel extends _$ZoomLevel {
     const padding = 48.0;
     final scaleX = (viewportWidth - padding * 2) / stageWidth;
     final scaleY = (viewportHeight - padding * 2) / stageHeight;
-    state = scaleX.clamp(_min, _max) < scaleY.clamp(_min, _max)
-        ? scaleX.clamp(_min, _max)
-        : scaleY.clamp(_min, _max);
+    state = scaleX.clamp(_min, _max) < scaleY.clamp(_min, _max) ? scaleX.clamp(_min, _max) : scaleY.clamp(_min, _max);
   }
 }
 
@@ -65,8 +63,7 @@ class UndoAvailability extends _$UndoAvailability {
   @override
   ({bool canUndo, bool canRedo}) build() => (canUndo: false, canRedo: false);
 
-  void update({required bool canUndo, required bool canRedo}) =>
-      state = (canUndo: canUndo, canRedo: canRedo);
+  void update({required bool canUndo, required bool canRedo}) => state = (canUndo: canUndo, canRedo: canRedo);
 }
 
 /// Incremented to request a zoom-to-fit from the canvas.
@@ -102,15 +99,11 @@ class CursorPosition extends _$CursorPosition {
 @riverpod
 class PanelVisibility extends _$PanelVisibility {
   @override
-  ({bool layers, bool properties, bool timeline}) build() =>
-      (layers: true, properties: true, timeline: true);
+  ({bool layers, bool properties, bool timeline}) build() => (layers: true, properties: true, timeline: true);
 
-  void toggleLayers() =>
-      state = (layers: !state.layers, properties: state.properties, timeline: state.timeline);
-  void toggleProperties() =>
-      state = (layers: state.layers, properties: !state.properties, timeline: state.timeline);
-  void toggleTimeline() =>
-      state = (layers: state.layers, properties: state.properties, timeline: !state.timeline);
+  void toggleLayers() => state = (layers: !state.layers, properties: state.properties, timeline: state.timeline);
+  void toggleProperties() => state = (layers: state.layers, properties: !state.properties, timeline: state.timeline);
+  void toggleTimeline() => state = (layers: state.layers, properties: state.properties, timeline: !state.timeline);
   void toggleAll() {
     final allVisible = state.layers && state.properties && state.timeline;
     state = (layers: !allVisible, properties: !allVisible, timeline: !allVisible);
@@ -146,8 +139,8 @@ class SelectedShapeIds extends _$SelectedShapeIds {
   void add(String id) {
     if (!state.contains(id)) state = [...state, id];
   }
-  void remove(String id) =>
-      state = state.where((s) => s != id).toList(growable: false);
+
+  void remove(String id) => state = state.where((s) => s != id).toList(growable: false);
   void setAll(List<String> ids) => state = List.unmodifiable(ids);
   void clear() => state = const [];
 }
@@ -211,13 +204,7 @@ class SnapSettings {
   final bool showGrid;
   final int gridSize;
 
-  SnapSettings copyWith({
-    bool? toGrid,
-    bool? toObjects,
-    bool? showRulers,
-    bool? showGrid,
-    int? gridSize,
-  }) =>
+  SnapSettings copyWith({bool? toGrid, bool? toObjects, bool? showRulers, bool? showGrid, int? gridSize}) =>
       SnapSettings(
         toGrid: toGrid ?? this.toGrid,
         toObjects: toObjects ?? this.toObjects,
@@ -237,20 +224,14 @@ class SnapSettingsNotifier extends StateNotifier<SnapSettings> {
   void setGridSize(int size) => state = state.copyWith(gridSize: size);
 }
 
-final snapSettingsProvider =
-    StateNotifierProvider<SnapSettingsNotifier, SnapSettings>(
-  (ref) => SnapSettingsNotifier(),
-);
+final snapSettingsProvider = StateNotifierProvider<SnapSettingsNotifier, SnapSettings>((ref) => SnapSettingsNotifier());
 
 // ---------------------------------------------------------------------------
 // Canvas guides (dragged from rulers)
 // ---------------------------------------------------------------------------
 
 class GuidesState {
-  const GuidesState({
-    this.horizontal = const [],
-    this.vertical = const [],
-  });
+  const GuidesState({this.horizontal = const [], this.vertical = const []});
 
   /// Canvas-coordinate Y positions of horizontal guides (y = constant lines).
   final List<double> horizontal;
@@ -259,45 +240,29 @@ class GuidesState {
   final List<double> vertical;
 
   GuidesState copyWith({List<double>? horizontal, List<double>? vertical}) =>
-      GuidesState(
-        horizontal: horizontal ?? this.horizontal,
-        vertical: vertical ?? this.vertical,
-      );
+      GuidesState(horizontal: horizontal ?? this.horizontal, vertical: vertical ?? this.vertical);
 }
 
 class GuidesNotifier extends StateNotifier<GuidesState> {
   GuidesNotifier() : super(const GuidesState());
 
-  void addHorizontal(double y) =>
-      state = state.copyWith(horizontal: [...state.horizontal, y]);
-  void addVertical(double x) =>
-      state = state.copyWith(vertical: [...state.vertical, x]);
+  void addHorizontal(double y) => state = state.copyWith(horizontal: [...state.horizontal, y]);
+  void addVertical(double x) => state = state.copyWith(vertical: [...state.vertical, x]);
 
   void removeHorizontal(double y) =>
-      state = state.copyWith(
-        horizontal: state.horizontal.where((v) => (v - y).abs() > 0.01).toList(),
-      );
+      state = state.copyWith(horizontal: state.horizontal.where((v) => (v - y).abs() > 0.01).toList());
   void removeVertical(double x) =>
-      state = state.copyWith(
-        vertical: state.vertical.where((v) => (v - x).abs() > 0.01).toList(),
-      );
+      state = state.copyWith(vertical: state.vertical.where((v) => (v - x).abs() > 0.01).toList());
 
   void moveHorizontal(double oldY, double newY) =>
-      state = state.copyWith(
-        horizontal: [for (final y in state.horizontal) (y - oldY).abs() < 0.5 ? newY : y],
-      );
+      state = state.copyWith(horizontal: [for (final y in state.horizontal) (y - oldY).abs() < 0.5 ? newY : y]);
   void moveVertical(double oldX, double newX) =>
-      state = state.copyWith(
-        vertical: [for (final x in state.vertical) (x - oldX).abs() < 0.5 ? newX : x],
-      );
+      state = state.copyWith(vertical: [for (final x in state.vertical) (x - oldX).abs() < 0.5 ? newX : x]);
 
   void clear() => state = const GuidesState();
 }
 
-final guidesProvider =
-    StateNotifierProvider<GuidesNotifier, GuidesState>(
-  (ref) => GuidesNotifier(),
-);
+final guidesProvider = StateNotifierProvider<GuidesNotifier, GuidesState>((ref) => GuidesNotifier());
 
 // ---------------------------------------------------------------------------
 // Derived state providers

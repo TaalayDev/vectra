@@ -584,9 +584,9 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
                               theme: theme,
                             );
                             if (picked != null) {
-                              ref.read(vecDocumentStateProvider.notifier).updateMeta(
-                                    meta.copyWith(backgroundColor: VecColor.fromFlutterColor(picked)),
-                                  );
+                              ref
+                                  .read(vecDocumentStateProvider.notifier)
+                                  .updateMeta(meta.copyWith(backgroundColor: VecColor.fromFlutterColor(picked)));
                             }
                           },
                         ),
@@ -1512,12 +1512,9 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
     // Update drag info overlay label
     if (newCanvasTransform != null) {
       _dragInfoText = switch (_selectDragMode) {
-        _SelectDragMode.move =>
-          'X ${newCanvasTransform.x.round()}  Y ${newCanvasTransform.y.round()}',
-        _SelectDragMode.resizeHandle =>
-          '${newCanvasTransform.width.round()} × ${newCanvasTransform.height.round()}',
-        _SelectDragMode.rotate =>
-          '${(newCanvasTransform.rotation % 360).toStringAsFixed(1)}°',
+        _SelectDragMode.move => 'X ${newCanvasTransform.x.round()}  Y ${newCanvasTransform.y.round()}',
+        _SelectDragMode.resizeHandle => '${newCanvasTransform.width.round()} × ${newCanvasTransform.height.round()}',
+        _SelectDragMode.rotate => '${(newCanvasTransform.rotation % 360).toStringAsFixed(1)}°',
         _ => null,
       };
       _dragInfoPos = details.localPosition;
@@ -1793,13 +1790,7 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
       final sCY = bbox.center.dy;
 
       // X-axis alignment candidates: left-left, left-right, right-left, right-right, cx-cx
-      for (final pair in [
-        (dLeft, sLeft),
-        (dLeft, sRight),
-        (dRight, sLeft),
-        (dRight, sRight),
-        (dCX, sCX),
-      ]) {
+      for (final pair in [(dLeft, sLeft), (dLeft, sRight), (dRight, sLeft), (dRight, sRight), (dCX, sCX)]) {
         final diff = pair.$2 - pair.$1;
         if (diff.abs() < threshold) {
           if (bestAbsDx == null || diff.abs() < bestAbsDx) {
@@ -1810,13 +1801,7 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
       }
 
       // Y-axis alignment candidates
-      for (final pair in [
-        (dTop, sTop),
-        (dTop, sBottom),
-        (dBottom, sTop),
-        (dBottom, sBottom),
-        (dCY, sCY),
-      ]) {
+      for (final pair in [(dTop, sTop), (dTop, sBottom), (dBottom, sTop), (dBottom, sBottom), (dCY, sCY)]) {
         final diff = pair.$2 - pair.$1;
         if (diff.abs() < threshold) {
           if (bestAbsDy == null || diff.abs() < bestAbsDy) {
@@ -1980,7 +1965,9 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
     final cy = bounds.center.dy;
 
     ref.read(zoomLevelProvider.notifier).set(targetZoom);
-    ref.read(canvasOffsetProvider.notifier).set(
+    ref
+        .read(canvasOffsetProvider.notifier)
+        .set(
           Offset(
             meta.stageWidth * targetZoom / 2 - cx * targetZoom,
             meta.stageHeight * targetZoom / 2 - cy * targetZoom,
@@ -2325,12 +2312,7 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
 }
 
 class _SceneTag extends StatelessWidget {
-  const _SceneTag({
-    required this.name,
-    required this.color,
-    required this.theme,
-    required this.onPickColor,
-  });
+  const _SceneTag({required this.name, required this.color, required this.theme, required this.onPickColor});
 
   final String name;
   final Color color;
@@ -2351,12 +2333,7 @@ class _SceneTag extends StatelessWidget {
         children: [
           Text(
             name,
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-              color: theme.textSecondary,
-              letterSpacing: 0.6,
-            ),
+            style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: theme.textSecondary, letterSpacing: 0.6),
           ),
           const SizedBox(width: 8),
           GestureDetector(
@@ -2634,10 +2611,7 @@ class _GroupEditBanner extends ConsumerWidget {
             const SizedBox(width: 6),
             Text(
               'Editing: $groupName',
-              style: TextStyle(
-                  color: theme.onPrimary,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600),
+              style: TextStyle(color: theme.onPrimary, fontSize: 11, fontWeight: FontWeight.w600),
             ),
             const Spacer(),
             GestureDetector(
@@ -2651,10 +2625,7 @@ class _GroupEditBanner extends ConsumerWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      'Exit Group',
-                      style: TextStyle(color: theme.onPrimary, fontSize: 11),
-                    ),
+                    Text('Exit Group', style: TextStyle(color: theme.onPrimary, fontSize: 11)),
                     const SizedBox(width: 4),
                     Icon(Icons.close, size: 12, color: theme.onPrimary),
                   ],
@@ -2674,12 +2645,7 @@ class _GroupEditBanner extends ConsumerWidget {
 
 /// A single alignment guide line (in canvas coordinates).
 class _SnapGuide {
-  const _SnapGuide({
-    required this.isVertical,
-    required this.pos,
-    required this.extStart,
-    required this.extEnd,
-  });
+  const _SnapGuide({required this.isVertical, required this.pos, required this.extStart, required this.extEnd});
 
   /// true = vertical line (x = pos), false = horizontal line (y = pos)
   final bool isVertical;
@@ -2695,12 +2661,7 @@ class _SnapGuide {
 }
 
 class _SmartGuidePainter extends CustomPainter {
-  const _SmartGuidePainter({
-    required this.guides,
-    required this.stageLeft,
-    required this.stageTop,
-    required this.zoom,
-  });
+  const _SmartGuidePainter({required this.guides, required this.stageLeft, required this.stageTop, required this.zoom});
 
   final List<_SnapGuide> guides;
   final double stageLeft;
@@ -2720,22 +2681,14 @@ class _SmartGuidePainter extends CustomPainter {
         if (sx < 0 || sx > size.width) continue;
         final syStart = stageTop + g.extStart * zoom;
         final syEnd = stageTop + g.extEnd * zoom;
-        canvas.drawLine(
-          Offset(sx, syStart.clamp(0.0, size.height)),
-          Offset(sx, syEnd.clamp(0.0, size.height)),
-          paint,
-        );
+        canvas.drawLine(Offset(sx, syStart.clamp(0.0, size.height)), Offset(sx, syEnd.clamp(0.0, size.height)), paint);
       } else {
         // Horizontal line at canvas-y = g.pos
         final sy = stageTop + g.pos * zoom;
         if (sy < 0 || sy > size.height) continue;
         final sxStart = stageLeft + g.extStart * zoom;
         final sxEnd = stageLeft + g.extEnd * zoom;
-        canvas.drawLine(
-          Offset(sxStart.clamp(0.0, size.width), sy),
-          Offset(sxEnd.clamp(0.0, size.width), sy),
-          paint,
-        );
+        canvas.drawLine(Offset(sxStart.clamp(0.0, size.width), sy), Offset(sxEnd.clamp(0.0, size.width), sy), paint);
       }
     }
   }

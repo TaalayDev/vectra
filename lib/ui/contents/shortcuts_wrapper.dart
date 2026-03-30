@@ -222,8 +222,7 @@ class _ShortcutsWrapperState extends State<ShortcutsWrapper> {
 
     // Handle Enter key (without modifiers — Ctrl+Enter is in shortcuts map)
     if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.enter) {
-      if (!HardwareKeyboard.instance.isControlPressed &&
-          !HardwareKeyboard.instance.isMetaPressed) {
+      if (!HardwareKeyboard.instance.isControlPressed && !HardwareKeyboard.instance.isMetaPressed) {
         widget.onEnter?.call();
       }
     }

@@ -11,15 +11,15 @@ import '../common/panel_header.dart';
 import 'layer_row.dart';
 
 String _shapeDisplayName(VecShape shape) => shape.map(
-      path: (_) => 'Path',
-      rectangle: (_) => 'Rectangle',
-      ellipse: (_) => 'Ellipse',
-      polygon: (_) => 'Polygon',
-      text: (s) => s.content.trim().isEmpty ? 'Text' : s.content.trim(),
-      group: (_) => 'Group',
-      symbolInstance: (_) => 'Symbol',
-      compound: (_) => 'Compound',
-    );
+  path: (_) => 'Path',
+  rectangle: (_) => 'Rectangle',
+  ellipse: (_) => 'Ellipse',
+  polygon: (_) => 'Polygon',
+  text: (s) => s.content.trim().isEmpty ? 'Text' : s.content.trim(),
+  group: (_) => 'Group',
+  symbolInstance: (_) => 'Symbol',
+  compound: (_) => 'Compound',
+);
 
 bool _shapeMatchesQuery(VecShape shape, String query) {
   if ((shape.data.name ?? '').toLowerCase().contains(query)) return true;
@@ -51,16 +51,12 @@ class LayersPanel extends HookConsumerWidget {
     final searchCtrl = useTextEditingController();
     useListenable(searchCtrl);
     final query = searchCtrl.text.toLowerCase().trim();
-    final filteredLayers = query.isEmpty
-        ? layers
-        : layers.where((l) => _layerMatchesQuery(l, query)).toList();
+    final filteredLayers = query.isEmpty ? layers : layers.where((l) => _layerMatchesQuery(l, query)).toList();
 
     return Container(
       decoration: BoxDecoration(
         color: theme.surface,
-        border: Border(
-          right: BorderSide(color: theme.divider, width: 0.5),
-        ),
+        border: Border(right: BorderSide(color: theme.divider, width: 0.5)),
       ),
       child: Column(
         children: [
@@ -80,16 +76,11 @@ class LayersPanel extends HookConsumerWidget {
                     color: theme.error,
                     tooltip: 'Delete layer',
                     onTap: () {
-                      ref
-                          .read(vecDocumentStateProvider.notifier)
-                          .removeLayer(scene!.id, activeLayerId);
+                      ref.read(vecDocumentStateProvider.notifier).removeLayer(scene!.id, activeLayerId);
                       // Switch to first remaining layer
-                      final remaining =
-                          layers.where((l) => l.id != activeLayerId).toList();
+                      final remaining = layers.where((l) => l.id != activeLayerId).toList();
                       if (remaining.isNotEmpty) {
-                        ref
-                            .read(activeLayerIdProvider.notifier)
-                            .set(remaining.last.id);
+                        ref.read(activeLayerIdProvider.notifier).set(remaining.last.id);
                       }
                     },
                   ),
@@ -101,9 +92,7 @@ class LayersPanel extends HookConsumerWidget {
                   tooltip: 'Add layer',
                   onTap: () {
                     if (scene != null) {
-                      ref
-                          .read(vecDocumentStateProvider.notifier)
-                          .addLayer(scene.id);
+                      ref.read(vecDocumentStateProvider.notifier).addLayer(scene.id);
                     }
                   },
                 ),
@@ -125,73 +114,57 @@ class LayersPanel extends HookConsumerWidget {
           Expanded(
             child: layers.isEmpty
                 ? Center(
-                    child: Text(
-                      'No layers',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: theme.textDisabled,
-                      ),
-                    ),
+                    child: Text('No layers', style: TextStyle(fontSize: 11, color: theme.textDisabled)),
                   )
                 : query.isNotEmpty
-                    // ---- Search results: non-reorderable flat list ----
-                    ? filteredLayers.isEmpty
-                        ? Center(
-                            child: Text(
-                              'No results',
-                              style: TextStyle(
-                                  fontSize: 11, color: theme.textDisabled),
-                            ),
-                          )
-                        : ListView.builder(
-                            padding: const EdgeInsets.symmetric(vertical: 2),
-                            itemCount: filteredLayers.length,
-                            itemBuilder: (_, i) {
-                              final layer = filteredLayers[
-                                  filteredLayers.length - 1 - i];
-                              return LayerRow(
-                                key: ValueKey(layer.id),
-                                layer: layer,
-                                sceneId: scene!.id,
-                                isActive: layer.id == activeLayerId,
-                                theme: theme,
-                                index: i,
-                              );
-                            },
-                          )
-                    // ---- Normal reorderable list ----
-                    : ReorderableListView.builder(
-                        padding: const EdgeInsets.symmetric(vertical: 2),
-                        buildDefaultDragHandles: false,
-                        itemCount: layers.length,
-                        onReorder: (oldDisplayIdx, newDisplayIdx) {
-                          if (scene == null) return;
-                          final n = layers.length;
-                          final displayIds = List<String>.generate(
-                              n, (i) => layers[n - 1 - i].id);
-                          final id = displayIds.removeAt(oldDisplayIdx);
-                          final insertAt = newDisplayIdx > oldDisplayIdx
-                              ? newDisplayIdx - 1
-                              : newDisplayIdx;
-                          displayIds.insert(insertAt, id);
-                          final actualIds = displayIds.reversed.toList();
-                          ref
-                              .read(vecDocumentStateProvider.notifier)
-                              .reorderLayers(scene.id, actualIds);
-                        },
-                        itemBuilder: (_, displayIdx) {
-                          final n = layers.length;
-                          final layer = layers[n - 1 - displayIdx];
-                          return LayerRow(
-                            key: ValueKey(layer.id),
-                            layer: layer,
-                            sceneId: scene!.id,
-                            isActive: layer.id == activeLayerId,
-                            theme: theme,
-                            index: displayIdx,
-                          );
-                        },
-                      ),
+                // ---- Search results: non-reorderable flat list ----
+                ? filteredLayers.isEmpty
+                      ? Center(
+                          child: Text('No results', style: TextStyle(fontSize: 11, color: theme.textDisabled)),
+                        )
+                      : ListView.builder(
+                          padding: const EdgeInsets.symmetric(vertical: 2),
+                          itemCount: filteredLayers.length,
+                          itemBuilder: (_, i) {
+                            final layer = filteredLayers[filteredLayers.length - 1 - i];
+                            return LayerRow(
+                              key: ValueKey(layer.id),
+                              layer: layer,
+                              sceneId: scene!.id,
+                              isActive: layer.id == activeLayerId,
+                              theme: theme,
+                              index: i,
+                            );
+                          },
+                        )
+                // ---- Normal reorderable list ----
+                : ReorderableListView.builder(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    buildDefaultDragHandles: false,
+                    itemCount: layers.length,
+                    onReorder: (oldDisplayIdx, newDisplayIdx) {
+                      if (scene == null) return;
+                      final n = layers.length;
+                      final displayIds = List<String>.generate(n, (i) => layers[n - 1 - i].id);
+                      final id = displayIds.removeAt(oldDisplayIdx);
+                      final insertAt = newDisplayIdx > oldDisplayIdx ? newDisplayIdx - 1 : newDisplayIdx;
+                      displayIds.insert(insertAt, id);
+                      final actualIds = displayIds.reversed.toList();
+                      ref.read(vecDocumentStateProvider.notifier).reorderLayers(scene.id, actualIds);
+                    },
+                    itemBuilder: (_, displayIdx) {
+                      final n = layers.length;
+                      final layer = layers[n - 1 - displayIdx];
+                      return LayerRow(
+                        key: ValueKey(layer.id),
+                        layer: layer,
+                        sceneId: scene!.id,
+                        isActive: layer.id == activeLayerId,
+                        theme: theme,
+                        index: displayIdx,
+                      );
+                    },
+                  ),
           ),
 
           // ----------------------------------------------------------------
@@ -203,22 +176,13 @@ class LayersPanel extends HookConsumerWidget {
               padding: const EdgeInsets.symmetric(horizontal: 12),
               decoration: BoxDecoration(
                 color: theme.surfaceVariant,
-                border: Border(
-                  top: BorderSide(color: theme.divider, width: 0.5),
-                ),
+                border: Border(top: BorderSide(color: theme.divider, width: 0.5)),
               ),
               child: Row(
                 children: [
-                  Icon(Icons.movie_outlined,
-                      size: 12, color: theme.textDisabled),
+                  Icon(Icons.movie_outlined, size: 12, color: theme.textDisabled),
                   const SizedBox(width: 6),
-                  Text(
-                    scene.name,
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: theme.textDisabled,
-                    ),
-                  ),
+                  Text(scene.name, style: TextStyle(fontSize: 10, color: theme.textDisabled)),
                 ],
               ),
             ),
@@ -285,12 +249,7 @@ class _SearchField extends StatelessWidget {
 // =============================================================================
 
 class _HeaderButton extends StatelessWidget {
-  const _HeaderButton({
-    required this.icon,
-    required this.color,
-    required this.tooltip,
-    required this.onTap,
-  });
+  const _HeaderButton({required this.icon, required this.color, required this.tooltip, required this.onTap});
 
   final IconData icon;
   final Color color;
