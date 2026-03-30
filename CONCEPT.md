@@ -84,6 +84,40 @@ There is no modern, cross-platform native tool that lets a designer draw a vecto
 - Exported as SVG `<marker>` shapes or flattened paths depending on export format.
 - *This is the single biggest drawing feature missing from every lightweight vector tool. Illustrators use it constantly for calligraphic lines, tapered strokes, and organic illustration.*
 
+#### Bend tool (`U`)
+
+Bends individual segments or sides of any shape by dragging directly on the path — no node editing required. Fills the gap between the Width tool (stroke profiles) and the Pen tool (full node editing) for quick organic reshaping.
+
+**Behavior on open/closed paths (any number of nodes)**
+- Hover over any path segment to highlight it. A diamond handle appears at the segment midpoint.
+- **Drag anywhere on the highlighted segment** (not just at the midpoint): the tool computes parameter `t` at the drag point using de Casteljau projection, subdivides the segment at that `t` via de Casteljau subdivision (producing two sub-segments with correct handles), inserts the new node in-place, then immediately enters a smooth-handle drag on that node so the curve follows the pointer.
+- Hold `Alt` while dragging to insert a **corner node** instead of smooth.
+- Release: commits the new node + handle positions as one undo step.
+- For the **2-node straight line** special case: shows the existing midpoint bend handle (reuses `BendHandleOverlayPainter` rendering), but unlike the Select-tool bend, clicking anywhere on the line — not just the handle — starts the drag from the nearest point.
+- `Tab` / `Shift+Tab` cycles the active segment forward/backward when a path is selected.
+
+**Behavior on primitive shapes (rectangle, ellipse, polygon)**
+- Hover shows a diamond handle at the midpoint of each side (rectangle/polygon) or each arc quadrant (ellipse).
+- Dragging a handle **converts the primitive to a `VecPathShape`** on pointer-down (Option A — zero new model fields), producing corner nodes at every vertex plus smooth midpoint nodes at each edge midpoint. The dragged midpoint node immediately enters handle-drag mode.
+  - Rectangle → 8-node closed path: 4 corners (corner type) + 4 edge midpoints (smooth type).
+  - Polygon (n sides) → 2n-node closed path: n corners + n midpoints.
+  - Ellipse → 4-node closed path (standard Adobe-style, split at 0°/90°/180°/270°).
+- The conversion is performed inline as a no-history pre-step; the bend drag itself is the committed undo action, so Undo returns to the original primitive.
+- Zero-displacement drag (pointer-up very close to pointer-down) cancels without committing the conversion.
+- *(Option B — non-destructive, future):* `VecRectangleShape` gains `edgeBends: List<double?> edgeBends` (4 nullable values, index = TL→TR, TR→BR, BR→BL, BL→TL side; null = straight, value = normalised perpendicular displacement at midpoint). Rendered as cubic Bézier segments without converting the model. Exported as flattened path. Requires `freezed` regen.
+
+**Overlay rendering (`SegmentBendOverlayPainter` — extends existing)**
+- Replace the `nodes.length == 2` guard in `BendHandleOverlayPainter` with an n-segment loop.
+- For each segment: draw dashed tangent lines from segment endpoints to the midpoint handle; draw the diamond handle (filled when hovered, hollow otherwise).
+- Active/hovered segment highlight: draw the segment arc in the selection-outline colour at 50% opacity.
+- For primitives: compute handle positions from shape geometry directly (rectangle side midpoints, polygon edge midpoints, ellipse quadrant points) before any conversion.
+
+**`VecTool` enum:** add `bend` value between `width` and `line`. Shortcut `U`.
+
+**`Esc` while Bend tool is active** → return to Select tool.
+
+---
+
 #### Pencil / Blob Brush tool (`B`)
 - Freehand drawing mode. Strokes are smoothed on mouse-up using the Ramer–Douglas–Peucker algorithm.
 - Smoothing slider: 0% (raw input) → 100% (very smooth).
@@ -454,6 +488,7 @@ JSON document model with four top-level sections:
 | Free Transform | `Q` | `Q` |
 | Pen tool | `P` | `P` |
 | Width tool | `W` | `W` |
+| Bend tool | `U` | `U` |
 | Pencil / Blob Brush | `B` | `B` |
 | Rectangle | `R` | `R` |
 | Ellipse | `E` | `E` |

@@ -78,6 +78,9 @@ class FitRequest extends _$FitRequest {
   void request() => state++;
 }
 
+/// Incremented to request a zoom-to-selected-shapes from the canvas.
+final fitSelectionRequestProvider = StateProvider<int>((ref) => 0);
+
 @riverpod
 class CanvasOffset extends _$CanvasOffset {
   @override

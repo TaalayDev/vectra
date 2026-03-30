@@ -13,6 +13,7 @@ class ShortcutsWrapper extends StatefulWidget {
     this.onZoomIn,
     this.onZoomOut,
     this.onZoomFit,
+    this.onZoomSelection,
     this.onZoom100,
     this.onSwapColors,
     this.onDefaultColors,
@@ -64,6 +65,7 @@ class ShortcutsWrapper extends StatefulWidget {
   final VoidCallback? onZoomIn;
   final VoidCallback? onZoomOut;
   final VoidCallback? onZoomFit;
+  final VoidCallback? onZoomSelection;
   final VoidCallback? onZoom100;
 
   // Color actions
@@ -294,6 +296,7 @@ class _ShortcutsWrapperState extends State<ShortcutsWrapper> {
       LogicalKeySet(LogicalKeyboardKey.equal): const ZoomInIntent(),
       LogicalKeySet(LogicalKeyboardKey.minus): const ZoomOutIntent(),
       LogicalKeySet(LogicalKeyboardKey.digit0): const ZoomFitIntent(),
+      LogicalKeySet(controlKey, LogicalKeyboardKey.shift, LogicalKeyboardKey.keyF): const ZoomSelectionIntent(),
       LogicalKeySet(LogicalKeyboardKey.digit1): const Zoom100Intent(),
 
       // Colors
@@ -350,6 +353,7 @@ class _ShortcutsWrapperState extends State<ShortcutsWrapper> {
       ZoomInIntent: CallbackAction<ZoomInIntent>(onInvoke: (intent) => widget.onZoomIn?.call()),
       ZoomOutIntent: CallbackAction<ZoomOutIntent>(onInvoke: (intent) => widget.onZoomOut?.call()),
       ZoomFitIntent: CallbackAction<ZoomFitIntent>(onInvoke: (intent) => widget.onZoomFit?.call()),
+      ZoomSelectionIntent: CallbackAction<ZoomSelectionIntent>(onInvoke: (intent) => widget.onZoomSelection?.call()),
       Zoom100Intent: CallbackAction<Zoom100Intent>(onInvoke: (intent) => widget.onZoom100?.call()),
       SwapColorsIntent: CallbackAction<SwapColorsIntent>(onInvoke: (intent) => widget.onSwapColors?.call()),
       DefaultColorsIntent: CallbackAction<DefaultColorsIntent>(onInvoke: (intent) => widget.onDefaultColors?.call()),
@@ -361,6 +365,7 @@ class _ShortcutsWrapperState extends State<ShortcutsWrapper> {
             _isSpacePressed = true;
             widget.onPanStart?.call();
           }
+          return null;
         },
       ),
       LayerIntent: CallbackAction<LayerIntent>(
@@ -368,6 +373,7 @@ class _ShortcutsWrapperState extends State<ShortcutsWrapper> {
           if (intent.layerIndex < widget.maxLayers) {
             widget.onLayerChanged?.call(intent.layerIndex);
           }
+          return null;
         },
       ),
       NewLayerIntent: CallbackAction<NewLayerIntent>(onInvoke: (intent) => widget.onNewLayer?.call()),
@@ -445,6 +451,10 @@ class ZoomFitIntent extends Intent {
 
 class Zoom100Intent extends Intent {
   const Zoom100Intent();
+}
+
+class ZoomSelectionIntent extends Intent {
+  const ZoomSelectionIntent();
 }
 
 class SwapColorsIntent extends Intent {

@@ -21,12 +21,20 @@ String _shapeDisplayName(VecShape shape) => shape.map(
       compound: (_) => 'Compound',
     );
 
+bool _shapeMatchesQuery(VecShape shape, String query) {
+  if ((shape.data.name ?? '').toLowerCase().contains(query)) return true;
+  if (_shapeDisplayName(shape).toLowerCase().contains(query)) return true;
+  return shape.maybeMap(
+    group: (g) => g.children.any((c) => _shapeMatchesQuery(c, query)),
+    compound: (c) => c.inputs.any((s) => _shapeMatchesQuery(s, query)),
+    orElse: () => false,
+  );
+}
+
 bool _layerMatchesQuery(VecLayer layer, String query) {
   if (query.isEmpty) return true;
   if (layer.name.toLowerCase().contains(query)) return true;
-  return layer.shapes.any(
-    (s) => _shapeDisplayName(s).toLowerCase().contains(query),
-  );
+  return layer.shapes.any((s) => _shapeMatchesQuery(s, query));
 }
 
 class LayersPanel extends HookConsumerWidget {
@@ -249,7 +257,7 @@ class _SearchField extends StatelessWidget {
               controller: ctrl,
               style: TextStyle(fontSize: 11, color: theme.textPrimary),
               decoration: InputDecoration(
-                hintText: 'Search layers…',
+                hintText: 'Search layers and shapes…',
                 hintStyle: TextStyle(fontSize: 11, color: theme.textDisabled),
                 isDense: true,
                 border: InputBorder.none,

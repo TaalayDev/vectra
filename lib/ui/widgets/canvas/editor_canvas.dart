@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
@@ -18,6 +19,7 @@ import '../../../core/rendering/selection_overlay.dart';
 import '../../../core/tools/drawing_tool_handler.dart';
 import '../../../core/tools/select_tool_handler.dart';
 import '../../../data/models/vec_document.dart';
+import '../../../data/models/vec_color.dart';
 import '../../../data/models/vec_shape.dart';
 import '../../../data/models/vec_symbol.dart';
 import '../../../data/models/vec_transform.dart';
@@ -25,10 +27,17 @@ import '../../../data/models/vec_motion_path.dart';
 import '../../../data/models/vec_path_node.dart';
 import '../../../data/models/vec_point.dart';
 import '../../../providers/animation_provider.dart';
+import '../../../providers/clipboard_provider.dart';
 import '../../../providers/document_provider.dart';
 import '../../../providers/drawing_state_provider.dart';
 import '../../../providers/editor_state_provider.dart';
 import '../../../providers/motion_path_provider.dart';
+import '../../../providers/toast_provider.dart';
+import '../common/simple_color_picker.dart';
+
+const _menuPasteOffset = 20.0;
+const _menuUuid = Uuid();
+const _menuClipboardMime = 'application/x-vectra-shapes+json';
 
 // Describes what kind of select-tool drag is active.
 enum _SelectDragMode { none, move, resizeHandle, rotate, pivotMove, cornerRadius, bend, motionPathNode }
@@ -47,6 +56,7 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
   bool _isPanning = false;
   bool _didInitialFit = false;
   int _lastFitRequest = 0;
+  int _lastFitSelectionRequest = 0;
 
   // Inline text editing
   final TextEditingController _textEditingController = TextEditingController();
@@ -105,6 +115,31 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
   List<_SnapGuide> _activeGuides = const [];
 
   AppTheme get theme => widget.theme;
+
+  String _encodeMenuClipboard(List<VecShape> shapes) {
+    return jsonEncode({
+      'mime': _menuClipboardMime,
+      'version': 1,
+      'shapes': shapes.map((s) => s.toJson()).toList(growable: false),
+    });
+  }
+
+  List<VecShape>? _decodeMenuClipboard(String? text) {
+    if (text == null || text.isEmpty) return null;
+    try {
+      final decoded = jsonDecode(text);
+      if (decoded is! Map<String, dynamic>) return null;
+      if (decoded['mime'] != _menuClipboardMime) return null;
+      final rawShapes = decoded['shapes'];
+      if (rawShapes is! List) return null;
+      return rawShapes
+          .whereType<Map>()
+          .map((s) => VecShape.fromJson(Map<String, dynamic>.from(s)))
+          .toList(growable: false);
+    } catch (_) {
+      return null;
+    }
+  }
 
   // ===========================================================================
   // Coordinate conversion — screen point → canvas point
@@ -202,6 +237,7 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
     final zoom = ref.watch(zoomLevelProvider);
     final panOffset = ref.watch(canvasOffsetProvider);
     final fitRequest = ref.watch(fitRequestProvider);
+    final fitSelectionRequest = ref.watch(fitSelectionRequestProvider);
     final snapSettings = ref.watch(snapSettingsProvider);
     final cursorPosition = ref.watch(cursorPositionProvider);
     // Start/stop the playback timer automatically
@@ -281,7 +317,16 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
         final viewportSize = Size(constraints.maxWidth, constraints.maxHeight);
 
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          _handleViewportChange(viewportSize, meta, fitRequest);
+          _handleViewportChange(
+            viewportSize,
+            meta,
+            fitRequest,
+            fitSelectionRequest,
+            scene,
+            selectedShapeIds.isNotEmpty
+                ? selectedShapeIds
+                : (selectedShapeId != null ? [selectedShapeId] : const <String>[]),
+          );
         });
 
         final stageScreenW = meta.stageWidth * zoom;
@@ -409,6 +454,10 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
                     if (pen == null) {
                       ref.read(activePenDrawingProvider.notifier).start(local);
                     } else {
+                      if (pen.points.length >= 2 && (pen.points.first - local).distance <= (10.0 / zoom)) {
+                        _finishPenDrawing(closed: true);
+                        return;
+                      }
                       ref.read(activePenDrawingProvider.notifier).addPoint(local);
                     }
                   }
@@ -423,6 +472,14 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
                     final cmdHeld =
                         HardwareKeyboard.instance.isControlPressed || HardwareKeyboard.instance.isMetaPressed;
                     _handleSelectTap(scene, selectedShape, displaySelectedShape, local, zoom, cmdHeld, activeGroupId);
+                  }
+                : null,
+
+            onSecondaryTapDown: isSelectTool
+                ? (details) async {
+                    final local = _toCanvasPoint(details.localPosition);
+                    _hitTestAndSelect(scene, local, false, activeGroupId: activeGroupId);
+                    await _showCanvasContextMenu(details.localPosition, viewportSize);
                   }
                 : null,
 
@@ -511,6 +568,29 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
                         ),
                       ),
                     ),
+
+                    if (scene != null)
+                      Positioned(
+                        left: stageLeft + 8,
+                        top: (stageTop - 28).clamp(4.0, viewportSize.height - 24.0),
+                        child: _SceneTag(
+                          name: scene.name,
+                          color: meta.backgroundColor.toFlutterColor(),
+                          theme: theme,
+                          onPickColor: () async {
+                            final picked = await showSimpleColorPicker(
+                              context: context,
+                              initialColor: meta.backgroundColor.toFlutterColor(),
+                              theme: theme,
+                            );
+                            if (picked != null) {
+                              ref.read(vecDocumentStateProvider.notifier).updateMeta(
+                                    meta.copyWith(backgroundColor: VecColor.fromFlutterColor(picked)),
+                                  );
+                            }
+                          },
+                        ),
+                      ),
 
                     Positioned(
                       left: stageLeft,
@@ -1833,12 +1913,20 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
   // Viewport change → auto zoom-to-fit
   // ===========================================================================
 
-  void _handleViewportChange(Size viewportSize, VecMeta meta, int fitRequest) {
+  void _handleViewportChange(
+    Size viewportSize,
+    VecMeta meta,
+    int fitRequest,
+    int fitSelectionRequest,
+    dynamic scene,
+    List<String> selectedIds,
+  ) {
     if (viewportSize.width <= 0 || viewportSize.height <= 0) return;
 
     if (!_didInitialFit) {
       _didInitialFit = true;
       _lastFitRequest = fitRequest;
+      _lastFitSelectionRequest = fitSelectionRequest;
       _fitToViewport(viewportSize, meta);
       return;
     }
@@ -1846,6 +1934,12 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
     if (fitRequest != _lastFitRequest) {
       _lastFitRequest = fitRequest;
       _fitToViewport(viewportSize, meta);
+      return;
+    }
+
+    if (fitSelectionRequest != _lastFitSelectionRequest) {
+      _lastFitSelectionRequest = fitSelectionRequest;
+      _fitSelectionToViewport(viewportSize, meta, scene, selectedIds);
     }
   }
 
@@ -1854,6 +1948,196 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
         .read(zoomLevelProvider.notifier)
         .zoomToFit(viewportSize.width, viewportSize.height, meta.stageWidth, meta.stageHeight);
     ref.read(canvasOffsetProvider.notifier).reset();
+  }
+
+  Rect? _selectionBounds(dynamic scene, List<String> selectedIds) {
+    if (scene == null || selectedIds.isEmpty) return null;
+    final idSet = selectedIds.toSet();
+    Rect? bounds;
+    for (final layer in scene.layers) {
+      for (final shape in layer.shapes) {
+        if (!idSet.contains(shape.id)) continue;
+        final t = shape.transform;
+        final r = Rect.fromLTWH(t.x, t.y, t.width, t.height);
+        bounds = bounds == null ? r : bounds.expandToInclude(r);
+      }
+    }
+    return bounds;
+  }
+
+  void _fitSelectionToViewport(Size viewportSize, VecMeta meta, dynamic scene, List<String> selectedIds) {
+    final bounds = _selectionBounds(scene, selectedIds);
+    if (bounds == null || bounds.width <= 0 || bounds.height <= 0) {
+      _fitToViewport(viewportSize, meta);
+      return;
+    }
+
+    const padding = 64.0;
+    final zoomX = (viewportSize.width - padding * 2) / bounds.width;
+    final zoomY = (viewportSize.height - padding * 2) / bounds.height;
+    final targetZoom = math.min(zoomX, zoomY).clamp(0.01, 64.0);
+    final cx = bounds.center.dx;
+    final cy = bounds.center.dy;
+
+    ref.read(zoomLevelProvider.notifier).set(targetZoom);
+    ref.read(canvasOffsetProvider.notifier).set(
+          Offset(
+            meta.stageWidth * targetZoom / 2 - cx * targetZoom,
+            meta.stageHeight * targetZoom / 2 - cy * targetZoom,
+          ),
+        );
+  }
+
+  VecShape _cloneForMenuPaste(VecShape shape, {double offset = _menuPasteOffset}) {
+    return shape.copyWith(
+      data: shape.data.copyWith(
+        id: _menuUuid.v4(),
+        transform: shape.data.transform.copyWith(
+          x: shape.data.transform.x + offset,
+          y: shape.data.transform.y + offset,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showCanvasContextMenu(Offset localPosition, Size viewportSize) async {
+    final selectedIds = ref.read(selectedShapeIdsProvider);
+    final selectedId = ref.read(selectedShapeIdProvider);
+    final clipboard = ref.read(clipboardProvider);
+
+    final choice = await showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        localPosition.dx,
+        localPosition.dy,
+        viewportSize.width - localPosition.dx,
+        viewportSize.height - localPosition.dy,
+      ),
+      items: [
+        PopupMenuItem<String>(enabled: selectedIds.isNotEmpty, value: 'cut', child: const Text('Cut')),
+        PopupMenuItem<String>(enabled: selectedIds.isNotEmpty, value: 'copy', child: const Text('Copy')),
+        PopupMenuItem<String>(enabled: clipboard.isNotEmpty, value: 'paste', child: const Text('Paste')),
+        const PopupMenuDivider(),
+        PopupMenuItem<String>(enabled: selectedIds.length >= 2, value: 'group', child: const Text('Group')),
+        PopupMenuItem<String>(enabled: selectedId != null, value: 'ungroup', child: const Text('Ungroup')),
+        const PopupMenuDivider(),
+        PopupMenuItem<String>(enabled: selectedId != null, value: 'front', child: const Text('Bring to front')),
+        PopupMenuItem<String>(enabled: selectedId != null, value: 'back', child: const Text('Send to back')),
+      ],
+    );
+
+    switch (choice) {
+      case 'cut':
+        _menuCut();
+        break;
+      case 'copy':
+        _menuCopy();
+        break;
+      case 'paste':
+        await _menuPaste();
+        break;
+      case 'group':
+        _menuGroup();
+        break;
+      case 'ungroup':
+        _menuUngroup();
+        break;
+      case 'front':
+        _menuBringToFront();
+        break;
+      case 'back':
+        _menuSendToBack();
+        break;
+      default:
+        break;
+    }
+  }
+
+  void _menuCopy() {
+    final scene = ref.read(activeSceneProvider);
+    final layerId = ref.read(activeLayerIdProvider);
+    final selectedIds = ref.read(selectedShapeIdsProvider);
+    if (scene == null || layerId == null || selectedIds.isEmpty) return;
+
+    for (final layer in scene.layers) {
+      if (layer.id != layerId) continue;
+      final shapes = layer.shapes.where((s) => selectedIds.contains(s.id)).toList(growable: false);
+      if (shapes.isNotEmpty) {
+        ref.read(clipboardProvider.notifier).set(shapes);
+        Clipboard.setData(ClipboardData(text: _encodeMenuClipboard(shapes)));
+        ref.read(toastProvider.notifier).show('Copied');
+      }
+      return;
+    }
+  }
+
+  void _menuCut() {
+    final scene = ref.read(activeSceneProvider);
+    final layerId = ref.read(activeLayerIdProvider);
+    final selectedIds = ref.read(selectedShapeIdsProvider);
+    if (scene == null || layerId == null || selectedIds.isEmpty) return;
+
+    _menuCopy();
+    ref.read(vecDocumentStateProvider.notifier).removeShapes(scene.id, layerId, selectedIds);
+    ref.read(selectedShapeIdProvider.notifier).clear();
+    ref.read(selectedShapeIdsProvider.notifier).clear();
+    ref.read(toastProvider.notifier).show('Cut');
+  }
+
+  Future<void> _menuPaste() async {
+    final systemText = (await Clipboard.getData('text/plain'))?.text;
+    final systemShapes = _decodeMenuClipboard(systemText);
+    final List<VecShape> clipboard = systemShapes ?? ref.read(clipboardProvider);
+    final scene = ref.read(activeSceneProvider);
+    final layerId = ref.read(activeLayerIdProvider);
+    if (scene == null || layerId == null || clipboard.isEmpty) return;
+
+    final clones = clipboard.map(_cloneForMenuPaste).toList(growable: false);
+    ref.read(vecDocumentStateProvider.notifier).addShapes(scene.id, layerId, clones);
+    ref.read(selectedShapeIdsProvider.notifier).setAll(clones.map((s) => s.id).toList(growable: false));
+    ref.read(selectedShapeIdProvider.notifier).set(clones.last.id);
+    ref.read(toastProvider.notifier).show('Pasted');
+  }
+
+  void _menuGroup() {
+    final scene = ref.read(activeSceneProvider);
+    final layerId = ref.read(activeLayerIdProvider);
+    final selectedIds = ref.read(selectedShapeIdsProvider);
+    if (scene == null || layerId == null || selectedIds.length < 2) return;
+
+    final groupId = ref.read(vecDocumentStateProvider.notifier).groupShapes(scene.id, layerId, selectedIds);
+    ref.read(selectedShapeIdProvider.notifier).set(groupId);
+    ref.read(selectedShapeIdsProvider.notifier).setSingle(groupId);
+    ref.read(toastProvider.notifier).show('Grouped');
+  }
+
+  void _menuUngroup() {
+    final scene = ref.read(activeSceneProvider);
+    final layerId = ref.read(activeLayerIdProvider);
+    final selectedId = ref.read(selectedShapeIdProvider);
+    if (scene == null || layerId == null || selectedId == null) return;
+
+    final childIds = ref.read(vecDocumentStateProvider.notifier).ungroupShape(scene.id, layerId, selectedId);
+    if (childIds.isEmpty) return;
+    ref.read(selectedShapeIdsProvider.notifier).setAll(childIds);
+    ref.read(selectedShapeIdProvider.notifier).set(childIds.last);
+    ref.read(toastProvider.notifier).show('Ungrouped');
+  }
+
+  void _menuBringToFront() {
+    final scene = ref.read(activeSceneProvider);
+    final layerId = ref.read(activeLayerIdProvider);
+    final selectedId = ref.read(selectedShapeIdProvider);
+    if (scene == null || layerId == null || selectedId == null) return;
+    ref.read(vecDocumentStateProvider.notifier).bringToFront(scene.id, layerId, selectedId);
+  }
+
+  void _menuSendToBack() {
+    final scene = ref.read(activeSceneProvider);
+    final layerId = ref.read(activeLayerIdProvider);
+    final selectedId = ref.read(selectedShapeIdProvider);
+    if (scene == null || layerId == null || selectedId == null) return;
+    ref.read(vecDocumentStateProvider.notifier).sendToBack(scene.id, layerId, selectedId);
   }
 
   // ===========================================================================
@@ -2040,6 +2324,62 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
   }
 }
 
+class _SceneTag extends StatelessWidget {
+  const _SceneTag({
+    required this.name,
+    required this.color,
+    required this.theme,
+    required this.onPickColor,
+  });
+
+  final String name;
+  final Color color;
+  final AppTheme theme;
+  final VoidCallback onPickColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: theme.surface.withAlpha(235),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: theme.divider, width: 0.5),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            name,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: theme.textSecondary,
+              letterSpacing: 0.6,
+            ),
+          ),
+          const SizedBox(width: 8),
+          GestureDetector(
+            onTap: onPickColor,
+            child: Tooltip(
+              message: 'Background color',
+              child: Container(
+                width: 12,
+                height: 12,
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: BorderRadius.circular(3),
+                  border: Border.all(color: theme.divider, width: 0.6),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 // =============================================================================
 // Canvas background — dot grid
 // =============================================================================
@@ -2163,16 +2503,15 @@ class _MultiSelectionPainter extends CustomPainter {
     // Corner ticks
     const tick = 6.0;
     final t = tick / zoom;
-    final corners = [
-      [rect.topLeft, Offset(t, 0), Offset(0, t)],
-      [rect.topRight, Offset(-t, 0), Offset(0, t)],
-      [rect.bottomLeft, Offset(t, 0), Offset(0, -t)],
-      [rect.bottomRight, Offset(-t, 0), Offset(0, -t)],
+    final corners = <(Offset, Offset, Offset)>[
+      (rect.topLeft, Offset(t, 0), Offset(0, t)),
+      (rect.topRight, Offset(-t, 0), Offset(0, t)),
+      (rect.bottomLeft, Offset(t, 0), Offset(0, -t)),
+      (rect.bottomRight, Offset(-t, 0), Offset(0, -t)),
     ];
-    for (final c in corners) {
-      final p = c[0] as Offset;
-      canvas.drawLine(p, p + (c[1] as Offset), paint);
-      canvas.drawLine(p, p + (c[2] as Offset), paint);
+    for (final (p, a, b) in corners) {
+      canvas.drawLine(p, p + a, paint);
+      canvas.drawLine(p, p + b, paint);
     }
   }
 

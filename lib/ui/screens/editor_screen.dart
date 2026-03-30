@@ -1,5 +1,8 @@
+import 'dart:convert';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
@@ -19,6 +22,32 @@ import '../widgets/workspace/workspace_layout.dart';
 
 const _uuid = Uuid();
 const _pasteOffset = 20.0;
+const _clipboardMime = 'application/x-vectra-shapes+json';
+
+String _encodeClipboardPayload(List<VecShape> shapes) {
+  return jsonEncode({
+    'mime': _clipboardMime,
+    'version': 1,
+    'shapes': shapes.map((s) => s.toJson()).toList(growable: false),
+  });
+}
+
+List<VecShape>? _decodeClipboardPayload(String? text) {
+  if (text == null || text.isEmpty) return null;
+  try {
+    final decoded = jsonDecode(text);
+    if (decoded is! Map<String, dynamic>) return null;
+    if (decoded['mime'] != _clipboardMime) return null;
+    final rawShapes = decoded['shapes'];
+    if (rawShapes is! List) return null;
+    return rawShapes
+        .whereType<Map>()
+        .map((s) => VecShape.fromJson(Map<String, dynamic>.from(s)))
+        .toList(growable: false);
+  } catch (_) {
+    return null;
+  }
+}
 
 /// Returns a deep copy of [shape] with a fresh ID and [offset] added to x/y.
 VecShape _cloneShape(VecShape shape, {double offset = _pasteOffset}) {
@@ -98,6 +127,7 @@ class EditorScreen extends HookConsumerWidget {
         onZoomIn: () => ref.read(zoomLevelProvider.notifier).zoomIn(),
         onZoomOut: () => ref.read(zoomLevelProvider.notifier).zoomOut(),
         onZoomFit: () => ref.read(fitRequestProvider.notifier).request(),
+        onZoomSelection: () => ref.read(fitSelectionRequestProvider.notifier).state++,
         onZoom100: () => ref.read(zoomLevelProvider.notifier).zoom100(),
         onToggleUI: () => ref.read(panelVisibilityProvider.notifier).toggleAll(),
         onNewLayer: () {
@@ -275,6 +305,7 @@ class EditorScreen extends HookConsumerWidget {
             final shapes = layer.shapes.where((s) => selectedIds.contains(s.id)).toList();
             if (shapes.isNotEmpty) {
               ref.read(clipboardProvider.notifier).set(shapes);
+              Clipboard.setData(ClipboardData(text: _encodeClipboardPayload(shapes)));
               ref.read(toastProvider.notifier).show(
                 'Copied ${shapes.length} shape${shapes.length > 1 ? 's' : ''}',
               );
@@ -282,8 +313,10 @@ class EditorScreen extends HookConsumerWidget {
             return;
           }
         },
-        onPaste: () {
-          final clipboard = ref.read(clipboardProvider);
+        onPaste: () async {
+          final systemText = (await Clipboard.getData('text/plain'))?.text;
+          final systemShapes = _decodeClipboardPayload(systemText);
+          final List<VecShape> clipboard = systemShapes ?? ref.read(clipboardProvider);
           if (clipboard.isEmpty) return;
           final scene = ref.read(activeSceneProvider);
           final layerId = ref.read(activeLayerIdProvider);
@@ -296,9 +329,11 @@ class EditorScreen extends HookConsumerWidget {
             'Pasted ${clones.length} shape${clones.length > 1 ? 's' : ''}',
           );
         },
-        onPasteInPlace: () {
+        onPasteInPlace: () async {
           // Paste at exact same coordinates (no offset)
-          final clipboard = ref.read(clipboardProvider);
+          final systemText = (await Clipboard.getData('text/plain'))?.text;
+          final systemShapes = _decodeClipboardPayload(systemText);
+          final List<VecShape> clipboard = systemShapes ?? ref.read(clipboardProvider);
           if (clipboard.isEmpty) return;
           final scene = ref.read(activeSceneProvider);
           final layerId = ref.read(activeLayerIdProvider);
@@ -321,6 +356,7 @@ class EditorScreen extends HookConsumerWidget {
             final shapes = layer.shapes.where((s) => selectedIds.contains(s.id)).toList();
             if (shapes.isNotEmpty) {
               ref.read(clipboardProvider.notifier).set(shapes);
+              Clipboard.setData(ClipboardData(text: _encodeClipboardPayload(shapes)));
             }
             break;
           }
