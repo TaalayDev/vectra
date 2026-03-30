@@ -429,6 +429,7 @@ class _ShapeRow extends ConsumerWidget {
         group: (_) => 'Group',
         symbolInstance: (_) => 'Symbol',
         compound: (_) => 'Compound',
+        image: (_) => 'Image',
       );
 
   IconData _shapeIcon() => shape.map(
@@ -440,6 +441,7 @@ class _ShapeRow extends ConsumerWidget {
         group: (_) => Icons.folder_outlined,
         symbolInstance: (_) => Icons.widgets_outlined,
         compound: (_) => Icons.join_inner,
+        image: (_) => Icons.image_outlined,
       );
 }
 

@@ -13,6 +13,8 @@ class VecAsset with _$VecAsset {
     required VecAssetType type,
     required String path,
     String? mimeType,
+    /// Base64-encoded raw bytes for embedded assets (images, etc.).
+    String? dataBase64,
   }) = _VecAsset;
 
   factory VecAsset.fromJson(Map<String, dynamic> json) =>

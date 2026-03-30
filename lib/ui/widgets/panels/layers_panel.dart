@@ -19,6 +19,7 @@ String _shapeDisplayName(VecShape shape) => shape.map(
   group: (_) => 'Group',
   symbolInstance: (_) => 'Symbol',
   compound: (_) => 'Compound',
+  image: (_) => 'Image',
 );
 
 bool _shapeMatchesQuery(VecShape shape, String query) {

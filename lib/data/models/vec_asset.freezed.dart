@@ -27,6 +27,9 @@ mixin _$VecAsset {
   String get path => throw _privateConstructorUsedError;
   String? get mimeType => throw _privateConstructorUsedError;
 
+  /// Base64-encoded raw bytes for embedded assets (images, etc.).
+  String? get dataBase64 => throw _privateConstructorUsedError;
+
   /// Serializes this VecAsset to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
 
@@ -48,6 +51,7 @@ abstract class $VecAssetCopyWith<$Res> {
     VecAssetType type,
     String path,
     String? mimeType,
+    String? dataBase64,
   });
 }
 
@@ -71,6 +75,7 @@ class _$VecAssetCopyWithImpl<$Res, $Val extends VecAsset>
     Object? type = null,
     Object? path = null,
     Object? mimeType = freezed,
+    Object? dataBase64 = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -94,6 +99,10 @@ class _$VecAssetCopyWithImpl<$Res, $Val extends VecAsset>
                 ? _value.mimeType
                 : mimeType // ignore: cast_nullable_to_non_nullable
                       as String?,
+            dataBase64: freezed == dataBase64
+                ? _value.dataBase64
+                : dataBase64 // ignore: cast_nullable_to_non_nullable
+                      as String?,
           )
           as $Val,
     );
@@ -115,6 +124,7 @@ abstract class _$$VecAssetImplCopyWith<$Res>
     VecAssetType type,
     String path,
     String? mimeType,
+    String? dataBase64,
   });
 }
 
@@ -137,6 +147,7 @@ class __$$VecAssetImplCopyWithImpl<$Res>
     Object? type = null,
     Object? path = null,
     Object? mimeType = freezed,
+    Object? dataBase64 = freezed,
   }) {
     return _then(
       _$VecAssetImpl(
@@ -160,6 +171,10 @@ class __$$VecAssetImplCopyWithImpl<$Res>
             ? _value.mimeType
             : mimeType // ignore: cast_nullable_to_non_nullable
                   as String?,
+        dataBase64: freezed == dataBase64
+            ? _value.dataBase64
+            : dataBase64 // ignore: cast_nullable_to_non_nullable
+                  as String?,
       ),
     );
   }
@@ -174,6 +189,7 @@ class _$VecAssetImpl implements _VecAsset {
     required this.type,
     required this.path,
     this.mimeType,
+    this.dataBase64,
   });
 
   factory _$VecAssetImpl.fromJson(Map<String, dynamic> json) =>
@@ -190,9 +206,13 @@ class _$VecAssetImpl implements _VecAsset {
   @override
   final String? mimeType;
 
+  /// Base64-encoded raw bytes for embedded assets (images, etc.).
+  @override
+  final String? dataBase64;
+
   @override
   String toString() {
-    return 'VecAsset(id: $id, name: $name, type: $type, path: $path, mimeType: $mimeType)';
+    return 'VecAsset(id: $id, name: $name, type: $type, path: $path, mimeType: $mimeType, dataBase64: $dataBase64)';
   }
 
   @override
@@ -205,12 +225,15 @@ class _$VecAssetImpl implements _VecAsset {
             (identical(other.type, type) || other.type == type) &&
             (identical(other.path, path) || other.path == path) &&
             (identical(other.mimeType, mimeType) ||
-                other.mimeType == mimeType));
+                other.mimeType == mimeType) &&
+            (identical(other.dataBase64, dataBase64) ||
+                other.dataBase64 == dataBase64));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode => Object.hash(runtimeType, id, name, type, path, mimeType);
+  int get hashCode =>
+      Object.hash(runtimeType, id, name, type, path, mimeType, dataBase64);
 
   /// Create a copy of VecAsset
   /// with the given fields replaced by the non-null parameter values.
@@ -233,6 +256,7 @@ abstract class _VecAsset implements VecAsset {
     required final VecAssetType type,
     required final String path,
     final String? mimeType,
+    final String? dataBase64,
   }) = _$VecAssetImpl;
 
   factory _VecAsset.fromJson(Map<String, dynamic> json) =
@@ -248,6 +272,10 @@ abstract class _VecAsset implements VecAsset {
   String get path;
   @override
   String? get mimeType;
+
+  /// Base64-encoded raw bytes for embedded assets (images, etc.).
+  @override
+  String? get dataBase64;
 
   /// Create a copy of VecAsset
   /// with the given fields replaced by the non-null parameter values.

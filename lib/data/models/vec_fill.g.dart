@@ -18,17 +18,13 @@ _$VecFillImpl _$$VecFillImplFromJson(Map<String, dynamic> json) =>
           : VecGradient.fromJson(json['gradient'] as Map<String, dynamic>),
     );
 
-Map<String, dynamic> _$$VecFillImplToJson(_$VecFillImpl instance) {
-  final val = <String, dynamic>{
-    'color': instance.color,
-    'opacity': instance.opacity,
-    'blendMode': _$VecBlendModeEnumMap[instance.blendMode]!,
-  };
-  if (instance.gradient != null) {
-    val['gradient'] = instance.gradient!.toJson();
-  }
-  return val;
-}
+Map<String, dynamic> _$$VecFillImplToJson(_$VecFillImpl instance) =>
+    <String, dynamic>{
+      'color': instance.color,
+      'opacity': instance.opacity,
+      'blendMode': _$VecBlendModeEnumMap[instance.blendMode]!,
+      'gradient': instance.gradient,
+    };
 
 const _$VecBlendModeEnumMap = {
   VecBlendMode.normal: 'normal',

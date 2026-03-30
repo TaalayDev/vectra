@@ -40,7 +40,12 @@ abstract class $VecFillCopyWith<$Res> {
   factory $VecFillCopyWith(VecFill value, $Res Function(VecFill) then) =
       _$VecFillCopyWithImpl<$Res, VecFill>;
   @useResult
-  $Res call({VecColor color, double opacity, VecBlendMode blendMode, VecGradient? gradient});
+  $Res call({
+    VecColor color,
+    double opacity,
+    VecBlendMode blendMode,
+    VecGradient? gradient,
+  });
 
   $VecColorCopyWith<$Res> get color;
 }
@@ -107,7 +112,12 @@ abstract class _$$VecFillImplCopyWith<$Res> implements $VecFillCopyWith<$Res> {
   ) = __$$VecFillImplCopyWithImpl<$Res>;
   @override
   @useResult
-  $Res call({VecColor color, double opacity, VecBlendMode blendMode, VecGradient? gradient});
+  $Res call({
+    VecColor color,
+    double opacity,
+    VecBlendMode blendMode,
+    VecGradient? gradient,
+  });
 
   @override
   $VecColorCopyWith<$Res> get color;
@@ -191,13 +201,16 @@ class _$VecFillImpl implements _VecFill {
             other is _$VecFillImpl &&
             (identical(other.color, color) || other.color == color) &&
             (identical(other.opacity, opacity) || other.opacity == opacity) &&
-            (identical(other.blendMode, blendMode) || other.blendMode == blendMode) &&
-            (identical(other.gradient, gradient) || other.gradient == gradient));
+            (identical(other.blendMode, blendMode) ||
+                other.blendMode == blendMode) &&
+            (identical(other.gradient, gradient) ||
+                other.gradient == gradient));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode => Object.hash(runtimeType, color, opacity, blendMode, gradient);
+  int get hashCode =>
+      Object.hash(runtimeType, color, opacity, blendMode, gradient);
 
   /// Create a copy of VecFill
   /// with the given fields replaced by the non-null parameter values.

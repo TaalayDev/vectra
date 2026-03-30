@@ -25,6 +25,8 @@ enum PathfinderOp {
 
 enum VecTextAlign { left, center, right, justify }
 
+enum VecImageFit { contain, cover, fill, none }
+
 /// Common properties shared by all shape variants.
 @freezed
 class VecShapeData with _$VecShapeData {
@@ -118,6 +120,15 @@ class VecShape with _$VecShape {
     required PathfinderOp op,
     required List<VecShape> inputs,
   }) = VecCompoundShape;
+
+  /// An embedded raster image that references a [VecAsset] by [assetId].
+  /// The image is scaled to fill [data.transform] bounds (preserving or
+  /// ignoring aspect ratio depending on [fit]).
+  const factory VecShape.image({
+    required VecShapeData data,
+    required String assetId,
+    @Default(VecImageFit.contain) VecImageFit fit,
+  }) = VecImageShape;
 
   factory VecShape.fromJson(Map<String, dynamic> json) =>
       _$VecShapeFromJson(json);

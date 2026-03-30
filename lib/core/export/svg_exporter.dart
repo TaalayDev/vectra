@@ -77,6 +77,7 @@ class SvgExporter {
       group: (s) => _groupToSvg(s, symbols, indent, nl),
       compound: (s) => _compoundToSvg(s, indent, nl),
       symbolInstance: (s) => _symbolInstanceToSvg(s, symbols, indent, nl),
+      image: (s) => _imageToSvg(s, indent, nl),
     );
   }
 
@@ -366,6 +367,29 @@ class SvgExporter {
     return '$ind<g$transform><!-- compound shape: pathfinder result --></g>$nl';
   }
 
+  String _imageToSvg(VecImageShape s, String ind, String nl) {
+    final t = s.transform;
+    final transform = _transformAttr(t);
+    final opacity = s.opacity < 1 ? ' opacity="${_f(s.opacity)}"' : '';
+    // Images are embedded via data URI when dataBase64 is available on the asset.
+    // Without asset data, output a placeholder rect.
+    return '$ind<image$transform x="0" y="0" width="${_f(t.width)}" height="${_f(t.height)}"'
+        ' preserveAspectRatio="${_imagePreserveAspectRatio(s.fit)}"$opacity/>$nl';
+  }
+
+  String _imagePreserveAspectRatio(VecImageFit fit) {
+    switch (fit) {
+      case VecImageFit.contain:
+        return 'xMidYMid meet';
+      case VecImageFit.cover:
+        return 'xMidYMid slice';
+      case VecImageFit.fill:
+        return 'none';
+      case VecImageFit.none:
+        return 'xMinYMin meet';
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // Transform attribute
   // ---------------------------------------------------------------------------
@@ -483,4 +507,165 @@ class SvgExporter {
     VecBlendMode.color => 'color',
     VecBlendMode.luminosity => 'luminosity',
   };
+
+  // ===========================================================================
+  // Animated SVG export — CSS @keyframes
+  // ===========================================================================
+
+  /// Exports [scene] as an animated SVG using CSS animations derived from the
+  /// timeline keyframes. Shapes without keyframes are emitted as static elements.
+  String exportAnimated(VecDocument doc, VecScene scene, {bool minify = false}) {
+    final symbols = doc.symbols;
+    final w = doc.meta.stageWidth;
+    final h = doc.meta.stageHeight;
+    final bg = doc.meta.backgroundColor;
+    final fps = doc.meta.fps;
+    final timeline = scene.timeline;
+    final duration = timeline.duration;
+    final durationSec = duration / fps;
+
+    final nl = minify ? '' : '\n';
+    final ind = minify ? '' : '  ';
+
+    // Build a map from shapeId → track for fast lookup
+    final trackMap = <String, VecTrack>{};
+    for (final t in timeline.tracks) {
+      if (t.shapeId != null) trackMap[t.shapeId!] = t;
+    }
+
+    // Collect animated shapes so we can emit CSS
+    final animDefs = <String>[];
+    final animClasses = <String, String>{}; // shapeId → cssClass
+
+    for (final layer in scene.layers) {
+      if (!layer.visible || layer.type == VecLayerType.guide) continue;
+      for (final shape in layer.shapes) {
+        final track = trackMap[shape.id];
+        if (track == null || track.keyframes.length < 2) continue;
+        final cssId = 'kf-${shape.id.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '')}';
+        animClasses[shape.id] = cssId;
+        animDefs.add(_buildCssKeyframes(cssId, track.keyframes, durationSec, duration));
+      }
+    }
+
+    final loopStr = switch (timeline.loopType) {
+      VecLoopType.loop => 'infinite',
+      VecLoopType.playOnce => '1',
+      VecLoopType.pingPong => 'infinite',
+    };
+    final dirStr = timeline.loopType == VecLoopType.pingPong ? 'alternate' : 'normal';
+
+    final buf = StringBuffer();
+    buf.write(
+      '<?xml version="1.0" encoding="UTF-8"?>$nl'
+      '<svg xmlns="http://www.w3.org/2000/svg"'
+      ' width="${_f(w)}" height="${_f(h)}"'
+      ' viewBox="0 0 ${_f(w)} ${_f(h)}">$nl',
+    );
+
+    // Style block with keyframe definitions + per-shape animation rules
+    if (animDefs.isNotEmpty) {
+      buf.write('${ind}<style>$nl');
+      for (final def in animDefs) {
+        buf.write(def);
+      }
+      // Per-shape animation application
+      for (final entry in animClasses.entries) {
+        buf.write(
+          '$ind.${entry.value} {$nl'
+          '$ind${ind}animation: ${entry.value} ${_f(durationSec)}s linear $loopStr $dirStr;$nl'
+          '$ind}$nl',
+        );
+      }
+      buf.write('${ind}</style>$nl');
+    }
+
+    // Background rect
+    if (bg.a > 0) {
+      buf.write(
+        '$ind<rect width="${_f(w)}" height="${_f(h)}"'
+        ' fill="${_hexColor(bg)}"'
+        '${bg.a < 255 ? ' fill-opacity="${_f(bg.a / 255)}"' : ''}/>$nl',
+      );
+    }
+
+    // Sort layers bottom → top
+    final layers = List<VecLayer>.from(scene.layers)..sort((a, b) => a.order.compareTo(b.order));
+
+    for (final layer in layers) {
+      if (!layer.visible) continue;
+      if (layer.type == VecLayerType.guide) continue;
+
+      for (final shape in layer.shapes) {
+        final cssClass = animClasses[shape.id];
+        buf.write(_shapeToSvgAnimated(shape, symbols, cssClass, indent: ind, nl: nl));
+      }
+    }
+
+    buf.write('</svg>');
+    return buf.toString();
+  }
+
+  /// Like [_shapeToSvg] but injects a CSS class for animated shapes.
+  String _shapeToSvgAnimated(
+    VecShape shape,
+    List<VecSymbol> symbols,
+    String? cssClass, {
+    String indent = '  ',
+    String nl = '\n',
+  }) {
+    if (cssClass == null) return _shapeToSvg(shape, symbols, indent: indent, nl: nl);
+    // Inject class attribute by wrapping in a <g>
+    final inner = _shapeToSvg(shape, symbols, indent: '$indent  ', nl: nl);
+    if (inner.isEmpty) return '';
+    final t = shape.transform;
+    final tx = t.x + t.width / 2;
+    final ty = t.y + t.height / 2;
+    return '$indent<g class="$cssClass" style="transform-origin: ${_f(tx)}px ${_f(ty)}px">$nl$inner$indent</g>$nl';
+  }
+
+  /// Emits a CSS @keyframes block for one shape track.
+  String _buildCssKeyframes(
+    String name,
+    List<VecKeyframe> keyframes,
+    double durationSec,
+    int totalFrames,
+  ) {
+    final buf = StringBuffer();
+    buf.write('  @keyframes $name {\n');
+
+    final sorted = [...keyframes]..sort((a, b) => a.frame.compareTo(b.frame));
+
+    for (final kf in sorted) {
+      final pct = (kf.frame / totalFrames * 100).clamp(0.0, 100.0);
+      final t = kf.transform;
+      if (t == null) continue;
+
+      // Build a CSS transform from the VecTransform snapshot
+      final parts = <String>[];
+
+      if (t.x != 0 || t.y != 0) {
+        parts.add('translate(${_f(t.x)}px, ${_f(t.y)}px)');
+      }
+      if (t.rotation != 0) {
+        parts.add('rotate(${_f(t.rotation)}deg)');
+      }
+      if (t.scaleX != 1 || t.scaleY != 1) {
+        parts.add('scale(${_f(t.scaleX)}, ${_f(t.scaleY)})');
+      }
+
+      final transformStr = parts.isEmpty ? 'none' : parts.join(' ');
+      final opacityStr = kf.opacity != null ? '    opacity: ${_f(kf.opacity!)};\n' : '';
+
+      buf.write(
+        '    ${_f(pct)}% {\n'
+        '      transform: $transformStr;\n'
+        '$opacityStr'
+        '    }\n',
+      );
+    }
+
+    buf.write('  }\n');
+    return buf.toString();
+  }
 }

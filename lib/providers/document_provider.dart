@@ -2,6 +2,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:uuid/uuid.dart';
 
 import '../core/pathfinder/pathfinder.dart';
+import '../data/models/vec_asset.dart';
 import '../data/models/vec_color.dart';
 import '../data/models/vec_document.dart';
 import '../data/models/vec_keyframe.dart';
@@ -206,6 +207,18 @@ class VecDocumentState extends _$VecDocumentState {
 
   void updateMeta(VecMeta meta) {
     _commit(state.copyWith(meta: meta));
+  }
+
+  // ===========================================================================
+  // Assets
+  // ===========================================================================
+
+  void addAsset(VecAsset asset) {
+    _commit(state.copyWith(assets: [...state.assets, asset]));
+  }
+
+  void removeAsset(String assetId) {
+    _commit(state.copyWith(assets: state.assets.where((a) => a.id != assetId).toList()));
   }
 
   // ===========================================================================

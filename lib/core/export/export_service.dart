@@ -126,11 +126,11 @@ class ExportService {
   }
 
   // ---------------------------------------------------------------------------
-  // Animated SVG (static for now — full keyframe animation requires SMIL)
+  // Animated SVG (CSS @keyframes)
   // ---------------------------------------------------------------------------
 
   Future<ExportResult> _exportAnimatedSvg(VecDocument doc, VecScene scene, ExportConfig config) async {
-    final svg = _svgExporter.export(doc, scene, minify: config.svgMinify);
+    final svg = _svgExporter.exportAnimated(doc, scene, minify: config.svgMinify);
     return _saveText(svg, '${_sanitize(doc.meta.name)}_animated.svg', 'image/svg+xml');
   }
 

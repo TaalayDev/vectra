@@ -13,6 +13,7 @@ _$VecAssetImpl _$$VecAssetImplFromJson(Map<String, dynamic> json) =>
       type: $enumDecode(_$VecAssetTypeEnumMap, json['type']),
       path: json['path'] as String,
       mimeType: json['mimeType'] as String?,
+      dataBase64: json['dataBase64'] as String?,
     );
 
 Map<String, dynamic> _$$VecAssetImplToJson(_$VecAssetImpl instance) =>
@@ -22,6 +23,7 @@ Map<String, dynamic> _$$VecAssetImplToJson(_$VecAssetImpl instance) =>
       'type': _$VecAssetTypeEnumMap[instance.type]!,
       'path': instance.path,
       'mimeType': instance.mimeType,
+      'dataBase64': instance.dataBase64,
     };
 
 const _$VecAssetTypeEnumMap = {

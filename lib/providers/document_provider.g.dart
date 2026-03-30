@@ -57,7 +57,7 @@ final symbolLibraryProvider = AutoDisposeProvider<List<VecSymbol>>.internal(
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef SymbolLibraryRef = AutoDisposeProviderRef<List<VecSymbol>>;
-String _$vecDocumentStateHash() => r'd8229b29ec6684d8d7498d886b176c8736243476';
+String _$vecDocumentStateHash() => r'c2dd7bd24bb996100cc94b7c1b15648be124a2ba';
 
 /// See also [VecDocumentState].
 @ProviderFor(VecDocumentState)

@@ -2,11 +2,13 @@ import 'dart:convert';
 
 import '../../data/models/vec_document.dart';
 import '../../data/models/vec_fill.dart';
+import '../../data/models/vec_keyframe.dart';
 import '../../data/models/vec_layer.dart';
 import '../../data/models/vec_scene.dart';
 import '../../data/models/vec_path_node.dart';
 import '../../data/models/vec_shape.dart';
 import '../../data/models/vec_stroke.dart';
+import '../../data/models/vec_track.dart';
 
 /// Generates a Lottie-compatible JSON from a [VecScene].
 ///
@@ -22,6 +24,12 @@ class LottieExporter {
     final fps = doc.meta.fps;
     final totalFrames = scene.timeline.duration;
 
+    // Build shapeId → track map
+    final trackMap = <String, VecTrack>{};
+    for (final t in scene.timeline.tracks) {
+      if (t.shapeId != null) trackMap[t.shapeId!] = t;
+    }
+
     final layers = <Map<String, dynamic>>[];
 
     // Sort layers bottom to top; in Lottie, index 0 = topmost
@@ -32,7 +40,7 @@ class LottieExporter {
       if (!layer.visible) continue;
       if (layer.type == VecLayerType.guide) continue;
       for (final shape in layer.shapes) {
-        final lottieLayer = _shapeToLayer(shape, layerIndex, totalFrames, fps);
+        final lottieLayer = _shapeToLayer(shape, layerIndex, totalFrames, fps, track: trackMap[shape.id]);
         if (lottieLayer != null) {
           layers.add(lottieLayer);
           layerIndex++;
@@ -63,7 +71,7 @@ class LottieExporter {
     };
   }
 
-  Map<String, dynamic>? _shapeToLayer(VecShape shape, int index, int totalFrames, int fps) {
+  Map<String, dynamic>? _shapeToLayer(VecShape shape, int index, int totalFrames, int fps, {VecTrack? track}) {
     final t = shape.transform;
     final name = shape.name ?? 'Shape $index';
 
@@ -86,9 +94,31 @@ class LottieExporter {
 
     if (shapeItems.isEmpty) return null;
 
-    // Transform
+    // Build animated or static transform properties
     final cx = t.x + t.width / 2;
     final cy = t.y + t.height / 2;
+
+    final Map<String, dynamic> ks;
+    final keyframes = track?.keyframes ?? const [];
+    final hasAnimation = keyframes.length >= 2;
+
+    if (hasAnimation) {
+      ks = {
+        'o': _animatedOpacity(keyframes, shape.opacity),
+        'r': _animatedRotation(keyframes, t.rotation),
+        'p': _animatedPosition(keyframes, cx, cy),
+        'a': _staticValue2D(t.width / 2, t.height / 2),
+        's': _animatedScale(keyframes, t.scaleX, t.scaleY),
+      };
+    } else {
+      ks = {
+        'o': _staticValue(shape.opacity * 100),
+        'r': _staticValue(t.rotation),
+        'p': _staticValue2D(cx, cy),
+        'a': _staticValue2D(t.width / 2, t.height / 2),
+        's': _staticValue2D(t.scaleX * 100, t.scaleY * 100),
+      };
+    }
 
     return {
       'ty': 4, // shape layer
@@ -98,13 +128,7 @@ class LottieExporter {
       'op': totalFrames,
       'st': 0,
       'sr': 1,
-      'ks': {
-        'o': _staticValue(shape.opacity * 100),
-        'r': _staticValue(t.rotation),
-        'p': _staticValue2D(cx, cy),
-        'a': _staticValue2D(t.width / 2, t.height / 2),
-        's': _staticValue2D(t.scaleX * 100, t.scaleY * 100),
-      },
+      'ks': ks,
       'shapes': [
         {
           'ty': 'gr',
@@ -113,6 +137,109 @@ class LottieExporter {
         },
       ],
     };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Animated property builders
+  // ---------------------------------------------------------------------------
+
+  static const _linearEase = {
+    'i': {
+      'x': [0.5],
+      'y': [0.5],
+    },
+    'o': {
+      'x': [0.5],
+      'y': [0.5],
+    },
+  };
+
+  Map<String, dynamic> _animatedPosition(List<VecKeyframe> keyframes, double defaultCx, double defaultCy) {
+    final sorted = [...keyframes]..sort((a, b) => a.frame.compareTo(b.frame));
+    final kfList = <Map<String, dynamic>>[];
+    for (var i = 0; i < sorted.length; i++) {
+      final kf = sorted[i];
+      final tr = kf.transform;
+      final cx = tr != null ? tr.x + tr.width / 2 : defaultCx;
+      final cy = tr != null ? tr.y + tr.height / 2 : defaultCy;
+      final entry = <String, dynamic>{
+        't': kf.frame,
+        's': [cx, cy, 0],
+        ..._linearEase,
+      };
+      if (i < sorted.length - 1) {
+        final next = sorted[i + 1];
+        final ntr = next.transform;
+        final ncx = ntr != null ? ntr.x + ntr.width / 2 : defaultCx;
+        final ncy = ntr != null ? ntr.y + ntr.height / 2 : defaultCy;
+        entry['e'] = [ncx, ncy, 0];
+      }
+      kfList.add(entry);
+    }
+    return {'a': 1, 'k': kfList};
+  }
+
+  Map<String, dynamic> _animatedRotation(List<VecKeyframe> keyframes, double defaultRot) {
+    final sorted = [...keyframes]..sort((a, b) => a.frame.compareTo(b.frame));
+    final kfList = <Map<String, dynamic>>[];
+    for (var i = 0; i < sorted.length; i++) {
+      final kf = sorted[i];
+      final rot = kf.transform?.rotation ?? defaultRot;
+      final entry = <String, dynamic>{
+        't': kf.frame,
+        's': [rot],
+        ..._linearEase,
+      };
+      if (i < sorted.length - 1) {
+        final next = sorted[i + 1];
+        entry['e'] = [next.transform?.rotation ?? defaultRot];
+      }
+      kfList.add(entry);
+    }
+    return {'a': 1, 'k': kfList};
+  }
+
+  Map<String, dynamic> _animatedScale(List<VecKeyframe> keyframes, double defaultSX, double defaultSY) {
+    final sorted = [...keyframes]..sort((a, b) => a.frame.compareTo(b.frame));
+    final kfList = <Map<String, dynamic>>[];
+    for (var i = 0; i < sorted.length; i++) {
+      final kf = sorted[i];
+      final sx = (kf.transform?.scaleX ?? defaultSX) * 100;
+      final sy = (kf.transform?.scaleY ?? defaultSY) * 100;
+      final entry = <String, dynamic>{
+        't': kf.frame,
+        's': [sx, sy, 100],
+        ..._linearEase,
+      };
+      if (i < sorted.length - 1) {
+        final next = sorted[i + 1];
+        final nsx = (next.transform?.scaleX ?? defaultSX) * 100;
+        final nsy = (next.transform?.scaleY ?? defaultSY) * 100;
+        entry['e'] = [nsx, nsy, 100];
+      }
+      kfList.add(entry);
+    }
+    return {'a': 1, 'k': kfList};
+  }
+
+  Map<String, dynamic> _animatedOpacity(List<VecKeyframe> keyframes, double defaultOp) {
+    final sorted = [...keyframes]..sort((a, b) => a.frame.compareTo(b.frame));
+    final kfList = <Map<String, dynamic>>[];
+    for (var i = 0; i < sorted.length; i++) {
+      final kf = sorted[i];
+      final op = (kf.opacity ?? defaultOp) * 100;
+      final entry = <String, dynamic>{
+        't': kf.frame,
+        's': [op],
+        ..._linearEase,
+      };
+      if (i < sorted.length - 1) {
+        final next = sorted[i + 1];
+        entry['e'] = [(next.opacity ?? defaultOp) * 100];
+      }
+      kfList.add(entry);
+    }
+    return {'a': 1, 'k': kfList};
   }
 
   Map<String, dynamic>? _shapeGeometry(VecShape shape) {
@@ -140,6 +267,7 @@ class LottieExporter {
       polygon: (s) => _lottiePolygon(s),
       compound: (_) => null,
       symbolInstance: (_) => null,
+      image: (_) => null,
     );
   }
 

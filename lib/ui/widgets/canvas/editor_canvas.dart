@@ -103,6 +103,21 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
   Offset _bendStartLocalPos = Offset.zero; // node[0] position at drag start
   Offset _bendEndLocalPos = Offset.zero; // node[1] position at drag start
 
+  // Bend tool state (VecTool.bend)
+  int _bendToolHoverSegment = -1; // segment index hovered (-1 = none)
+  int _bendToolDragSegment = -1; // segment being dragged (-1 = not dragging)
+  bool _bendToolDragging = false;
+
+  // Guide dragging from rulers
+  // 0 = none, 1 = horizontal guide, 2 = vertical guide
+  int _guideDragAxis = 0;
+  double _guideDragPos = 0.0; // canvas-coordinate position during drag
+  double _guideDragExisting = double.nan; // NaN = new guide, else = old position
+
+  // Stage position in screen space (updated each build) — used by pan callbacks
+  double _stageLeft = 0.0;
+  double _stageTop = 0.0;
+
   // Motion path node drag
   String? _mpDragPathId;
   int _mpDragNodeIndex = -1;
@@ -239,6 +254,7 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
     final fitRequest = ref.watch(fitRequestProvider);
     final fitSelectionRequest = ref.watch(fitSelectionRequestProvider);
     final snapSettings = ref.watch(snapSettingsProvider);
+    final guides = ref.watch(guidesProvider);
     final cursorPosition = ref.watch(cursorPositionProvider);
     // Start/stop the playback timer automatically
     ref.watch(playbackTickerProvider);
@@ -267,6 +283,7 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
         activeTool == VecTool.line;
     final isPenTool = activeTool == VecTool.pen;
     final isSelectTool = activeTool == VecTool.select;
+    final isBendTool = activeTool == VecTool.bend;
 
     // For display purposes (selection overlay, handles, cursor hit-testing)
     // use the animated scene so the selection box tracks animated positions.
@@ -333,6 +350,9 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
         final stageScreenH = meta.stageHeight * zoom;
         final stageLeft = (viewportSize.width - stageScreenW) / 2 + panOffset.dx;
         final stageTop = (viewportSize.height - stageScreenH) / 2 + panOffset.dy;
+        // Cache for pan callbacks (which are closures outside the LayoutBuilder)
+        _stageLeft = stageLeft;
+        _stageTop = stageTop;
 
         return Listener(
           onPointerHover: (event) {
@@ -343,6 +363,9 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
             if (isSelectTool && selectedShapeIds.length == 1) {
               _updateHoverCorner(displaySelectedShape, zoom, event.localPosition);
               _updateHoverBend(displaySelectedShape, zoom, event.localPosition);
+            }
+            if (isBendTool && selectedShapeIds.length == 1) {
+              _updateBendToolHover(displaySelectedShape, zoom, event.localPosition);
             }
             if (isPenTool && penDrawing == null && selectedShape != null) {
               _updateHoverNode(selectedShape, event.localPosition, zoom);
@@ -358,6 +381,58 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
 
             onPanStart: (details) {
               if (_isPanning) return;
+              // ── Guide drag from rulers ──────────────────────────────────────
+              final snapSettings = ref.read(snapSettingsProvider);
+              if (snapSettings.showRulers) {
+                final pos = details.localPosition;
+                const rulerSize = 20.0;
+                final guides = ref.read(guidesProvider);
+                // Drag from horizontal ruler (top strip) → creates horizontal guide
+                if (pos.dy < rulerSize && pos.dx >= rulerSize) {
+                  final canvasY = _toCanvasPoint(pos).dy;
+                  setState(() {
+                    _guideDragAxis = 1;
+                    _guideDragPos = canvasY;
+                    _guideDragExisting = double.nan;
+                  });
+                  return;
+                }
+                // Drag from vertical ruler (left strip) → creates vertical guide
+                if (pos.dx < rulerSize && pos.dy >= rulerSize) {
+                  final canvasX = _toCanvasPoint(pos).dx;
+                  setState(() {
+                    _guideDragAxis = 2;
+                    _guideDragPos = canvasX;
+                    _guideDragExisting = double.nan;
+                  });
+                  return;
+                }
+                // Drag an existing horizontal guide
+                const hitPx = 5.0;
+                for (final gy in guides.horizontal) {
+                  final sy = _stageTop + gy * zoom;
+                  if ((pos.dy - sy).abs() < hitPx) {
+                    setState(() {
+                      _guideDragAxis = 1;
+                      _guideDragPos = gy;
+                      _guideDragExisting = gy;
+                    });
+                    return;
+                  }
+                }
+                // Drag an existing vertical guide
+                for (final gx in guides.vertical) {
+                  final sx = _stageLeft + gx * zoom;
+                  if ((pos.dx - sx).abs() < hitPx) {
+                    setState(() {
+                      _guideDragAxis = 2;
+                      _guideDragPos = gx;
+                      _guideDragExisting = gx;
+                    });
+                    return;
+                  }
+                }
+              }
               // Exit text editing mode when starting any canvas drag
               if (textEditingShapeId != null) {
                 _exitTextEditMode();
@@ -372,12 +447,22 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
                 _handlePenPanStart(details, selectedShape, zoom);
                 return;
               }
+              if (isBendTool) {
+                _handleBendToolPanStart(details, selectedShape, displaySelectedShape, zoom);
+                return;
+              }
               if (isSelectTool) {
                 _handleSelectPanStart(details, scene, selectedShape, displaySelectedShape, zoom, activeGroup);
               }
             },
 
             onPanUpdate: (details) {
+              // Guide drag update
+              if (_guideDragAxis != 0) {
+                final cp = _toCanvasPoint(details.localPosition);
+                setState(() => _guideDragPos = _guideDragAxis == 1 ? cp.dy : cp.dx);
+                return;
+              }
               if (_isPanning) {
                 ref.read(canvasOffsetProvider.notifier).pan(details.delta);
                 return;
@@ -389,6 +474,10 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
               }
               if (isPenTool && (_isPenHandleDrag || _editNodeIndex >= 0)) {
                 _handlePenPanUpdate(details, scene, selectedShape);
+                return;
+              }
+              if (isBendTool && _bendToolDragging) {
+                _handleBendToolPanUpdate(details, selectedShape, zoom);
                 return;
               }
               if (_selectDragMode == _SelectDragMode.motionPathNode) {
@@ -405,6 +494,40 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
             },
 
             onPanEnd: (details) {
+              // Guide drag commit / remove
+              if (_guideDragAxis != 0) {
+                final guidesNotifier = ref.read(guidesProvider.notifier);
+                final pos = _guideDragPos;
+                final isExisting = !_guideDragExisting.isNaN;
+                // Remove if dragged back into ruler area (screen pos < 20px)
+                final lastPos = _guideDragAxis == 1
+                    ? _stageTop + pos * zoom
+                    : _stageLeft + pos * zoom;
+                final removedToRuler = lastPos < 20.0;
+                if (_guideDragAxis == 1) {
+                  if (removedToRuler) {
+                    if (isExisting) guidesNotifier.removeHorizontal(_guideDragExisting);
+                  } else if (isExisting) {
+                    guidesNotifier.moveHorizontal(_guideDragExisting, pos);
+                  } else {
+                    guidesNotifier.addHorizontal(pos);
+                  }
+                } else {
+                  if (removedToRuler) {
+                    if (isExisting) guidesNotifier.removeVertical(_guideDragExisting);
+                  } else if (isExisting) {
+                    guidesNotifier.moveVertical(_guideDragExisting, pos);
+                  } else {
+                    guidesNotifier.addVertical(pos);
+                  }
+                }
+                setState(() {
+                  _guideDragAxis = 0;
+                  _guideDragPos = 0;
+                  _guideDragExisting = double.nan;
+                });
+                return;
+              }
               if (_isPanning) return;
               if (isDrawingTool) {
                 _finishDragDrawing(activeTool);
@@ -412,6 +535,14 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
               }
               if (isPenTool && (_isPenHandleDrag || _editNodeIndex >= 0)) {
                 _handlePenPanEnd(scene, selectedShape);
+                return;
+              }
+              if (isBendTool && _bendToolDragging) {
+                ref.read(vecDocumentStateProvider.notifier).commitCurrentState();
+                setState(() {
+                  _bendToolDragging = false;
+                  _bendToolDragSegment = -1;
+                });
                 return;
               }
               if (_selectDragMode == _SelectDragMode.motionPathNode) {
@@ -460,6 +591,13 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
                       }
                       ref.read(activePenDrawingProvider.notifier).addPoint(local);
                     }
+                  }
+                : isBendTool
+                ? (details) {
+                    final local = _toCanvasPoint(details.localPosition);
+                    _hitTestAndSelect(scene, local, false, activeGroupId: activeGroupId);
+                    // Reset hover when selecting a new shape
+                    setState(() => _bendToolHoverSegment = -1);
                   }
                 : isSelectTool
                 ? (details) {
@@ -671,6 +809,41 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
                         left: 0,
                         right: 0,
                         child: _GroupEditBanner(groupId: activeGroupId, theme: theme),
+                      ),
+
+                    // Grid overlay (inside stage bounds)
+                    if (snapSettings.showGrid)
+                      Positioned(
+                        left: stageLeft,
+                        top: stageTop,
+                        width: stageScreenW,
+                        height: stageScreenH,
+                        child: IgnorePointer(
+                          child: CustomPaint(
+                            painter: _GridOverlayPainter(
+                              gridSize: snapSettings.gridSize.toDouble(),
+                              zoom: zoom,
+                              color: theme.gridLine.withAlpha(55),
+                            ),
+                          ),
+                        ),
+                      ),
+
+                    // Canvas guides (dragged from rulers)
+                    if (guides.horizontal.isNotEmpty || guides.vertical.isNotEmpty || _guideDragAxis != 0)
+                      Positioned.fill(
+                        child: IgnorePointer(
+                          child: CustomPaint(
+                            painter: _GuidePainter(
+                              guides: guides,
+                              dragAxis: _guideDragAxis,
+                              dragPos: _guideDragPos,
+                              stageLeft: stageLeft,
+                              stageTop: stageTop,
+                              zoom: zoom,
+                            ),
+                          ),
+                        ),
                       ),
 
                     // Smart guide lines
@@ -955,6 +1128,40 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
                       ),
                     ),
                   );
+                },
+              ),
+
+            // Bend tool overlays — segment handles on paths and rectangles
+            if (selectedShapeIds.length == 1 && displaySelectedShape != null && activeTool == VecTool.bend)
+              Builder(
+                builder: (ctx) {
+                  final pathShape = displaySelectedShape.maybeMap(path: (p) => p, orElse: () => null);
+                  if (pathShape != null) {
+                    return Positioned.fill(
+                      child: CustomPaint(
+                        painter: SegmentBendOverlayPainter(
+                          shape: pathShape,
+                          zoom: zoom,
+                          hoveredSegment: _bendToolHoverSegment,
+                          color: theme.selectionOutline,
+                        ),
+                      ),
+                    );
+                  }
+                  final rectShape = displaySelectedShape.maybeMap(rectangle: (r) => r, orElse: () => null);
+                  if (rectShape != null) {
+                    return Positioned.fill(
+                      child: CustomPaint(
+                        painter: _RectSideBendPainter(
+                          shape: rectShape,
+                          zoom: zoom,
+                          hoveredSide: _bendToolHoverSegment,
+                          color: theme.selectionOutline,
+                        ),
+                      ),
+                    );
+                  }
+                  return const SizedBox.shrink();
                 },
               ),
 
@@ -1742,8 +1949,178 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
   }
 
   // ===========================================================================
-  // Snap to objects + smart guides
+  // Bend tool — hover, pan start/update, helpers
   // ===========================================================================
+
+  void _updateBendToolHover(dynamic displaySelectedShape, double zoom, Offset screenPos) {
+    if (displaySelectedShape == null) {
+      if (_bendToolHoverSegment != -1) setState(() => _bendToolHoverSegment = -1);
+      return;
+    }
+    final canvasPoint = _toCanvasPoint(screenPos);
+
+    final pathShape = displaySelectedShape.maybeMap(path: (p) => p, orElse: () => null);
+    if (pathShape != null) {
+      final seg = SegmentBendOverlayPainter.hitTestHandle(pathShape, zoom, canvasPoint);
+      if (seg != _bendToolHoverSegment) setState(() => _bendToolHoverSegment = seg);
+      return;
+    }
+
+    final rectShape = displaySelectedShape.maybeMap(rectangle: (r) => r, orElse: () => null);
+    if (rectShape != null) {
+      final side = _hitTestRectSideHandles(rectShape, zoom, canvasPoint);
+      if (side != _bendToolHoverSegment) setState(() => _bendToolHoverSegment = side);
+      return;
+    }
+
+    if (_bendToolHoverSegment != -1) setState(() => _bendToolHoverSegment = -1);
+  }
+
+  void _handleBendToolPanStart(
+    DragStartDetails details,
+    dynamic selectedShape,
+    dynamic displaySelectedShape,
+    double zoom,
+  ) {
+    if (displaySelectedShape == null) return;
+    final canvasPoint = _toCanvasPoint(details.localPosition);
+
+    // ---- Path segments ----
+    final pathShape = displaySelectedShape.maybeMap(path: (p) => p, orElse: () => null);
+    if (pathShape != null) {
+      final segIdx = SegmentBendOverlayPainter.hitTestHandle(pathShape, zoom, canvasPoint);
+      if (segIdx == -1) return;
+      final n = pathShape.nodes.length;
+      final i1 = (segIdx + 1) % n;
+      final t = pathShape.data.transform;
+      final handleLocal = SegmentBendOverlayPainter.segmentHandleLocalPos(pathShape, segIdx)!;
+      setState(() {
+        _bendToolDragSegment = segIdx;
+        _bendToolDragging = true;
+        _dragStartCanvasPoint = canvasPoint;
+        _dragStartTransform = t;
+        _bendHandleAtDragStart = SelectToolHandler.localToCanvas(t, handleLocal);
+        _bendStartLocalPos = Offset(pathShape.nodes[segIdx].position.x, pathShape.nodes[segIdx].position.y);
+        _bendEndLocalPos = Offset(pathShape.nodes[i1].position.x, pathShape.nodes[i1].position.y);
+      });
+      return;
+    }
+
+    // ---- Rectangle sides ----
+    final rectShape = displaySelectedShape.maybeMap(rectangle: (r) => r, orElse: () => null);
+    if (rectShape != null) {
+      final sideIdx = _hitTestRectSideHandles(rectShape, zoom, canvasPoint);
+      if (sideIdx == -1) return;
+      // Convert rect → 4-node closed path (no history); same ID is preserved.
+      final convertedPath = _convertRectToPath(rectShape);
+      final scene = ref.read(activeSceneProvider);
+      final layerId = ref.read(activeLayerIdProvider);
+      if (scene != null && layerId != null && selectedShape != null) {
+        ref
+            .read(vecDocumentStateProvider.notifier)
+            .updateShapeNoHistory(scene.id, layerId, selectedShape.id, (_) => convertedPath);
+      }
+      final t = convertedPath.data.transform;
+      final n = convertedPath.nodes.length;
+      final i1 = (sideIdx + 1) % n;
+      final handleLocal = _rectSideHandleLocalPos(rectShape, sideIdx);
+      setState(() {
+        _bendToolDragSegment = sideIdx;
+        _bendToolDragging = true;
+        _dragStartCanvasPoint = canvasPoint;
+        _dragStartTransform = t;
+        _bendHandleAtDragStart = SelectToolHandler.localToCanvas(t, handleLocal);
+        _bendStartLocalPos = Offset(convertedPath.nodes[sideIdx].position.x, convertedPath.nodes[sideIdx].position.y);
+        _bendEndLocalPos = Offset(convertedPath.nodes[i1].position.x, convertedPath.nodes[i1].position.y);
+      });
+    }
+  }
+
+  void _handleBendToolPanUpdate(DragUpdateDetails details, dynamic selectedShape, double zoom) {
+    if (selectedShape == null) return;
+    final scene = ref.read(activeSceneProvider);
+    final layerId = ref.read(activeLayerIdProvider);
+    if (scene == null || layerId == null) return;
+
+    final canvasPoint = _toCanvasPoint(details.localPosition);
+    final delta = canvasPoint - _dragStartCanvasPoint;
+    final newBendCanvas = _bendHandleAtDragStart + delta;
+
+    // Convert new handle position to shape-local space and compute cubic handles.
+    // Symmetric quadratic-to-cubic: C1 = (4H - end) / 3, C2 = (4H - start) / 3
+    final h = SelectToolHandler.canvasToLocal(_dragStartTransform!, newBendCanvas);
+    final h4 = Offset(h.dx * 4, h.dy * 4);
+    final c1 = (h4 - _bendEndLocalPos) / 3.0;
+    final c2 = (h4 - _bendStartLocalPos) / 3.0;
+
+    final si = _bendToolDragSegment;
+
+    ref
+        .read(vecDocumentStateProvider.notifier)
+        .updateShapeNoHistory(
+          scene.id,
+          layerId,
+          selectedShape.id,
+          (s) => s.maybeMap(
+            path: (ps) {
+              final nodes = List<VecPathNode>.from(ps.nodes);
+              final i1 = (si + 1) % nodes.length;
+              nodes[si] = nodes[si].copyWith(
+                handleOut: VecPoint(x: c1.dx, y: c1.dy),
+                type: VecNodeType.smooth,
+              );
+              nodes[i1] = nodes[i1].copyWith(
+                handleIn: VecPoint(x: c2.dx, y: c2.dy),
+                type: VecNodeType.smooth,
+              );
+              return ps.copyWith(nodes: nodes);
+            },
+            orElse: () => s,
+          ),
+        );
+  }
+
+  /// Returns the local-space position of side [sideIndex] midpoint on a rectangle.
+  /// Sides: 0=top, 1=right, 2=bottom, 3=left.
+  Offset _rectSideHandleLocalPos(VecRectangleShape rect, int sideIndex) {
+    final w = rect.data.transform.width;
+    final h = rect.data.transform.height;
+    return switch (sideIndex) {
+      0 => Offset(w / 2, 0),
+      1 => Offset(w, h / 2),
+      2 => Offset(w / 2, h),
+      _ => Offset(0, h / 2),
+    };
+  }
+
+  /// Returns the side index (0–3) under [canvasPoint], or -1 for no hit.
+  int _hitTestRectSideHandles(VecRectangleShape rect, double zoom, Offset canvasPoint) {
+    final t = rect.data.transform;
+    final hitRadius = 8.0 / zoom;
+    for (var i = 0; i < 4; i++) {
+      final localPos = _rectSideHandleLocalPos(rect, i);
+      final canvas = SelectToolHandler.localToCanvas(t, localPos);
+      if ((canvasPoint - canvas).distance < hitRadius) return i;
+    }
+    return -1;
+  }
+
+  /// Converts a [VecRectangleShape] to a 4-node closed [VecPathShape] with the
+  /// same transform, fills, strokes, and ID.  The rect corners become path nodes.
+  VecPathShape _convertRectToPath(VecRectangleShape rect) {
+    final w = rect.data.transform.width;
+    final h = rect.data.transform.height;
+    return VecPathShape(
+      data: rect.data,
+      nodes: [
+        VecPathNode(position: VecPoint(x: 0, y: 0)),
+        VecPathNode(position: VecPoint(x: w, y: 0)),
+        VecPathNode(position: VecPoint(x: w, y: h)),
+        VecPathNode(position: VecPoint(x: 0, y: h)),
+      ],
+      isClosed: true,
+    );
+  }
 
   /// Returns (snappedX, snappedY, guides) for the proposed move position.
   (double, double, List<_SnapGuide>) _snapToObjects({
@@ -1865,6 +2242,12 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
   }
 
   MouseCursor _currentCursor(VecTool activeTool, dynamic selectedShape) {
+    if (activeTool == VecTool.bend) {
+      if (_bendToolDragging || _bendToolHoverSegment != -1) {
+        return SystemMouseCursors.precise;
+      }
+      return SystemMouseCursors.basic;
+    }
     if (activeTool == VecTool.select) {
       if (selectedShape != null) {
         // Bend handle drag/hover
@@ -2165,6 +2548,8 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
     switch (tool) {
       case VecTool.select:
         return SystemMouseCursors.basic;
+      case VecTool.bend:
+        return SystemMouseCursors.basic;
       case VecTool.pen:
         return SystemMouseCursors.precise;
       case VecTool.line:
@@ -2384,6 +2769,60 @@ class _CanvasBackgroundPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _CanvasBackgroundPainter old) => old.bgColor != bgColor || old.dotColor != dotColor;
+}
+
+/// Draws diamond handles at the midpoint of each side of a [VecRectangleShape]
+/// when the Bend tool is active.
+class _RectSideBendPainter extends CustomPainter {
+  const _RectSideBendPainter({
+    required this.shape,
+    required this.zoom,
+    required this.hoveredSide,
+    required this.color,
+  });
+
+  final VecRectangleShape shape;
+  final double zoom;
+  final int hoveredSide; // 0=top, 1=right, 2=bottom, 3=left; -1=none
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final t = shape.data.transform;
+    final w = t.width;
+    final h = t.height;
+    final px = t.pivot?.x ?? (w / 2);
+    final py = t.pivot?.y ?? (h / 2);
+
+    canvas.save();
+    canvas.translate(t.x, t.y);
+    canvas.translate(px, py);
+    if (t.rotation != 0) canvas.rotate(t.rotation * math.pi / 180);
+    if (t.scaleX != 1 || t.scaleY != 1) canvas.scale(t.scaleX, t.scaleY);
+    canvas.translate(-px, -py);
+
+    final handles = [Offset(w / 2, 0), Offset(w, h / 2), Offset(w / 2, h), Offset(0, h / 2)];
+    final hr = 5.0 / zoom;
+
+    for (var i = 0; i < 4; i++) {
+      final isHovered = i == hoveredSide;
+      final pos = handles[i];
+      final path = Path()
+        ..moveTo(pos.dx, pos.dy - hr)
+        ..lineTo(pos.dx + hr, pos.dy)
+        ..lineTo(pos.dx, pos.dy + hr)
+        ..lineTo(pos.dx - hr, pos.dy)
+        ..close();
+      canvas.drawPath(path, Paint()..color = color.withAlpha(isHovered ? 220 : 160)..style = PaintingStyle.fill);
+      canvas.drawPath(path, Paint()..color = color..style = PaintingStyle.stroke..strokeWidth = 1.2 / zoom);
+    }
+
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant _RectSideBendPainter old) =>
+      old.shape != shape || old.zoom != zoom || old.hoveredSide != hoveredSide || old.color != color;
 }
 
 // =============================================================================
@@ -2748,4 +3187,100 @@ class _SymbolEditBanner extends ConsumerWidget {
       ),
     );
   }
+}
+
+// =============================================================================
+// Grid overlay — drawn inside stage bounds
+// =============================================================================
+
+class _GridOverlayPainter extends CustomPainter {
+  const _GridOverlayPainter({
+    required this.gridSize,
+    required this.zoom,
+    required this.color,
+  });
+
+  final double gridSize;
+  final double zoom;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 0.5;
+
+    final step = gridSize * zoom;
+    if (step < 2) return;
+
+    for (var x = 0.0; x <= size.width; x += step) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
+    }
+    for (var y = 0.0; y <= size.height; y += step) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _GridOverlayPainter old) =>
+      old.gridSize != gridSize || old.zoom != zoom || old.color != color;
+}
+
+// =============================================================================
+// Guide lines painter (canvas-coordinate guides dragged from rulers)
+// =============================================================================
+
+class _GuidePainter extends CustomPainter {
+  const _GuidePainter({
+    required this.guides,
+    required this.dragAxis,
+    required this.dragPos,
+    required this.stageLeft,
+    required this.stageTop,
+    required this.zoom,
+  });
+
+  final GuidesState guides;
+  final int dragAxis;
+  final double dragPos;
+  final double stageLeft;
+  final double stageTop;
+  final double zoom;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = const Color(0xFF2563EB).withAlpha(200)
+      ..strokeWidth = 1.0;
+
+    for (final gy in guides.horizontal) {
+      final sy = stageTop + gy * zoom;
+      if (sy < 0 || sy > size.height) continue;
+      canvas.drawLine(Offset(0, sy), Offset(size.width, sy), paint);
+    }
+    for (final gx in guides.vertical) {
+      final sx = stageLeft + gx * zoom;
+      if (sx < 0 || sx > size.width) continue;
+      canvas.drawLine(Offset(sx, 0), Offset(sx, size.height), paint);
+    }
+
+    if (dragAxis == 1) {
+      final sy = stageTop + dragPos * zoom;
+      canvas.drawLine(Offset(0, sy), Offset(size.width, sy),
+          paint..color = const Color(0xFF2563EB));
+    } else if (dragAxis == 2) {
+      final sx = stageLeft + dragPos * zoom;
+      canvas.drawLine(Offset(sx, 0), Offset(sx, size.height),
+          paint..color = const Color(0xFF2563EB));
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _GuidePainter old) =>
+      old.guides != guides ||
+      old.dragAxis != dragAxis ||
+      old.dragPos != dragPos ||
+      old.stageLeft != stageLeft ||
+      old.stageTop != stageTop ||
+      old.zoom != zoom;
 }

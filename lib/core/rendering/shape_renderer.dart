@@ -18,10 +18,13 @@ import 'blend_mode_mapper.dart';
 /// Converts a [VecShape] into a Flutter [Path] and applies fills/strokes
 /// onto a [Canvas].
 class ShapeRenderer {
-  const ShapeRenderer({this.symbols = const []});
+  const ShapeRenderer({this.symbols = const [], this.imageCache = const {}});
 
   /// The symbol library — used to resolve [VecSymbolInstanceShape] references.
   final List<VecSymbol> symbols;
+
+  /// Cache of assetId → decoded [Image] for [VecImageShape] rendering.
+  final Map<String, Image> imageCache;
 
   /// Renders a single shape (with transform, fills, strokes, opacity, blend).
   void render(Canvas canvas, VecShape shape) {
@@ -57,6 +60,7 @@ class ShapeRenderer {
       group: (s) => _renderGroup(canvas, s),
       compound: (s) => _renderCompound(canvas, s),
       symbolInstance: (s) => _renderSymbolInstance(canvas, s),
+      image: (s) => _renderImage(canvas, s),
     );
 
     if (needsLayer) canvas.restore();
@@ -450,6 +454,95 @@ class ShapeRenderer {
         ..color = tintColor
         ..blendMode = BlendMode.srcATop,
     );
+  }
+
+  // ===========================================================================
+  // Image shape
+  // ===========================================================================
+
+  void _renderImage(Canvas canvas, VecImageShape s) {
+    final t = s.transform;
+    final dstRect = Rect.fromLTWH(0, 0, t.width, t.height);
+    final image = imageCache[s.assetId];
+
+    if (image == null) {
+      // Placeholder: grey rect with a dashed border and image icon cross
+      final paint = Paint()
+        ..color = const Color(0x22888888)
+        ..style = PaintingStyle.fill;
+      canvas.drawRect(dstRect, paint);
+      final border = Paint()
+        ..color = const Color(0x88888888)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.0;
+      canvas.drawRect(dstRect, border);
+      // Draw a simple X to indicate missing image
+      canvas.drawLine(dstRect.topLeft, dstRect.bottomRight, border);
+      canvas.drawLine(dstRect.topRight, dstRect.bottomLeft, border);
+      return;
+    }
+
+    final imgW = image.width.toDouble();
+    final imgH = image.height.toDouble();
+
+    Rect srcRect;
+    Rect finalDst;
+
+    switch (s.fit) {
+      case VecImageFit.fill:
+        srcRect = Rect.fromLTWH(0, 0, imgW, imgH);
+        finalDst = dstRect;
+        break;
+      case VecImageFit.contain:
+        {
+          final scaleX = dstRect.width / imgW;
+          final scaleY = dstRect.height / imgH;
+          final scale = math.min(scaleX, scaleY);
+          final fw = imgW * scale;
+          final fh = imgH * scale;
+          finalDst = Rect.fromLTWH(
+            (dstRect.width - fw) / 2,
+            (dstRect.height - fh) / 2,
+            fw,
+            fh,
+          );
+          srcRect = Rect.fromLTWH(0, 0, imgW, imgH);
+        }
+        break;
+      case VecImageFit.cover:
+        {
+          final scaleX = dstRect.width / imgW;
+          final scaleY = dstRect.height / imgH;
+          final scale = math.max(scaleX, scaleY);
+          final fw = imgW * scale;
+          final fh = imgH * scale;
+          final ox = (fw - dstRect.width) / 2;
+          final oy = (fh - dstRect.height) / 2;
+          srcRect = Rect.fromLTWH(
+            ox / scale,
+            oy / scale,
+            dstRect.width / scale,
+            dstRect.height / scale,
+          );
+          finalDst = dstRect;
+        }
+        break;
+      case VecImageFit.none:
+        srcRect = Rect.fromLTWH(0, 0, math.min(imgW, dstRect.width), math.min(imgH, dstRect.height));
+        finalDst = Rect.fromLTWH(0, 0, srcRect.width, srcRect.height);
+        break;
+    }
+
+    canvas.save();
+    canvas.clipRect(dstRect);
+    canvas.drawImageRect(image, srcRect, finalDst, Paint());
+    canvas.restore();
+
+    // Apply fills/strokes on top of the image (e.g. color overlay, border)
+    if (s.fills.isNotEmpty || s.strokes.isNotEmpty) {
+      final path = Path()..addRect(dstRect);
+      _applyFillsAndStrokes(canvas, path, s.fills, s.strokes);
+    }
   }
 
   void _renderMissingSymbolPlaceholder(Canvas canvas, VecSymbolInstanceShape s) {

@@ -265,3 +265,28 @@ const _$PathfinderOpEnumMap = {
   PathfinderOp.trim: 'trim',
   PathfinderOp.outline: 'outline',
 };
+
+_$VecImageShapeImpl _$$VecImageShapeImplFromJson(Map<String, dynamic> json) =>
+    _$VecImageShapeImpl(
+      data: VecShapeData.fromJson(json['data'] as Map<String, dynamic>),
+      assetId: json['assetId'] as String,
+      fit:
+          $enumDecodeNullable(_$VecImageFitEnumMap, json['fit']) ??
+          VecImageFit.contain,
+      $type: json['type'] as String?,
+    );
+
+Map<String, dynamic> _$$VecImageShapeImplToJson(_$VecImageShapeImpl instance) =>
+    <String, dynamic>{
+      'data': instance.data,
+      'assetId': instance.assetId,
+      'fit': _$VecImageFitEnumMap[instance.fit]!,
+      'type': instance.$type,
+    };
+
+const _$VecImageFitEnumMap = {
+  VecImageFit.contain: 'contain',
+  VecImageFit.cover: 'cover',
+  VecImageFit.fill: 'fill',
+  VecImageFit.none: 'none',
+};

@@ -239,6 +239,7 @@ class _ShortcutsWrapperState extends State<ShortcutsWrapper> {
         LogicalKeyboardKey.keyR,
         LogicalKeyboardKey.keyE,
         LogicalKeyboardKey.keyT,
+        LogicalKeyboardKey.keyU,
       };
       if (toolKeys.contains(event.logicalKey)) {
         widget.onToolSwitch?.call(event.logicalKey.keyLabel);

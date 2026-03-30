@@ -46,6 +46,7 @@ class ShapeToPath {
       },
       compound: (s) => computeCompoundPath(s),
       symbolInstance: (_) => ui.Path(),
+      image: (_) => ui.Path(),
     );
   }
 

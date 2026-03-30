@@ -396,6 +396,20 @@ class PropertiesPanel extends ConsumerWidget {
         ),
 
         Divider(height: 1, color: theme.divider.withAlpha(60)),
+
+        // Align & Distribute
+        AlignSection(
+          shapes: selectedShapes.cast<VecShape>(),
+          theme: theme,
+          onAlignApply: (updated) {
+            for (final s in updated) {
+              docNotifier.updateShapeNoHistory(sceneId, layerId, s.id, (_) => s);
+            }
+            docNotifier.commitCurrentState();
+          },
+        ),
+
+        Divider(height: 1, color: theme.divider.withAlpha(60)),
         PathfinderPanel(theme: theme),
       ],
     );
@@ -417,6 +431,7 @@ String _shapeTypeNameOf(VecShape shape) {
     group: (_) => 'Group',
     symbolInstance: (_) => 'Symbol',
     compound: (s) => '${s.op.name[0].toUpperCase()}${s.op.name.substring(1)}',
+    image: (_) => 'Image',
   );
 }
 

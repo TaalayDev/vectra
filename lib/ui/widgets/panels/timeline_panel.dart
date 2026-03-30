@@ -145,6 +145,7 @@ class _TimelinePanelState extends ConsumerState<TimelinePanel> {
         group: (_) => 'Group',
         symbolInstance: (_) => 'Symbol',
         compound: (_) => 'Compound',
+        image: (_) => 'Image',
       );
 
   static IconData _shapeIcon(VecShape shape) => shape.map(
@@ -156,5 +157,6 @@ class _TimelinePanelState extends ConsumerState<TimelinePanel> {
         group: (_) => Icons.folder_outlined,
         symbolInstance: (_) => Icons.link,
         compound: (_) => Icons.join_inner,
+        image: (_) => Icons.image_outlined,
       );
 }

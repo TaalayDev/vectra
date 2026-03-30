@@ -1,8 +1,18 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../app/theme/theme.dart';
+import '../../../core/import/svg_importer.dart';
+import '../../../data/models/vec_asset.dart';
+import '../../../data/models/vec_shape.dart';
+import '../../../data/models/vec_transform.dart';
 import '../../../providers/document_provider.dart';
 import '../../../providers/editor_state_provider.dart';
 import '../../contents/dialogs/export_dialog.dart';
@@ -127,6 +137,10 @@ class EditorToolbar extends HookConsumerWidget {
           const SizedBox(width: 8),
           Container(width: 1, height: 20, color: theme.divider),
           const SizedBox(width: 8),
+          _ImportImageButton(theme: theme),
+          const SizedBox(width: 6),
+          _ImportSvgButton(theme: theme),
+          const SizedBox(width: 6),
           _ExportButton(theme: theme),
           const SizedBox(width: 12),
         ],
@@ -400,6 +414,93 @@ class _SizeField extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
+// Import SVG button
+// ---------------------------------------------------------------------------
+
+class _ImportSvgButton extends ConsumerWidget {
+  const _ImportSvgButton({required this.theme});
+  final AppTheme theme;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Tooltip(
+      message: 'Import SVG',
+      waitDuration: const Duration(milliseconds: 500),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(6),
+          hoverColor: theme.primaryColor.withAlpha(20),
+          onTap: () => _pickAndImport(ref),
+          child: Container(
+            height: 28,
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: theme.divider.withAlpha(100)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.file_download_outlined, size: 13, color: theme.textSecondary),
+                const SizedBox(width: 5),
+                Text(
+                  'Import',
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: theme.textSecondary),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickAndImport(WidgetRef ref) async {
+    try {
+      String? svgContent;
+
+      if (kIsWeb) {
+        final result = await FilePicker.platform.pickFiles(
+          type: FileType.custom,
+          allowedExtensions: ['svg'],
+          withData: true,
+        );
+        final bytes = result?.files.firstOrNull?.bytes;
+        if (bytes == null) return;
+        svgContent = String.fromCharCodes(bytes);
+      } else {
+        final result = await FilePicker.platform.pickFiles(
+          type: FileType.custom,
+          allowedExtensions: ['svg'],
+        );
+        final path = result?.files.firstOrNull?.path;
+        if (path == null) return;
+        svgContent = await File(path).readAsString();
+      }
+
+      const importer = SvgImporter();
+      final shapes = importer.import(svgContent);
+      if (shapes.isEmpty) return;
+
+      final scene = ref.read(activeSceneProvider);
+      final layerId = ref.read(activeLayerIdProvider);
+      if (scene == null || layerId == null) return;
+
+      ref.read(vecDocumentStateProvider.notifier).addShapes(scene.id, layerId, shapes);
+
+      // Select the first imported shape
+      if (shapes.isNotEmpty) {
+        ref.read(selectedShapeIdProvider.notifier).set(shapes.first.id);
+        ref.read(selectedShapeIdsProvider.notifier).setSingle(shapes.first.id);
+      }
+    } catch (_) {
+      // Silently ignore import errors
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Export button
 // ---------------------------------------------------------------------------
 
@@ -513,6 +614,13 @@ class _SnapControls extends ConsumerWidget {
           tooltip: 'Snap to objects',
           theme: theme,
         ),
+        _SnapToggle(
+          icon: Icons.grid_on_outlined,
+          active: snap.showGrid,
+          onTap: notifier.toggleShowGrid,
+          tooltip: 'Show grid',
+          theme: theme,
+        ),
       ],
     );
   }
@@ -559,5 +667,134 @@ class _SnapToggle extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Import Image button
+// ---------------------------------------------------------------------------
+
+class _ImportImageButton extends ConsumerWidget {
+  const _ImportImageButton({required this.theme});
+  final AppTheme theme;
+
+  static const _uuid = Uuid();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Tooltip(
+      message: 'Import Image (PNG, JPG, WebP)',
+      waitDuration: const Duration(milliseconds: 500),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(6),
+          hoverColor: theme.primaryColor.withAlpha(20),
+          onTap: () => _pickAndImport(context, ref),
+          child: Container(
+            width: 30,
+            height: 28,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: theme.divider.withAlpha(100)),
+            ),
+            child: Icon(Icons.image_outlined, size: 14, color: theme.textSecondary),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickAndImport(BuildContext context, WidgetRef ref) async {
+    try {
+      List<int>? bytes;
+      String? fileName;
+      String? mimeType;
+
+      if (kIsWeb) {
+        final result = await FilePicker.platform.pickFiles(
+          type: FileType.image,
+          withData: true,
+        );
+        final file = result?.files.firstOrNull;
+        if (file == null) return;
+        bytes = file.bytes?.toList();
+        fileName = file.name;
+        mimeType = _mimeFromName(file.name);
+      } else {
+        final result = await FilePicker.platform.pickFiles(
+          type: FileType.image,
+        );
+        final file = result?.files.firstOrNull;
+        if (file == null || file.path == null) return;
+        bytes = await File(file.path!).readAsBytes();
+        fileName = file.name;
+        mimeType = _mimeFromName(file.name);
+      }
+
+      if (bytes == null || bytes.isEmpty) return;
+
+      final assetId = _uuid.v4();
+      final shapeId = _uuid.v4();
+      final dataBase64 = base64Encode(bytes);
+
+      final asset = VecAsset(
+        id: assetId,
+        name: fileName ?? 'image',
+        type: VecAssetType.image,
+        path: fileName ?? 'image',
+        mimeType: mimeType,
+        dataBase64: dataBase64,
+      );
+
+      // Place image at centre of stage with natural dimensions capped to 800px
+      final meta = ref.read(currentMetaProvider);
+      const maxSide = 800.0;
+      // We don't have the actual pixel size here; default to 400×300
+      final w = maxSide.clamp(1.0, meta.stageWidth);
+      final h = (w * 3 / 4).clamp(1.0, meta.stageHeight);
+      final x = (meta.stageWidth - w) / 2;
+      final y = (meta.stageHeight - h) / 2;
+
+      final shape = VecShape.image(
+        data: VecShapeData(
+          id: shapeId,
+          name: fileName ?? 'Image',
+          transform: VecTransform(x: x, y: y, width: w, height: h),
+        ),
+        assetId: assetId,
+      );
+
+      final docNotifier = ref.read(vecDocumentStateProvider.notifier);
+      docNotifier.addAsset(asset);
+
+      final scene = ref.read(activeSceneProvider);
+      final layerId = ref.read(activeLayerIdProvider);
+      if (scene == null || layerId == null) return;
+
+      docNotifier.addShape(scene.id, layerId, shape);
+
+      ref.read(selectedShapeIdProvider.notifier).set(shapeId);
+      ref.read(selectedShapeIdsProvider.notifier).setSingle(shapeId);
+    } catch (_) {
+      // Silently ignore import errors
+    }
+  }
+
+  String? _mimeFromName(String name) {
+    final ext = name.split('.').last.toLowerCase();
+    switch (ext) {
+      case 'png':
+        return 'image/png';
+      case 'jpg':
+      case 'jpeg':
+        return 'image/jpeg';
+      case 'webp':
+        return 'image/webp';
+      case 'gif':
+        return 'image/gif';
+      default:
+        return null;
+    }
   }
 }

@@ -2103,3 +2103,208 @@ class _MpToggle extends StatelessWidget {
     );
   }
 }
+
+// ---------------------------------------------------------------------------
+// Align & Distribute Section (multi-selection)
+// ---------------------------------------------------------------------------
+
+typedef AlignAction = void Function(List<VecShape> shapes);
+
+class AlignSection extends StatelessWidget {
+  const AlignSection({
+    super.key,
+    required this.shapes,
+    required this.theme,
+    required this.onAlignApply,
+  });
+
+  final List<VecShape> shapes;
+  final AppTheme theme;
+
+  /// Called with the updated list of shapes after alignment.
+  final void Function(List<VecShape> updated) onAlignApply;
+
+  // ── helpers ─────────────────────────────────────────────────────────────
+
+  double _left(VecShape s) => s.data.transform.x;
+  double _top(VecShape s) => s.data.transform.y;
+  double _right(VecShape s) => s.data.transform.x + s.data.transform.width;
+  double _bottom(VecShape s) => s.data.transform.y + s.data.transform.height;
+  double _cx(VecShape s) => s.data.transform.x + s.data.transform.width / 2;
+  double _cy(VecShape s) => s.data.transform.y + s.data.transform.height / 2;
+
+  VecShape _moveTo(VecShape s, double? x, double? y) => s.copyWith(
+        data: s.data.copyWith(
+          transform: s.data.transform.copyWith(
+            x: x ?? s.data.transform.x,
+            y: y ?? s.data.transform.y,
+          ),
+        ),
+      );
+
+  void _alignLeft() {
+    final minX = shapes.map(_left).reduce((a, b) => a < b ? a : b);
+    onAlignApply([for (final s in shapes) _moveTo(s, minX, null)]);
+  }
+
+  void _alignRight() {
+    final maxX = shapes.map(_right).reduce((a, b) => a > b ? a : b);
+    onAlignApply([for (final s in shapes) _moveTo(s, maxX - s.data.transform.width, null)]);
+  }
+
+  void _alignCenterH() {
+    final avgCX = shapes.map(_cx).reduce((a, b) => a + b) / shapes.length;
+    onAlignApply([for (final s in shapes) _moveTo(s, avgCX - s.data.transform.width / 2, null)]);
+  }
+
+  void _alignTop() {
+    final minY = shapes.map(_top).reduce((a, b) => a < b ? a : b);
+    onAlignApply([for (final s in shapes) _moveTo(s, null, minY)]);
+  }
+
+  void _alignBottom() {
+    final maxY = shapes.map(_bottom).reduce((a, b) => a > b ? a : b);
+    onAlignApply([for (final s in shapes) _moveTo(s, null, maxY - s.data.transform.height)]);
+  }
+
+  void _alignCenterV() {
+    final avgCY = shapes.map(_cy).reduce((a, b) => a + b) / shapes.length;
+    onAlignApply([for (final s in shapes) _moveTo(s, null, avgCY - s.data.transform.height / 2)]);
+  }
+
+  void _distributeH() {
+    if (shapes.length < 3) return;
+    final sorted = [...shapes]..sort((a, b) => _left(a).compareTo(_left(b)));
+    final minX = _left(sorted.first);
+    final maxX = _right(sorted.last);
+    final totalW = sorted.fold<double>(0, (sum, s) => sum + s.data.transform.width);
+    final gap = (maxX - minX - totalW) / (sorted.length - 1);
+    double x = minX;
+    final updated = <VecShape>[];
+    for (final s in sorted) {
+      updated.add(_moveTo(s, x, null));
+      x += s.data.transform.width + gap;
+    }
+    onAlignApply(updated);
+  }
+
+  void _distributeV() {
+    if (shapes.length < 3) return;
+    final sorted = [...shapes]..sort((a, b) => _top(a).compareTo(_top(b)));
+    final minY = _top(sorted.first);
+    final maxY = _bottom(sorted.last);
+    final totalH = sorted.fold<double>(0, (sum, s) => sum + s.data.transform.height);
+    final gap = (maxY - minY - totalH) / (sorted.length - 1);
+    double y = minY;
+    final updated = <VecShape>[];
+    for (final s in sorted) {
+      updated.add(_moveTo(s, null, y));
+      y += s.data.transform.height + gap;
+    }
+    onAlignApply(updated);
+  }
+
+  // ── build ────────────────────────────────────────────────────────────────
+
+  @override
+  Widget build(BuildContext context) {
+    final t = theme;
+    return CollapsibleSection(
+      title: 'Align & Distribute',
+      theme: t,
+      content: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Align row
+          Text('Align', style: TextStyle(fontSize: 9, color: t.textDisabled, fontWeight: FontWeight.w600, letterSpacing: 0.5)),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              _DistributeBtn(icon: Icons.align_horizontal_left_outlined,   tooltip: 'Align left',      onTap: _alignLeft,    theme: t),
+              const SizedBox(width: 4),
+              _DistributeBtn(icon: Icons.align_horizontal_center_outlined, tooltip: 'Center horizontal', onTap: _alignCenterH, theme: t),
+              const SizedBox(width: 4),
+              _DistributeBtn(icon: Icons.align_horizontal_right_outlined,  tooltip: 'Align right',     onTap: _alignRight,   theme: t),
+              const SizedBox(width: 12),
+              _DistributeBtn(icon: Icons.align_vertical_top_outlined,      tooltip: 'Align top',       onTap: _alignTop,     theme: t),
+              const SizedBox(width: 4),
+              _DistributeBtn(icon: Icons.align_vertical_center_outlined,   tooltip: 'Center vertical',  onTap: _alignCenterV, theme: t),
+              const SizedBox(width: 4),
+              _DistributeBtn(icon: Icons.align_vertical_bottom_outlined,   tooltip: 'Align bottom',    onTap: _alignBottom,  theme: t),
+            ],
+          ),
+          const SizedBox(height: 10),
+          // Distribute row
+          Text('Distribute', style: TextStyle(fontSize: 9, color: t.textDisabled, fontWeight: FontWeight.w600, letterSpacing: 0.5)),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              _DistributeBtn(
+                icon: Icons.horizontal_distribute,
+                tooltip: 'Distribute horizontally',
+                onTap: shapes.length >= 3 ? _distributeH : null,
+                theme: t,
+              ),
+              const SizedBox(width: 4),
+              _DistributeBtn(
+                icon: Icons.vertical_distribute,
+                tooltip: 'Distribute vertically',
+                onTap: shapes.length >= 3 ? _distributeV : null,
+                theme: t,
+              ),
+              if (shapes.length < 3) ...[
+                const SizedBox(width: 8),
+                Text('(need 3+)', style: TextStyle(fontSize: 9, color: t.textDisabled)),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DistributeBtn extends StatelessWidget {
+  const _DistributeBtn({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+    required this.theme,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback? onTap;
+  final AppTheme theme;
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onTap != null;
+    return Tooltip(
+      message: tooltip,
+      waitDuration: const Duration(milliseconds: 400),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(4),
+          hoverColor: enabled ? theme.primaryColor.withAlpha(20) : Colors.transparent,
+          child: Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(color: theme.divider.withAlpha(80)),
+              color: theme.surfaceVariant,
+            ),
+            child: Icon(
+              icon,
+              size: 14,
+              color: enabled ? theme.textSecondary : theme.textDisabled.withAlpha(80),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

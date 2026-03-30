@@ -1,3 +1,5 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 
 import '../../data/models/vec_layer.dart';
@@ -16,16 +18,18 @@ class ScenePainter extends CustomPainter {
     this.symbols = const [],
     this.selectedShapeId,
     this.showGuides = false,
+    this.imageCache = const {},
   });
 
   final VecScene scene;
   final List<VecSymbol> symbols;
   final String? selectedShapeId;
   final bool showGuides;
+  final Map<String, ui.Image> imageCache;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final renderer = ShapeRenderer(symbols: symbols);
+    final renderer = ShapeRenderer(symbols: symbols, imageCache: imageCache);
 
     // Sort layers by order ascending (bottom first)
     final sortedLayers = List<VecLayer>.from(scene.layers)
@@ -46,6 +50,7 @@ class ScenePainter extends CustomPainter {
     return old.scene != scene ||
         old.symbols != symbols ||
         old.selectedShapeId != selectedShapeId ||
-        old.showGuides != showGuides;
+        old.showGuides != showGuides ||
+        old.imageCache != imageCache;
   }
 }
