@@ -20,6 +20,7 @@ class ToolButtonGroup extends ConsumerWidget {
     (VecTool.width, Icons.line_weight, 'Width (W)'),
     (VecTool.bend, Icons.architecture, 'Bend (U)'),
     (VecTool.knife, Icons.content_cut_outlined, 'Knife (K)'),
+    (VecTool.freedraw, Icons.brush_outlined, 'Free Draw (B)'),
   ];
 
   @override

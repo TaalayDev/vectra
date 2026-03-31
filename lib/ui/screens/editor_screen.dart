@@ -229,6 +229,7 @@ class EditorScreen extends HookConsumerWidget {
               'T' => VecTool.text,
               'U' => VecTool.bend,
               'K' => VecTool.knife,
+              'B' => VecTool.freedraw,
               _ => null,
             };
             if (tool != null) {

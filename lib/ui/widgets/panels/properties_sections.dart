@@ -295,8 +295,7 @@ class _FillRow extends HookWidget {
               active: isGradient && gradType == VecGradientType.linear,
               theme: theme,
               onTap: () {
-                final g = fill.gradient?.copyWith(type: VecGradientType.linear) ??
-                    VecGradient.defaultLinear;
+                final g = fill.gradient?.copyWith(type: VecGradientType.linear) ?? VecGradient.defaultLinear;
                 onUpdate((s) => _updateFill(s, i, s.fills[i].copyWith(gradient: g)));
               },
             ),
@@ -306,7 +305,8 @@ class _FillRow extends HookWidget {
               active: isGradient && gradType == VecGradientType.radial,
               theme: theme,
               onTap: () {
-                final g = (fill.gradient?.copyWith(type: VecGradientType.radial)) ??
+                final g =
+                    (fill.gradient?.copyWith(type: VecGradientType.radial)) ??
                     VecGradient.defaultLinear.copyWith(type: VecGradientType.radial);
                 onUpdate((s) => _updateFill(s, i, s.fills[i].copyWith(gradient: g)));
               },
@@ -404,12 +404,7 @@ class _FillRow extends HookWidget {
 }
 
 class _FillTypeButton extends StatelessWidget {
-  const _FillTypeButton({
-    required this.label,
-    required this.active,
-    required this.theme,
-    required this.onTap,
-  });
+  const _FillTypeButton({required this.label, required this.active, required this.theme, required this.onTap});
 
   final String label;
   final bool active;
@@ -427,10 +422,7 @@ class _FillTypeButton extends StatelessWidget {
           decoration: BoxDecoration(
             color: active ? theme.primaryColor.withAlpha(30) : theme.surfaceVariant,
             borderRadius: BorderRadius.circular(4),
-            border: Border.all(
-              color: active ? theme.primaryColor.withAlpha(100) : theme.divider,
-              width: 0.5,
-            ),
+            border: Border.all(color: active ? theme.primaryColor.withAlpha(100) : theme.divider, width: 0.5),
           ),
           child: Text(
             label,
@@ -474,9 +466,7 @@ class _GradientEditor extends HookWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(4),
             gradient: LinearGradient(
-              colors: gradient.stops
-                  .map((s) => s.color.toFlutterColor())
-                  .toList(),
+              colors: gradient.stops.map((s) => s.color.toFlutterColor()).toList(),
               stops: gradient.stops.map((s) => s.position.toDouble()).toList(),
             ),
             border: Border.all(color: theme.divider, width: 0.5),
@@ -541,10 +531,7 @@ class _GradientEditor extends HookWidget {
         GestureDetector(
           onTap: () {
             final newStops = List<VecGradientStop>.from(gradient.stops)
-              ..add(const VecGradientStop(
-                color: VecColor(r: 128, g: 128, b: 128),
-                position: 0.5,
-              ));
+              ..add(const VecGradientStop(color: VecColor(r: 128, g: 128, b: 128), position: 0.5));
             onUpdateGradient(gradient.copyWith(stops: newStops));
           },
           child: MouseRegion(
@@ -579,17 +566,16 @@ class _GradientEditor extends HookWidget {
                 ),
               ),
               const Spacer(),
-              PanelSlider(
-                value: opacity,
-                theme: theme,
-                onChanged: onUpdateOpacity,
-                onChangeEnd: (_) => onCommit(),
+              Expanded(
+                child: PanelSlider(
+                  value: opacity,
+                  theme: theme,
+                  onChanged: onUpdateOpacity,
+                  onChangeEnd: (_) => onCommit(),
+                ),
               ),
               const SizedBox(width: 4),
-              Text(
-                '${(opacity * 100).round()}%',
-                style: TextStyle(fontSize: 10, color: theme.textDisabled),
-              ),
+              Text('${(opacity * 100).round()}%', style: TextStyle(fontSize: 10, color: theme.textDisabled)),
             ],
           )
         else
@@ -818,12 +804,7 @@ class _StrokeRow extends HookWidget {
         ),
         const SizedBox(height: 4),
         // Dash pattern
-        _DashPatternRow(
-          stroke: stroke,
-          index: i,
-          theme: theme,
-          onUpdate: onUpdate,
-        ),
+        _DashPatternRow(stroke: stroke, index: i, theme: theme, onUpdate: onUpdate),
       ],
     );
   }
@@ -845,12 +826,7 @@ class _StrokeRow extends HookWidget {
 // ---------------------------------------------------------------------------
 
 class _DashPatternRow extends HookWidget {
-  const _DashPatternRow({
-    required this.stroke,
-    required this.index,
-    required this.theme,
-    required this.onUpdate,
-  });
+  const _DashPatternRow({required this.stroke, required this.index, required this.theme, required this.onUpdate});
 
   final VecStroke stroke;
   final int index;
@@ -888,13 +864,15 @@ class _DashPatternRow extends HookWidget {
         // Toggle dash on/off
         Row(
           children: [
-            Text('Dash', style: TextStyle(fontSize: 10, color: theme.textDisabled, fontWeight: FontWeight.w500)),
+            Text(
+              'Dash',
+              style: TextStyle(fontSize: 10, color: theme.textDisabled, fontWeight: FontWeight.w500),
+            ),
             const Spacer(),
             GestureDetector(
               onTap: () {
                 final newPattern = hasDash ? <double>[] : [4.0, 2.0];
-                onUpdate((s) => _StrokeRow._updateStroke(
-                    s, i, s.strokes[i].copyWith(dashPattern: newPattern)));
+                onUpdate((s) => _StrokeRow._updateStroke(s, i, s.strokes[i].copyWith(dashPattern: newPattern)));
               },
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 120),
@@ -910,7 +888,8 @@ class _DashPatternRow extends HookWidget {
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 2),
                     child: Container(
-                      width: 10, height: 10,
+                      width: 10,
+                      height: 10,
                       decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
                     ),
                   ),
@@ -944,13 +923,11 @@ class _DashPatternRow extends HookWidget {
                     ),
                     onSubmitted: (v) {
                       final pattern = _parsePattern(v);
-                      onUpdate((s) => _StrokeRow._updateStroke(
-                          s, i, s.strokes[i].copyWith(dashPattern: pattern)));
+                      onUpdate((s) => _StrokeRow._updateStroke(s, i, s.strokes[i].copyWith(dashPattern: pattern)));
                     },
                     onTapOutside: (_) {
                       final pattern = _parsePattern(ctrl.text);
-                      onUpdate((s) => _StrokeRow._updateStroke(
-                          s, i, s.strokes[i].copyWith(dashPattern: pattern)));
+                      onUpdate((s) => _StrokeRow._updateStroke(s, i, s.strokes[i].copyWith(dashPattern: pattern)));
                     },
                   ),
                 ),
@@ -963,8 +940,7 @@ class _DashPatternRow extends HookWidget {
                 theme: theme,
                 width: 52,
                 min: 0,
-                onChanged: (v) => onUpdate(
-                    (s) => _StrokeRow._updateStroke(s, i, s.strokes[i].copyWith(dashOffset: v))),
+                onChanged: (v) => onUpdate((s) => _StrokeRow._updateStroke(s, i, s.strokes[i].copyWith(dashOffset: v))),
               ),
             ],
           ),
@@ -979,12 +955,7 @@ class _DashPatternRow extends HookWidget {
 // ---------------------------------------------------------------------------
 
 class TextSection extends StatelessWidget {
-  const TextSection({
-    super.key,
-    required this.shape,
-    required this.theme,
-    required this.onUpdate,
-  });
+  const TextSection({super.key, required this.shape, required this.theme, required this.onUpdate});
 
   final VecTextShape shape;
   final AppTheme theme;
@@ -1001,7 +972,9 @@ class TextSection extends StatelessWidget {
           // Font family + size
           Row(
             children: [
-              Expanded(child: _FontFamilyField(shape: shape, theme: theme, onUpdate: onUpdate)),
+              Expanded(
+                child: _FontFamilyField(shape: shape, theme: theme, onUpdate: onUpdate),
+              ),
               const SizedBox(width: 8),
               NumericInput(
                 label: 'Size',
@@ -1010,7 +983,10 @@ class TextSection extends StatelessWidget {
                 width: 60,
                 theme: theme,
                 onChanged: (v) => onUpdate(
-                  (s) => s.maybeMap(text: (t) => t.copyWith(fontSize: v), orElse: () => s),
+                  (s) => s.maybeMap(
+                    text: (t) => t.copyWith(fontSize: v),
+                    orElse: () => s,
+                  ),
                 ),
               ),
             ],
@@ -1019,7 +995,9 @@ class TextSection extends StatelessWidget {
           // Font weight + alignment
           Row(
             children: [
-              Expanded(child: _FontWeightDropdown(shape: shape, theme: theme, onUpdate: onUpdate)),
+              Expanded(
+                child: _FontWeightDropdown(shape: shape, theme: theme, onUpdate: onUpdate),
+              ),
               const SizedBox(width: 8),
               _AlignmentButtons(shape: shape, theme: theme, onUpdate: onUpdate),
             ],
@@ -1036,7 +1014,10 @@ class TextSection extends StatelessWidget {
                 width: 76,
                 theme: theme,
                 onChanged: (v) => onUpdate(
-                  (s) => s.maybeMap(text: (t) => t.copyWith(tracking: v), orElse: () => s),
+                  (s) => s.maybeMap(
+                    text: (t) => t.copyWith(tracking: v),
+                    orElse: () => s,
+                  ),
                 ),
               ),
               NumericInput(
@@ -1046,7 +1027,10 @@ class TextSection extends StatelessWidget {
                 width: 76,
                 theme: theme,
                 onChanged: (v) => onUpdate(
-                  (s) => s.maybeMap(text: (t) => t.copyWith(leading: v), orElse: () => s),
+                  (s) => s.maybeMap(
+                    text: (t) => t.copyWith(leading: v),
+                    orElse: () => s,
+                  ),
                 ),
               ),
             ],
@@ -1065,8 +1049,15 @@ class _FontFamilyField extends HookWidget {
   final ShapeCommit onUpdate;
 
   static const _commonFonts = [
-    'Inter', 'Roboto', 'Arial', 'Helvetica', 'Georgia',
-    'Times New Roman', 'Courier New', 'Verdana', 'Trebuchet MS',
+    'Inter',
+    'Roboto',
+    'Arial',
+    'Helvetica',
+    'Georgia',
+    'Times New Roman',
+    'Courier New',
+    'Verdana',
+    'Trebuchet MS',
   ];
 
   @override
@@ -1083,7 +1074,10 @@ class _FontFamilyField extends HookWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Font', style: TextStyle(fontSize: 10, color: theme.textDisabled, fontWeight: FontWeight.w500)),
+        Text(
+          'Font',
+          style: TextStyle(fontSize: 10, color: theme.textDisabled, fontWeight: FontWeight.w500),
+        ),
         const SizedBox(height: 2),
         Container(
           height: 26,
@@ -1103,11 +1097,21 @@ class _FontFamilyField extends HookWidget {
             decoration: const InputDecoration(isDense: true, border: InputBorder.none, contentPadding: EdgeInsets.zero),
             onSubmitted: (v) {
               final font = v.trim().isEmpty ? 'Inter' : v.trim();
-              onUpdate((s) => s.maybeMap(text: (t) => t.copyWith(fontFamily: font), orElse: () => s));
+              onUpdate(
+                (s) => s.maybeMap(
+                  text: (t) => t.copyWith(fontFamily: font),
+                  orElse: () => s,
+                ),
+              );
             },
             onEditingComplete: () {
               final font = ctrl.text.trim().isEmpty ? 'Inter' : ctrl.text.trim();
-              onUpdate((s) => s.maybeMap(text: (t) => t.copyWith(fontFamily: font), orElse: () => s));
+              onUpdate(
+                (s) => s.maybeMap(
+                  text: (t) => t.copyWith(fontFamily: font),
+                  orElse: () => s,
+                ),
+              );
               focus.unfocus();
             },
           ),
@@ -1122,7 +1126,12 @@ class _FontFamilyField extends HookWidget {
             return GestureDetector(
               onTap: () {
                 ctrl.text = f;
-                onUpdate((s) => s.maybeMap(text: (t) => t.copyWith(fontFamily: f), orElse: () => s));
+                onUpdate(
+                  (s) => s.maybeMap(
+                    text: (t) => t.copyWith(fontFamily: f),
+                    orElse: () => s,
+                  ),
+                );
               },
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
@@ -1133,11 +1142,7 @@ class _FontFamilyField extends HookWidget {
                 ),
                 child: Text(
                   f,
-                  style: TextStyle(
-                    fontSize: 9,
-                    color: active ? theme.onPrimary : theme.textDisabled,
-                    fontFamily: f,
-                  ),
+                  style: TextStyle(fontSize: 9, color: active ? theme.onPrimary : theme.textDisabled, fontFamily: f),
                 ),
               ),
             );
@@ -1175,7 +1180,10 @@ class _FontWeightDropdown extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Weight', style: TextStyle(fontSize: 10, color: theme.textDisabled, fontWeight: FontWeight.w500)),
+        Text(
+          'Weight',
+          style: TextStyle(fontSize: 10, color: theme.textDisabled, fontWeight: FontWeight.w500),
+        ),
         const SizedBox(height: 2),
         Container(
           height: 26,
@@ -1189,7 +1197,12 @@ class _FontWeightDropdown extends StatelessWidget {
             value: _weights.any((w) => w.$1 == current) ? current : 400,
             onChanged: (v) {
               if (v != null) {
-                onUpdate((s) => s.maybeMap(text: (t) => t.copyWith(fontWeight: v), orElse: () => s));
+                onUpdate(
+                  (s) => s.maybeMap(
+                    text: (t) => t.copyWith(fontWeight: v),
+                    orElse: () => s,
+                  ),
+                );
               }
             },
             isExpanded: true,
@@ -1229,19 +1242,58 @@ class _AlignmentButtons extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        Text('Align', style: TextStyle(fontSize: 10, color: theme.textDisabled, fontWeight: FontWeight.w500)),
+        Text(
+          'Align',
+          style: TextStyle(fontSize: 10, color: theme.textDisabled, fontWeight: FontWeight.w500),
+        ),
         const SizedBox(height: 2),
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _AlignBtn(icon: Icons.format_align_left, active: shape.alignment == VecTextAlign.left, theme: theme,
-                onTap: () => onUpdate((s) => s.maybeMap(text: (t) => t.copyWith(alignment: VecTextAlign.left), orElse: () => s))),
-            _AlignBtn(icon: Icons.format_align_center, active: shape.alignment == VecTextAlign.center, theme: theme,
-                onTap: () => onUpdate((s) => s.maybeMap(text: (t) => t.copyWith(alignment: VecTextAlign.center), orElse: () => s))),
-            _AlignBtn(icon: Icons.format_align_right, active: shape.alignment == VecTextAlign.right, theme: theme,
-                onTap: () => onUpdate((s) => s.maybeMap(text: (t) => t.copyWith(alignment: VecTextAlign.right), orElse: () => s))),
-            _AlignBtn(icon: Icons.format_align_justify, active: shape.alignment == VecTextAlign.justify, theme: theme,
-                onTap: () => onUpdate((s) => s.maybeMap(text: (t) => t.copyWith(alignment: VecTextAlign.justify), orElse: () => s))),
+            _AlignBtn(
+              icon: Icons.format_align_left,
+              active: shape.alignment == VecTextAlign.left,
+              theme: theme,
+              onTap: () => onUpdate(
+                (s) => s.maybeMap(
+                  text: (t) => t.copyWith(alignment: VecTextAlign.left),
+                  orElse: () => s,
+                ),
+              ),
+            ),
+            _AlignBtn(
+              icon: Icons.format_align_center,
+              active: shape.alignment == VecTextAlign.center,
+              theme: theme,
+              onTap: () => onUpdate(
+                (s) => s.maybeMap(
+                  text: (t) => t.copyWith(alignment: VecTextAlign.center),
+                  orElse: () => s,
+                ),
+              ),
+            ),
+            _AlignBtn(
+              icon: Icons.format_align_right,
+              active: shape.alignment == VecTextAlign.right,
+              theme: theme,
+              onTap: () => onUpdate(
+                (s) => s.maybeMap(
+                  text: (t) => t.copyWith(alignment: VecTextAlign.right),
+                  orElse: () => s,
+                ),
+              ),
+            ),
+            _AlignBtn(
+              icon: Icons.format_align_justify,
+              active: shape.alignment == VecTextAlign.justify,
+              theme: theme,
+              onTap: () => onUpdate(
+                (s) => s.maybeMap(
+                  text: (t) => t.copyWith(alignment: VecTextAlign.justify),
+                  orElse: () => s,
+                ),
+              ),
+            ),
           ],
         ),
       ],
@@ -1341,7 +1393,10 @@ class EllipseSection extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           // Inner radius (donut hole)
-          Text('Inner Radius', style: TextStyle(fontSize: 10, color: theme.textDisabled, fontWeight: FontWeight.w500)),
+          Text(
+            'Inner Radius',
+            style: TextStyle(fontSize: 10, color: theme.textDisabled, fontWeight: FontWeight.w500),
+          ),
           const SizedBox(height: 2),
           Row(
             children: [
@@ -1448,7 +1503,8 @@ class PolygonSection extends StatelessWidget {
                         child: Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 2),
                           child: Container(
-                            width: 10, height: 10,
+                            width: 10,
+                            height: 10,
                             decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
                           ),
                         ),
@@ -1463,7 +1519,10 @@ class PolygonSection extends StatelessWidget {
           ),
           if (isStar) ...[
             const SizedBox(height: 8),
-            Text('Star Depth', style: TextStyle(fontSize: 10, color: theme.textDisabled, fontWeight: FontWeight.w500)),
+            Text(
+              'Star Depth',
+              style: TextStyle(fontSize: 10, color: theme.textDisabled, fontWeight: FontWeight.w500),
+            ),
             const SizedBox(height: 2),
             Row(
               children: [
@@ -1528,12 +1587,7 @@ class BlendSection extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class CornerSection extends StatefulWidget {
-  const CornerSection({
-    super.key,
-    required this.shape,
-    required this.theme,
-    required this.onUpdate,
-  });
+  const CornerSection({super.key, required this.shape, required this.theme, required this.onUpdate});
 
   final VecRectangleShape shape;
   final AppTheme theme;
@@ -1558,21 +1612,24 @@ class _CornerSectionState extends State<CornerSection> {
 
   void _setAll(double v) {
     final clamped = v.clamp(0.0, _maxRadius);
-    widget.onUpdate((s) => s.maybeMap(
-          rectangle: (r) =>
-              r.copyWith(cornerRadii: [clamped, clamped, clamped, clamped]),
-          orElse: () => s,
-        ));
+    widget.onUpdate(
+      (s) => s.maybeMap(
+        rectangle: (r) => r.copyWith(cornerRadii: [clamped, clamped, clamped, clamped]),
+        orElse: () => s,
+      ),
+    );
   }
 
   void _setOne(int index, double v) {
     final clamped = v.clamp(0.0, _maxRadius);
     final newRadii = List<double>.from(_radii);
     newRadii[index] = clamped;
-    widget.onUpdate((s) => s.maybeMap(
-          rectangle: (r) => r.copyWith(cornerRadii: newRadii),
-          orElse: () => s,
-        ));
+    widget.onUpdate(
+      (s) => s.maybeMap(
+        rectangle: (r) => r.copyWith(cornerRadii: newRadii),
+        orElse: () => s,
+      ),
+    );
   }
 
   @override
@@ -1599,11 +1656,7 @@ class _CornerSectionState extends State<CornerSection> {
                   onChanged: _setAll,
                 ),
                 const SizedBox(width: 8),
-                _IndependentToggle(
-                  independent: false,
-                  theme: t,
-                  onTap: () => setState(() => _independent = true),
-                ),
+                _IndependentToggle(independent: false, theme: t, onTap: () => setState(() => _independent = true)),
               ],
             ),
           ] else ...[
@@ -1632,11 +1685,7 @@ class _CornerSectionState extends State<CornerSection> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                _IndependentToggle(
-                  independent: true,
-                  theme: t,
-                  onTap: () => setState(() => _independent = false),
-                ),
+                _IndependentToggle(independent: true, theme: t, onTap: () => setState(() => _independent = false)),
               ],
             ),
             const SizedBox(height: 6),
@@ -1676,11 +1725,7 @@ class _CornerSectionState extends State<CornerSection> {
 }
 
 class _IndependentToggle extends StatelessWidget {
-  const _IndependentToggle({
-    required this.independent,
-    required this.theme,
-    required this.onTap,
-  });
+  const _IndependentToggle({required this.independent, required this.theme, required this.onTap});
 
   final bool independent;
   final AppTheme theme;
@@ -1697,14 +1742,9 @@ class _IndependentToggle extends StatelessWidget {
           width: 24,
           height: 24,
           decoration: BoxDecoration(
-            color: independent
-                ? theme.primaryColor.withAlpha(30)
-                : Colors.transparent,
+            color: independent ? theme.primaryColor.withAlpha(30) : Colors.transparent,
             borderRadius: BorderRadius.circular(4),
-            border: Border.all(
-              color: independent ? theme.primaryColor : theme.divider,
-              width: 1,
-            ),
+            border: Border.all(color: independent ? theme.primaryColor : theme.divider, width: 1),
           ),
           child: Icon(
             independent ? Icons.link_off : Icons.link,
@@ -1893,8 +1933,8 @@ class MotionPathSection extends StatelessWidget {
   const MotionPathSection({
     super.key,
     required this.shapeId,
-    required this.motionPath,   // null = no path yet
-    required this.isDrawing,    // currently in drawing mode for this shape
+    required this.motionPath, // null = no path yet
+    required this.isDrawing, // currently in drawing mode for this shape
     required this.theme,
     required this.onStartDraw,
     required this.onRemove,
@@ -1921,13 +1961,7 @@ class MotionPathSection extends StatelessWidget {
         children: [
           if (motionPath == null && !isDrawing) ...[
             // No path yet — show Draw button
-            _MpButton(
-              label: 'Draw Path',
-              icon: Icons.timeline,
-              active: false,
-              theme: theme,
-              onTap: onStartDraw,
-            ),
+            _MpButton(label: 'Draw Path', icon: Icons.timeline, active: false, theme: theme, onTap: onStartDraw),
             const SizedBox(height: 4),
             Text(
               'Click on the canvas to place nodes.\nDouble-click or press Esc to finish.',
@@ -1966,8 +2000,7 @@ class MotionPathSection extends StatelessWidget {
                   onTap: onRemove,
                   child: Tooltip(
                     message: 'Remove motion path',
-                    child: Icon(Icons.delete_outline,
-                        size: 15, color: theme.textDisabled),
+                    child: Icon(Icons.delete_outline, size: 15, color: theme.textDisabled),
                   ),
                 ),
               ],
@@ -1975,8 +2008,7 @@ class MotionPathSection extends StatelessWidget {
             const SizedBox(height: 4),
             Row(
               children: [
-                Icon(Icons.check_circle_outline,
-                    size: 11, color: theme.accentColor),
+                Icon(Icons.check_circle_outline, size: 11, color: theme.accentColor),
                 const SizedBox(width: 4),
                 Text(
                   '${motionPath!.nodes.length} node${motionPath!.nodes.length == 1 ? '' : 's'}',
@@ -1985,13 +2017,7 @@ class MotionPathSection extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 4),
-            _MpButton(
-              label: 'Redraw Path',
-              icon: Icons.redo,
-              active: false,
-              theme: theme,
-              onTap: onStartDraw,
-            ),
+            _MpButton(label: 'Redraw Path', icon: Icons.redo, active: false, theme: theme, onTap: onStartDraw),
           ],
         ],
       ),
@@ -2021,29 +2047,16 @@ class _MpButton extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
         decoration: BoxDecoration(
-          color: active
-              ? theme.primaryColor.withAlpha(25)
-              : theme.surfaceVariant,
+          color: active ? theme.primaryColor.withAlpha(25) : theme.surfaceVariant,
           borderRadius: BorderRadius.circular(5),
-          border: Border.all(
-            color: active ? theme.primaryColor : theme.divider,
-            width: 0.8,
-          ),
+          border: Border.all(color: active ? theme.primaryColor : theme.divider, width: 0.8),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon,
-                size: 12,
-                color: active ? theme.primaryColor : theme.textDisabled),
+            Icon(icon, size: 12, color: active ? theme.primaryColor : theme.textDisabled),
             const SizedBox(width: 5),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                color: active ? theme.primaryColor : theme.textPrimary,
-              ),
-            ),
+            Text(label, style: TextStyle(fontSize: 11, color: active ? theme.primaryColor : theme.textPrimary)),
           ],
         ),
       ),
@@ -2074,20 +2087,14 @@ class _MpToggle extends StatelessWidget {
         duration: const Duration(milliseconds: 120),
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
         decoration: BoxDecoration(
-          color:
-              active ? theme.primaryColor.withAlpha(30) : theme.surfaceVariant,
+          color: active ? theme.primaryColor.withAlpha(30) : theme.surfaceVariant,
           borderRadius: BorderRadius.circular(4),
-          border: Border.all(
-            color: active ? theme.primaryColor : theme.divider,
-            width: 0.8,
-          ),
+          border: Border.all(color: active ? theme.primaryColor : theme.divider, width: 0.8),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon,
-                size: 11,
-                color: active ? theme.primaryColor : theme.textDisabled),
+            Icon(icon, size: 11, color: active ? theme.primaryColor : theme.textDisabled),
             const SizedBox(width: 4),
             Text(
               label,
@@ -2111,12 +2118,7 @@ class _MpToggle extends StatelessWidget {
 typedef AlignAction = void Function(List<VecShape> shapes);
 
 class AlignSection extends StatelessWidget {
-  const AlignSection({
-    super.key,
-    required this.shapes,
-    required this.theme,
-    required this.onAlignApply,
-  });
+  const AlignSection({super.key, required this.shapes, required this.theme, required this.onAlignApply});
 
   final List<VecShape> shapes;
   final AppTheme theme;
@@ -2134,13 +2136,10 @@ class AlignSection extends StatelessWidget {
   double _cy(VecShape s) => s.data.transform.y + s.data.transform.height / 2;
 
   VecShape _moveTo(VecShape s, double? x, double? y) => s.copyWith(
-        data: s.data.copyWith(
-          transform: s.data.transform.copyWith(
-            x: x ?? s.data.transform.x,
-            y: y ?? s.data.transform.y,
-          ),
-        ),
-      );
+    data: s.data.copyWith(
+      transform: s.data.transform.copyWith(x: x ?? s.data.transform.x, y: y ?? s.data.transform.y),
+    ),
+  );
 
   void _alignLeft() {
     final minX = shapes.map(_left).reduce((a, b) => a < b ? a : b);
@@ -2216,26 +2215,57 @@ class AlignSection extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Align row
-          Text('Align', style: TextStyle(fontSize: 9, color: t.textDisabled, fontWeight: FontWeight.w600, letterSpacing: 0.5)),
+          Text(
+            'Align',
+            style: TextStyle(fontSize: 9, color: t.textDisabled, fontWeight: FontWeight.w600, letterSpacing: 0.5),
+          ),
           const SizedBox(height: 6),
           Row(
             children: [
-              _DistributeBtn(icon: Icons.align_horizontal_left_outlined,   tooltip: 'Align left',      onTap: _alignLeft,    theme: t),
+              _DistributeBtn(
+                icon: Icons.align_horizontal_left_outlined,
+                tooltip: 'Align left',
+                onTap: _alignLeft,
+                theme: t,
+              ),
               const SizedBox(width: 4),
-              _DistributeBtn(icon: Icons.align_horizontal_center_outlined, tooltip: 'Center horizontal', onTap: _alignCenterH, theme: t),
+              _DistributeBtn(
+                icon: Icons.align_horizontal_center_outlined,
+                tooltip: 'Center horizontal',
+                onTap: _alignCenterH,
+                theme: t,
+              ),
               const SizedBox(width: 4),
-              _DistributeBtn(icon: Icons.align_horizontal_right_outlined,  tooltip: 'Align right',     onTap: _alignRight,   theme: t),
+              _DistributeBtn(
+                icon: Icons.align_horizontal_right_outlined,
+                tooltip: 'Align right',
+                onTap: _alignRight,
+                theme: t,
+              ),
               const SizedBox(width: 12),
-              _DistributeBtn(icon: Icons.align_vertical_top_outlined,      tooltip: 'Align top',       onTap: _alignTop,     theme: t),
+              _DistributeBtn(icon: Icons.align_vertical_top_outlined, tooltip: 'Align top', onTap: _alignTop, theme: t),
               const SizedBox(width: 4),
-              _DistributeBtn(icon: Icons.align_vertical_center_outlined,   tooltip: 'Center vertical',  onTap: _alignCenterV, theme: t),
+              _DistributeBtn(
+                icon: Icons.align_vertical_center_outlined,
+                tooltip: 'Center vertical',
+                onTap: _alignCenterV,
+                theme: t,
+              ),
               const SizedBox(width: 4),
-              _DistributeBtn(icon: Icons.align_vertical_bottom_outlined,   tooltip: 'Align bottom',    onTap: _alignBottom,  theme: t),
+              _DistributeBtn(
+                icon: Icons.align_vertical_bottom_outlined,
+                tooltip: 'Align bottom',
+                onTap: _alignBottom,
+                theme: t,
+              ),
             ],
           ),
           const SizedBox(height: 10),
           // Distribute row
-          Text('Distribute', style: TextStyle(fontSize: 9, color: t.textDisabled, fontWeight: FontWeight.w600, letterSpacing: 0.5)),
+          Text(
+            'Distribute',
+            style: TextStyle(fontSize: 9, color: t.textDisabled, fontWeight: FontWeight.w600, letterSpacing: 0.5),
+          ),
           const SizedBox(height: 6),
           Row(
             children: [
@@ -2265,12 +2295,7 @@ class AlignSection extends StatelessWidget {
 }
 
 class _DistributeBtn extends StatelessWidget {
-  const _DistributeBtn({
-    required this.icon,
-    required this.tooltip,
-    required this.onTap,
-    required this.theme,
-  });
+  const _DistributeBtn({required this.icon, required this.tooltip, required this.onTap, required this.theme});
 
   final IconData icon;
   final String tooltip;
@@ -2297,11 +2322,7 @@ class _DistributeBtn extends StatelessWidget {
               border: Border.all(color: theme.divider.withAlpha(80)),
               color: theme.surfaceVariant,
             ),
-            child: Icon(
-              icon,
-              size: 14,
-              color: enabled ? theme.textSecondary : theme.textDisabled.withAlpha(80),
-            ),
+            child: Icon(icon, size: 14, color: enabled ? theme.textSecondary : theme.textDisabled.withAlpha(80)),
           ),
         ),
       ),

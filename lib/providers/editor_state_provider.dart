@@ -14,7 +14,7 @@ part 'editor_state_provider.g.dart';
 // Enums
 // ---------------------------------------------------------------------------
 
-enum VecTool { select, pen, line, rectangle, ellipse, text, width, bend, knife }
+enum VecTool { select, pen, line, rectangle, ellipse, text, width, bend, knife, freedraw }
 
 // ---------------------------------------------------------------------------
 // Text editing — which shape is currently being inline-edited (null = none)

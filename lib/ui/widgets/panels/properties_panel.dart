@@ -8,6 +8,7 @@ import '../../../providers/editor_state_provider.dart';
 import '../../../providers/motion_path_provider.dart';
 import '../../contents/dialogs/convert_to_symbol_dialog.dart';
 import '../common/panel_header.dart';
+import 'freedraw_options_panel.dart';
 import 'pathfinder_panel.dart';
 import 'properties_sections.dart';
 import 'symbol_instance_section.dart';
@@ -21,6 +22,7 @@ class PropertiesPanel extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final shape = ref.watch(selectedShapeProvider);
     final selectedIds = ref.watch(selectedShapeIdsProvider);
+    final activeTool = ref.watch(activeToolProvider);
 
     return Container(
       decoration: BoxDecoration(
@@ -36,11 +38,20 @@ class PropertiesPanel extends ConsumerWidget {
           ),
           Expanded(
             child: shape == null && selectedIds.length < 2
-                ? _buildEmptyState()
+                ? activeTool == VecTool.freedraw
+                    ? _buildFreeDrawState()
+                    : _buildEmptyState()
                 : _buildSections(context, ref, shape, selectedIds),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildFreeDrawState() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(12),
+      child: FreeDrawOptionsPanel(theme: theme),
     );
   }
 

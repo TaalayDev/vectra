@@ -19,6 +19,7 @@ import '../../../core/rendering/rulers_painter.dart';
 import '../../../core/rendering/scene_painter.dart';
 import '../../../core/rendering/selection_overlay.dart';
 import '../../../core/tools/drawing_tool_handler.dart';
+import '../../../core/tools/freedraw_tool_handler.dart';
 import '../../../core/tools/knife_tool.dart';
 import '../../../core/tools/select_tool_handler.dart';
 import '../../../data/models/vec_document.dart';
@@ -34,6 +35,7 @@ import '../../../providers/clipboard_provider.dart';
 import '../../../providers/document_provider.dart';
 import '../../../providers/drawing_state_provider.dart';
 import '../../../providers/editor_state_provider.dart';
+import '../../../providers/freedraw_state_provider.dart';
 import '../../../providers/motion_path_provider.dart';
 import '../../../providers/toast_provider.dart';
 import '../common/simple_color_picker.dart';
@@ -135,6 +137,9 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
 
   // Knife tool state
   final List<Offset> _knifePoints = []; // canvas-space freehand stroke
+
+  // Free Draw tool state
+  final List<Offset> _freedrawPoints = []; // canvas-space freehand stroke
 
   // Image cache: assetId → decoded ui.Image
   final Map<String, ui.Image> _imageCache = {};
@@ -323,6 +328,8 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
     final isSelectTool = activeTool == VecTool.select;
     final isBendTool = activeTool == VecTool.bend;
     final isKnifeTool = activeTool == VecTool.knife;
+    final isFreedrawTool = activeTool == VecTool.freedraw;
+    final freedrawSettings = ref.watch(freeDrawSettingsProvider);
 
     // For display purposes (selection overlay, handles, cursor hit-testing)
     // use the animated scene so the selection box tracks animated positions.
@@ -498,6 +505,14 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
                 });
                 return;
               }
+              if (isFreedrawTool) {
+                final local = _toCanvasPoint(details.localPosition);
+                setState(() {
+                  _freedrawPoints.clear();
+                  _freedrawPoints.add(local);
+                });
+                return;
+              }
               if (isSelectTool) {
                 _handleSelectPanStart(details, scene, selectedShape, displaySelectedShape, zoom, activeGroup);
               }
@@ -533,6 +548,14 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
                 // Throttle: only add if moved > 2 canvas units
                 if ((local - last).distance > 2.0) {
                   setState(() => _knifePoints.add(local));
+                }
+                return;
+              }
+              if (isFreedrawTool && _freedrawPoints.isNotEmpty) {
+                final local = _toCanvasPoint(details.localPosition);
+                final last = _freedrawPoints.last;
+                if ((local - last).distance > 2.0) {
+                  setState(() => _freedrawPoints.add(local));
                 }
                 return;
               }
@@ -605,6 +628,10 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
               }
               if (isKnifeTool) {
                 setState(() => _knifePoints.clear());
+                return;
+              }
+              if (isFreedrawTool) {
+                _finishFreeDrawing();
                 return;
               }
               if (_selectDragMode == _SelectDragMode.motionPathNode) {
@@ -766,6 +793,10 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
                             mpPreviewNodes: mpPreviewNodes,
                             isKnifeTool: isKnifeTool,
                             knifePoints: List.unmodifiable(_knifePoints),
+                            isFreedrawTool: isFreedrawTool,
+                            freedrawPoints: List.unmodifiable(_freedrawPoints),
+                            freedrawColor: freedrawSettings.color,
+                            freedrawStrokeWidth: freedrawSettings.width,
                             panOffset: panOffset,
                             viewportSize: viewportSize,
                           ),
@@ -1080,6 +1111,10 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
     required List<dynamic> mpPreviewNodes,
     required bool isKnifeTool,
     required List<Offset> knifePoints,
+    required bool isFreedrawTool,
+    required List<Offset> freedrawPoints,
+    required Color freedrawColor,
+    required double freedrawStrokeWidth,
     required Offset panOffset,
     required Size viewportSize,
   }) {
@@ -1301,6 +1336,21 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
                       viewportSize: viewportSize,
                       stageWidth: meta.stageWidth,
                       stageHeight: meta.stageHeight,
+                    ),
+                  ),
+                ),
+              ),
+
+            // Free Draw preview stroke
+            if (isFreedrawTool && freedrawPoints.length >= 2)
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: CustomPaint(
+                    painter: _FreeDrawPreviewPainter(
+                      points: freedrawPoints,
+                      zoom: zoom,
+                      color: freedrawColor,
+                      strokeWidth: freedrawStrokeWidth,
                     ),
                   ),
                 ),
@@ -2662,6 +2712,8 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
         return SystemMouseCursors.precise;
       case VecTool.knife:
         return SystemMouseCursors.precise;
+      case VecTool.freedraw:
+        return SystemMouseCursors.precise;
     }
   }
 
@@ -2764,6 +2816,20 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
       ref.read(selectedShapeIdProvider.notifier).set(result.addShapes.first.id);
       ref.read(selectedShapeIdsProvider.notifier).setSingle(result.addShapes.first.id);
     }
+  }
+
+  // ===========================================================================
+  // Free Draw tool
+  // ===========================================================================
+
+  void _finishFreeDrawing() {
+    final pts = List<Offset>.unmodifiable(_freedrawPoints);
+    setState(() => _freedrawPoints.clear());
+    if (pts.length < 2) return;
+    final settings = ref.read(freeDrawSettingsProvider);
+    const handler = FreeDrawToolHandler();
+    final shape = handler.create(FreeDrawStroke(pts), settings);
+    _addShapeToActiveLayer(shape);
   }
 
   void _addShapeToActiveLayer(dynamic shape) {
@@ -3504,4 +3570,51 @@ class _KnifePreviewPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _KnifePreviewPainter old) => old.points != points || old.zoom != zoom;
+}
+
+// =============================================================================
+// Free Draw preview painter
+// =============================================================================
+
+class _FreeDrawPreviewPainter extends CustomPainter {
+  const _FreeDrawPreviewPainter({
+    required this.points,
+    required this.zoom,
+    required this.color,
+    required this.strokeWidth,
+  });
+
+  final List<Offset> points;
+  final double zoom;
+  final Color color;
+  final double strokeWidth;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (points.length < 2) return;
+
+    // Painter lives inside Transform.scale(zoom) so canvas-space points map
+    // directly to local coordinates. Draw with the document-unit strokeWidth —
+    // it will scale correctly with zoom to match the final rendered shape.
+    final path = Path();
+    path.moveTo(points.first.dx, points.first.dy);
+    for (var i = 1; i < points.length; i++) {
+      path.lineTo(points[i].dx, points[i].dy);
+    }
+
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..color = color
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _FreeDrawPreviewPainter old) =>
+      old.points != points ||
+      old.zoom != zoom ||
+      old.color != color ||
+      old.strokeWidth != strokeWidth;
 }
