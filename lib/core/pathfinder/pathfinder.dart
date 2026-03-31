@@ -462,6 +462,11 @@ class PathfinderOps {
     );
   }
 
+  /// Public entry point for sampling a canvas-space [path] into [VecPathNode]
+  /// list in local coordinates (origin = [bounds].topLeft).
+  /// Used by [KnifeTool] and other callers that need a path → nodes conversion.
+  static List<VecPathNode> samplePath(ui.Path path, Rect bounds) => _samplePath(path, bounds);
+
   /// Samples [path] (canvas-space) into [VecPathNode] list in local
   /// coordinates (origin = [bounds].topLeft).
   static List<VecPathNode> _samplePath(ui.Path path, Rect bounds) {

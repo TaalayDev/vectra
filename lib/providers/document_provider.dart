@@ -413,6 +413,71 @@ class VecDocumentState extends _$VecDocumentState {
     }));
   }
 
+  /// Removes [removeIds] and adds [newShapes] in a single undo-able step.
+  void replaceShapes(
+    String sceneId,
+    String layerId,
+    List<String> removeIds,
+    List<VecShape> newShapes,
+  ) {
+    _commit(_withScene(sceneId, (scene) {
+      final layer = scene.layers.where((l) => l.id == layerId).firstOrNull;
+      if (layer == null) return scene;
+
+      // Preserve insertion order: replace each removed shape with its pieces at
+      // the same z-index so the visual stack order is maintained.
+      final newShapeList = <VecShape>[];
+      for (final s in layer.shapes) {
+        if (removeIds.contains(s.id)) {
+          // Insert the replacement pieces where the original shape was
+          newShapeList.addAll(newShapes.where((ns) {
+            // Match pieces back to their original by name prefix (set by KnifeTool)
+            return ns.data.name?.startsWith(s.data.name ?? s.id) ?? false ||
+                ns.id.startsWith(s.id.substring(0, 8));
+          }));
+        } else {
+          newShapeList.add(s);
+        }
+      }
+      // Any pieces not yet inserted (shouldn't happen, but be safe)
+      final insertedIds = newShapeList.map((s) => s.id).toSet();
+      for (final ns in newShapes) {
+        if (!insertedIds.contains(ns.id)) newShapeList.add(ns);
+      }
+
+      // Prune tracks for removed shapes, add tracks for new shapes
+      final newTracks = [
+        ...scene.timeline.tracks.where(
+          (t) => t.shapeId == null || !removeIds.contains(t.shapeId),
+        ),
+        for (final shape in newShapes)
+          VecTrack(
+            id: _uuid.v4(),
+            layerId: layerId,
+            shapeId: shape.id,
+            keyframes: [
+              VecKeyframe(
+                frame: 0,
+                tweenType: VecTweenType.classic,
+                transform: shape.data.transform,
+                opacity: shape.data.opacity,
+                fills: List.unmodifiable(shape.data.fills),
+                strokes: List.unmodifiable(shape.data.strokes),
+              ),
+            ],
+          ),
+      ];
+
+      return scene.copyWith(
+        layers: [
+          for (final l in scene.layers)
+            if (l.id == layerId) l.copyWith(shapes: newShapeList) else l,
+        ],
+        timeline: scene.timeline.copyWith(tracks: newTracks),
+      );
+    }));
+  }
+
   /// Wraps [shapeIds] into a new [VecGroupShape] inserted at the topmost
   /// z-position of the selected shapes.  Returns the new group's ID.
   String groupShapes(String sceneId, String layerId, List<String> shapeIds) {

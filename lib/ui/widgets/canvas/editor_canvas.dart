@@ -19,6 +19,7 @@ import '../../../core/rendering/rulers_painter.dart';
 import '../../../core/rendering/scene_painter.dart';
 import '../../../core/rendering/selection_overlay.dart';
 import '../../../core/tools/drawing_tool_handler.dart';
+import '../../../core/tools/knife_tool.dart';
 import '../../../core/tools/select_tool_handler.dart';
 import '../../../data/models/vec_document.dart';
 import '../../../data/models/vec_color.dart';
@@ -131,6 +132,9 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
 
   // Smart guide lines shown during move/resize
   List<_SnapGuide> _activeGuides = const [];
+
+  // Knife tool state
+  final List<Offset> _knifePoints = []; // canvas-space freehand stroke
 
   // Image cache: assetId → decoded ui.Image
   final Map<String, ui.Image> _imageCache = {};
@@ -318,6 +322,7 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
     final isPenTool = activeTool == VecTool.pen;
     final isSelectTool = activeTool == VecTool.select;
     final isBendTool = activeTool == VecTool.bend;
+    final isKnifeTool = activeTool == VecTool.knife;
 
     // For display purposes (selection overlay, handles, cursor hit-testing)
     // use the animated scene so the selection box tracks animated positions.
@@ -485,6 +490,14 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
                 _handleBendToolPanStart(details, selectedShape, displaySelectedShape, zoom);
                 return;
               }
+              if (isKnifeTool) {
+                final local = _toCanvasPoint(details.localPosition);
+                setState(() {
+                  _knifePoints.clear();
+                  _knifePoints.add(local);
+                });
+                return;
+              }
               if (isSelectTool) {
                 _handleSelectPanStart(details, scene, selectedShape, displaySelectedShape, zoom, activeGroup);
               }
@@ -512,6 +525,15 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
               }
               if (isBendTool && _bendToolDragging) {
                 _handleBendToolPanUpdate(details, selectedShape, zoom);
+                return;
+              }
+              if (isKnifeTool && _knifePoints.isNotEmpty) {
+                final local = _toCanvasPoint(details.localPosition);
+                final last = _knifePoints.last;
+                // Throttle: only add if moved > 2 canvas units
+                if ((local - last).distance > 2.0) {
+                  setState(() => _knifePoints.add(local));
+                }
                 return;
               }
               if (_selectDragMode == _SelectDragMode.motionPathNode) {
@@ -575,6 +597,14 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
                   _bendToolDragging = false;
                   _bendToolDragSegment = -1;
                 });
+                return;
+              }
+              if (isKnifeTool && _knifePoints.length >= 2) {
+                _executeKnifeCut(scene);
+                return;
+              }
+              if (isKnifeTool) {
+                setState(() => _knifePoints.clear());
                 return;
               }
               if (_selectDragMode == _SelectDragMode.motionPathNode) {
@@ -734,6 +764,10 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
                             penDrawing: penDrawing,
                             motionPaths: motionPaths,
                             mpPreviewNodes: mpPreviewNodes,
+                            isKnifeTool: isKnifeTool,
+                            knifePoints: List.unmodifiable(_knifePoints),
+                            panOffset: panOffset,
+                            viewportSize: viewportSize,
                           ),
                         ),
                       ),
@@ -1044,6 +1078,10 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
     required dynamic penDrawing,
     required List<dynamic> motionPaths,
     required List<dynamic> mpPreviewNodes,
+    required bool isKnifeTool,
+    required List<Offset> knifePoints,
+    required Offset panOffset,
+    required Size viewportSize,
   }) {
     return Transform.scale(
       scale: zoom,
@@ -1065,7 +1103,12 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
               Positioned.fill(
                 child: ClipRect(
                   child: CustomPaint(
-                    painter: ScenePainter(scene: scene, symbols: symbols.cast(), selectedShapeId: selectedShapeId, imageCache: _imageCache),
+                    painter: ScenePainter(
+                      scene: scene,
+                      symbols: symbols.cast(),
+                      selectedShapeId: selectedShapeId,
+                      imageCache: _imageCache,
+                    ),
                   ),
                 ),
               ),
@@ -1241,6 +1284,23 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
                       zoom: zoom,
                       pathColor: theme.accentColor,
                       nodeColor: theme.primaryColor,
+                    ),
+                  ),
+                ),
+              ),
+
+            // Knife tool freehand preview stroke
+            if (isKnifeTool && knifePoints.length >= 2)
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: CustomPaint(
+                    painter: _KnifePreviewPainter(
+                      points: knifePoints,
+                      zoom: zoom,
+                      panOffset: panOffset,
+                      viewportSize: viewportSize,
+                      stageWidth: meta.stageWidth,
+                      stageHeight: meta.stageHeight,
                     ),
                   ),
                 ),
@@ -2600,6 +2660,8 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
         return SystemMouseCursors.text;
       case VecTool.width:
         return SystemMouseCursors.precise;
+      case VecTool.knife:
+        return SystemMouseCursors.precise;
     }
   }
 
@@ -2660,6 +2722,48 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
     const handler = DrawingToolHandler();
     final shape = handler.createPath(penState, closed: closed);
     _addShapeToActiveLayer(shape);
+  }
+
+  // ===========================================================================
+  // Knife tool
+  // ===========================================================================
+
+  void _executeKnifeCut(dynamic scene) {
+    if (scene == null || _knifePoints.length < 2) {
+      setState(() => _knifePoints.clear());
+      return;
+    }
+
+    final layerId = ref.read(activeLayerIdProvider);
+    if (layerId == null) {
+      setState(() => _knifePoints.clear());
+      return;
+    }
+
+    // Collect all shapes in the active layer
+    final layer = (scene.layers as List).cast<dynamic>().firstWhere((l) => l.id == layerId, orElse: () => null);
+    if (layer == null) {
+      setState(() => _knifePoints.clear());
+      return;
+    }
+
+    final shapes = (layer.shapes as List).cast<VecShape>();
+    const tool = KnifeTool();
+    final result = tool.cut(shapes, List.unmodifiable(_knifePoints));
+
+    setState(() => _knifePoints.clear());
+
+    if (result.isEmpty) return;
+
+    ref
+        .read(vecDocumentStateProvider.notifier)
+        .replaceShapes(scene.id as String, layerId, result.removeIds, result.addShapes);
+
+    // Select the first replacement piece
+    if (result.addShapes.isNotEmpty) {
+      ref.read(selectedShapeIdProvider.notifier).set(result.addShapes.first.id);
+      ref.read(selectedShapeIdsProvider.notifier).setSingle(result.addShapes.first.id);
+    }
   }
 
   void _addShapeToActiveLayer(dynamic shape) {
@@ -3322,4 +3426,82 @@ class _GuidePainter extends CustomPainter {
       old.stageLeft != stageLeft ||
       old.stageTop != stageTop ||
       old.zoom != zoom;
+}
+
+// =============================================================================
+// Knife preview painter
+// =============================================================================
+
+class _KnifePreviewPainter extends CustomPainter {
+  const _KnifePreviewPainter({
+    required this.points,
+    required this.zoom,
+    // panOffset/viewportSize/stageWidth/stageHeight kept as params so the
+    // call site compiles, but the painter lives inside the already-scaled
+    // stage widget so we draw directly in canvas coordinates.
+    required this.panOffset,
+    required this.viewportSize,
+    required this.stageWidth,
+    required this.stageHeight,
+  });
+
+  final List<Offset> points;
+  final double zoom;
+  final Offset panOffset;
+  final Size viewportSize;
+  final double stageWidth;
+  final double stageHeight;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (points.length < 2) return;
+
+    // The painter is inside Transform.scale(zoom), so canvas-space points
+    // map directly to local coordinates. Divide stroke widths by zoom to
+    // keep them visually constant at 1–2 screen pixels regardless of zoom.
+    final path = Path();
+    path.moveTo(points.first.dx, points.first.dy);
+    for (var i = 1; i < points.length; i++) {
+      path.lineTo(points[i].dx, points[i].dy);
+    }
+
+    final invZoom = zoom > 0 ? 1.0 / zoom : 1.0;
+
+    // Shadow — 2 screen-px wide black underline for contrast on any background
+    final shadow = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.0 * invZoom
+      ..color = const Color(0xAA000000)
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    canvas.drawPath(path, shadow);
+
+    // Dashed white line on top — 1 screen px
+    final dashPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0 * invZoom
+      ..color = const Color(0xFFFFFFFF)
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    _drawDashed(canvas, path, dashPaint, dashLength: 6.0 * invZoom, gapLength: 3.0 * invZoom);
+  }
+
+  void _drawDashed(Canvas canvas, Path path, Paint paint, {required double dashLength, required double gapLength}) {
+    for (final metric in path.computeMetrics()) {
+      var distance = 0.0;
+      var draw = true;
+      while (distance < metric.length) {
+        final segLen = draw ? dashLength : gapLength;
+        final end = (distance + segLen).clamp(0.0, metric.length);
+        if (draw) {
+          canvas.drawPath(metric.extractPath(distance, end), paint);
+        }
+        distance = end;
+        draw = !draw;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _KnifePreviewPainter old) => old.points != points || old.zoom != zoom;
 }

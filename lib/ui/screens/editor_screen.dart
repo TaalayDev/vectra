@@ -228,6 +228,7 @@ class EditorScreen extends HookConsumerWidget {
               'E' => VecTool.ellipse,
               'T' => VecTool.text,
               'U' => VecTool.bend,
+              'K' => VecTool.knife,
               _ => null,
             };
             if (tool != null) {
