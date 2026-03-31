@@ -708,7 +708,7 @@ class _ImportImageButton extends ConsumerWidget {
   Future<void> _pickAndImport(BuildContext context, WidgetRef ref) async {
     try {
       List<int>? bytes;
-      String? fileName;
+      late String fileName;
       String? mimeType;
 
       if (kIsWeb) {
@@ -740,9 +740,9 @@ class _ImportImageButton extends ConsumerWidget {
 
       final asset = VecAsset(
         id: assetId,
-        name: fileName ?? 'image',
+        name: fileName,
         type: VecAssetType.image,
-        path: fileName ?? 'image',
+        path: fileName,
         mimeType: mimeType,
         dataBase64: dataBase64,
       );
@@ -759,7 +759,7 @@ class _ImportImageButton extends ConsumerWidget {
       final shape = VecShape.image(
         data: VecShapeData(
           id: shapeId,
-          name: fileName ?? 'Image',
+          name: fileName,
           transform: VecTransform(x: x, y: y, width: w, height: h),
         ),
         assetId: assetId,

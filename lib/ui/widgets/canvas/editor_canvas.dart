@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'dart:math' as math;
+import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -130,6 +132,11 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
   // Smart guide lines shown during move/resize
   List<_SnapGuide> _activeGuides = const [];
 
+  // Image cache: assetId → decoded ui.Image
+  final Map<String, ui.Image> _imageCache = {};
+  // Track which assetIds are currently being loaded to avoid duplicate decodes
+  final Set<String> _imageLoading = {};
+
   AppTheme get theme => widget.theme;
 
   String _encodeMenuClipboard(List<VecShape> shapes) {
@@ -169,10 +176,32 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
 
   @override
   void dispose() {
+    for (final img in _imageCache.values) {
+      img.dispose();
+    }
+    _imageCache.clear();
     _textEditingController.dispose();
     _textFocusNode.removeListener(_onTextFocusChanged);
     _textFocusNode.dispose();
     super.dispose();
+  }
+
+  void _loadImages(List<dynamic> assets) {
+    for (final asset in assets) {
+      final id = asset.id as String;
+      final dataBase64 = asset.dataBase64 as String?;
+      if (dataBase64 == null) continue;
+      if (_imageCache.containsKey(id) || _imageLoading.contains(id)) continue;
+      _imageLoading.add(id);
+      final bytes = base64Decode(dataBase64);
+      ui.decodeImageFromList(Uint8List.fromList(bytes), (img) {
+        if (!mounted) return;
+        setState(() {
+          _imageCache[id] = img;
+          _imageLoading.remove(id);
+        });
+      });
+    }
   }
 
   void _onTextFocusChanged() {
@@ -256,6 +285,10 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
     final fitSelectionRequest = ref.watch(fitSelectionRequestProvider);
     final snapSettings = ref.watch(snapSettingsProvider);
     final guides = ref.watch(guidesProvider);
+
+    // Load any new image assets into the cache
+    final docAssets = ref.watch(vecDocumentStateProvider.select((d) => d.assets));
+    _loadImages(docAssets);
     final cursorPosition = ref.watch(cursorPositionProvider);
     // Start/stop the playback timer automatically
     ref.watch(playbackTickerProvider);
@@ -1032,7 +1065,7 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
               Positioned.fill(
                 child: ClipRect(
                   child: CustomPaint(
-                    painter: ScenePainter(scene: scene, symbols: symbols.cast(), selectedShapeId: selectedShapeId),
+                    painter: ScenePainter(scene: scene, symbols: symbols.cast(), selectedShapeId: selectedShapeId, imageCache: _imageCache),
                   ),
                 ),
               ),
