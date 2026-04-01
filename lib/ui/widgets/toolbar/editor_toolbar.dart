@@ -16,7 +16,6 @@ import '../../../data/models/vec_transform.dart';
 import '../../../providers/document_provider.dart';
 import '../../../providers/editor_state_provider.dart';
 import '../../contents/dialogs/export_dialog.dart';
-import 'tool_button_group.dart';
 
 class EditorToolbar extends HookConsumerWidget {
   const EditorToolbar({super.key, required this.theme});
@@ -39,8 +38,7 @@ class EditorToolbar extends HookConsumerWidget {
       ),
       child: Row(
         children: [
-          // Left: tool buttons
-          ToolButtonGroup(theme: theme),
+          const SizedBox(width: 12),
 
           const Spacer(),
 
@@ -251,8 +249,7 @@ class _CanvasSizeControls extends HookConsumerWidget {
     }
 
     void applyPreset(double w, double h) {
-      ref.read(vecDocumentStateProvider.notifier)
-          .updateMeta(meta.copyWith(stageWidth: w, stageHeight: h));
+      ref.read(vecDocumentStateProvider.notifier).updateMeta(meta.copyWith(stageWidth: w, stageHeight: h));
     }
 
     return Row(
@@ -272,9 +269,7 @@ class _CanvasSizeControls extends HookConsumerWidget {
                 isEditing.value = true;
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   widthFocus.requestFocus();
-                  widthController.selection = TextSelection(
-                      baseOffset: 0,
-                      extentOffset: widthController.text.length);
+                  widthController.selection = TextSelection(baseOffset: 0, extentOffset: widthController.text.length);
                 });
               },
               child: Padding(
@@ -286,10 +281,7 @@ class _CanvasSizeControls extends HookConsumerWidget {
                     const SizedBox(width: 6),
                     Text(
                       '${meta.stageWidth.round()} × ${meta.stageHeight.round()}',
-                      style: TextStyle(
-                          fontSize: 11,
-                          color: theme.textSecondary,
-                          fontWeight: FontWeight.w500),
+                      style: TextStyle(fontSize: 11, color: theme.textSecondary, fontWeight: FontWeight.w500),
                     ),
                   ],
                 ),
@@ -305,8 +297,9 @@ class _CanvasSizeControls extends HookConsumerWidget {
             onSelected: (size) => applyPreset(size.$1, size.$2),
             color: theme.surface,
             shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(6),
-                side: BorderSide(color: theme.divider, width: 0.5)),
+              borderRadius: BorderRadius.circular(6),
+              side: BorderSide(color: theme.divider, width: 0.5),
+            ),
             itemBuilder: (_) => [
               _presetHeader('Mobile'),
               _presetItem(theme, 'iPhone 15 Pro', 393, 852),
@@ -330,8 +323,7 @@ class _CanvasSizeControls extends HookConsumerWidget {
             ],
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-              child: Icon(Icons.expand_more,
-                  size: 14, color: theme.textDisabled),
+              child: Icon(Icons.expand_more, size: 14, color: theme.textDisabled),
             ),
           ),
         ),
@@ -339,32 +331,25 @@ class _CanvasSizeControls extends HookConsumerWidget {
     );
   }
 
-  static PopupMenuEntry<(double, double)> _presetHeader(String label) =>
-      PopupMenuItem<(double, double)>(
-        enabled: false,
-        height: 24,
-        child: Text(
-          label.toUpperCase(),
-          style: const TextStyle(
-              fontSize: 9, fontWeight: FontWeight.w700, letterSpacing: 0.8),
-        ),
-      );
+  static PopupMenuEntry<(double, double)> _presetHeader(String label) => PopupMenuItem<(double, double)>(
+    enabled: false,
+    height: 24,
+    child: Text(
+      label.toUpperCase(),
+      style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w700, letterSpacing: 0.8),
+    ),
+  );
 
-  static PopupMenuItem<(double, double)> _presetItem(
-          AppTheme theme, String name, double w, double h) =>
+  static PopupMenuItem<(double, double)> _presetItem(AppTheme theme, String name, double w, double h) =>
       PopupMenuItem<(double, double)>(
         value: (w, h),
         height: 28,
         child: Row(
           children: [
             Expanded(
-              child: Text(name,
-                  style: TextStyle(fontSize: 11, color: theme.textPrimary)),
+              child: Text(name, style: TextStyle(fontSize: 11, color: theme.textPrimary)),
             ),
-            Text(
-              '${w.round()}×${h.round()}',
-              style: TextStyle(fontSize: 10, color: theme.textDisabled),
-            ),
+            Text('${w.round()}×${h.round()}', style: TextStyle(fontSize: 10, color: theme.textDisabled)),
           ],
         ),
       );
@@ -470,10 +455,7 @@ class _ImportSvgButton extends ConsumerWidget {
         if (bytes == null) return;
         svgContent = String.fromCharCodes(bytes);
       } else {
-        final result = await FilePicker.platform.pickFiles(
-          type: FileType.custom,
-          allowedExtensions: ['svg'],
-        );
+        final result = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['svg']);
         final path = result?.files.firstOrNull?.path;
         if (path == null) return;
         svgContent = await File(path).readAsString();
@@ -657,10 +639,7 @@ class _SnapToggle extends StatelessWidget {
             width: 28,
             height: 28,
             decoration: active
-                ? BoxDecoration(
-                    color: theme.primaryColor.withAlpha(18),
-                    borderRadius: BorderRadius.circular(4),
-                  )
+                ? BoxDecoration(color: theme.primaryColor.withAlpha(18), borderRadius: BorderRadius.circular(4))
                 : null,
             child: Icon(icon, size: 15, color: iconColor),
           ),
@@ -712,19 +691,14 @@ class _ImportImageButton extends ConsumerWidget {
       String? mimeType;
 
       if (kIsWeb) {
-        final result = await FilePicker.platform.pickFiles(
-          type: FileType.image,
-          withData: true,
-        );
+        final result = await FilePicker.platform.pickFiles(type: FileType.image, withData: true);
         final file = result?.files.firstOrNull;
         if (file == null) return;
         bytes = file.bytes?.toList();
         fileName = file.name;
         mimeType = _mimeFromName(file.name);
       } else {
-        final result = await FilePicker.platform.pickFiles(
-          type: FileType.image,
-        );
+        final result = await FilePicker.platform.pickFiles(type: FileType.image);
         final file = result?.files.firstOrNull;
         if (file == null || file.path == null) return;
         bytes = await File(file.path!).readAsBytes();

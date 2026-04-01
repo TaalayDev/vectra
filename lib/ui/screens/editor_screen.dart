@@ -170,7 +170,8 @@ class EditorScreen extends HookConsumerWidget {
             if (tool == VecTool.pen) {
               final penState = ref.read(activePenDrawingProvider.notifier).finish();
               if (penState != null && penState.points.length >= 2) {
-                const handler = DrawingToolHandler();
+                final baseColor = ref.read(baseColorProvider);
+                final handler = DrawingToolHandler(fillColor: baseColor.fillColor, strokeColor: baseColor.strokeColor);
                 final shape = handler.createPath(penState, closed: false);
                 final scene = ref.read(activeSceneProvider);
                 final layerId = ref.read(activeLayerIdProvider);
@@ -208,7 +209,8 @@ class EditorScreen extends HookConsumerWidget {
             if (tool == VecTool.pen) {
               final penState = ref.read(activePenDrawingProvider.notifier).finish();
               if (penState != null && penState.points.length >= 2) {
-                const handler = DrawingToolHandler();
+                final baseColor = ref.read(baseColorProvider);
+                final handler = DrawingToolHandler(fillColor: baseColor.fillColor, strokeColor: baseColor.strokeColor);
                 final shape = handler.createPath(penState, closed: true);
                 final scene = ref.read(activeSceneProvider);
                 final layerId = ref.read(activeLayerIdProvider);

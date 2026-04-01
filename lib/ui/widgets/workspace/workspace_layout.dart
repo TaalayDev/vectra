@@ -10,6 +10,7 @@ import '../panels/symbols_panel.dart';
 import '../panels/timeline_panel.dart';
 import '../common/toast_overlay.dart';
 import '../toolbar/editor_toolbar.dart';
+import '../toolbar/vertical_tool_panel.dart';
 import 'scene_tabs_bar.dart';
 import 'status_bar.dart';
 
@@ -32,6 +33,9 @@ class WorkspaceLayout extends ConsumerWidget {
             Expanded(
               child: Row(
                 children: [
+                  // Vertical tool panel — always visible on the far left
+                  VerticalToolPanel(theme: theme),
+
                   if (panels.layers)
                     SizedBox(width: 240, child: _LeftPanel(theme: theme))
                   else

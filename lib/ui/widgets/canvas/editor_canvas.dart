@@ -2725,7 +2725,8 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
     final drawingState = ref.read(activeDrawingProvider.notifier).finish();
     if (drawingState == null) return;
 
-    const handler = DrawingToolHandler();
+    final baseColor = ref.read(baseColorProvider);
+    final handler = DrawingToolHandler(fillColor: baseColor.fillColor, strokeColor: baseColor.strokeColor);
 
     // Line only needs length in any axis ≥ 2px; auto-switches to select tool
     if (tool == VecTool.line) {
@@ -2771,7 +2772,8 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
     final penState = ref.read(activePenDrawingProvider.notifier).finish();
     if (penState == null || penState.points.length < 2) return;
 
-    const handler = DrawingToolHandler();
+    final baseColor = ref.read(baseColorProvider);
+    final handler = DrawingToolHandler(fillColor: baseColor.fillColor, strokeColor: baseColor.strokeColor);
     final shape = handler.createPath(penState, closed: closed);
     _addShapeToActiveLayer(shape);
   }
@@ -3613,8 +3615,5 @@ class _FreeDrawPreviewPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _FreeDrawPreviewPainter old) =>
-      old.points != points ||
-      old.zoom != zoom ||
-      old.color != color ||
-      old.strokeWidth != strokeWidth;
+      old.points != points || old.zoom != zoom || old.color != color || old.strokeWidth != strokeWidth;
 }

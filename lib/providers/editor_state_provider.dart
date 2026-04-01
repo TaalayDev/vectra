@@ -3,6 +3,7 @@ import 'dart:ui' show Offset;
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../data/models/vec_color.dart';
 import '../data/models/vec_layer.dart';
 import '../data/models/vec_scene.dart';
 import '../data/models/vec_shape.dart';
@@ -311,3 +312,29 @@ VecShape? selectedShape(SelectedShapeRef ref) {
   }
   return null;
 }
+
+// ---------------------------------------------------------------------------
+// Base color — default fill / stroke for newly created shapes
+// ---------------------------------------------------------------------------
+
+class BaseColorState {
+  final VecColor fillColor;
+  final VecColor strokeColor;
+
+  const BaseColorState({
+    this.fillColor = const VecColor(a: 255, r: 120, g: 160, b: 230),
+    this.strokeColor = const VecColor(a: 255, r: 50, g: 60, b: 80),
+  });
+
+  BaseColorState copyWith({VecColor? fillColor, VecColor? strokeColor}) =>
+      BaseColorState(fillColor: fillColor ?? this.fillColor, strokeColor: strokeColor ?? this.strokeColor);
+}
+
+class BaseColorNotifier extends StateNotifier<BaseColorState> {
+  BaseColorNotifier() : super(const BaseColorState());
+
+  void setFill(VecColor color) => state = state.copyWith(fillColor: color);
+  void setStroke(VecColor color) => state = state.copyWith(strokeColor: color);
+}
+
+final baseColorProvider = StateNotifierProvider<BaseColorNotifier, BaseColorState>((ref) => BaseColorNotifier());

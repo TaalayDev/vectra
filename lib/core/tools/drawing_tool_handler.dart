@@ -13,21 +13,26 @@ const _uuid = Uuid();
 
 /// Creates a [VecShape] from a completed [DrawingState] drag.
 class DrawingToolHandler {
-  const DrawingToolHandler();
+  const DrawingToolHandler({
+    this.fillColor = const VecColor(a: 255, r: 120, g: 160, b: 230),
+    this.strokeColor = const VecColor(a: 255, r: 50, g: 60, b: 80),
+  });
+
+  final VecColor fillColor;
+  final VecColor strokeColor;
+
+  List<VecFill> get _fills => [VecFill(color: fillColor)];
+  List<VecFill> get _textFills => [const VecFill(color: VecColor.black)];
+  List<VecStroke> get _strokes => [VecStroke(color: strokeColor, width: 2)];
 
   /// Creates a rectangle shape from a drag region.
   VecShape createRectangle(DrawingState drawing) {
-    return VecShape.rectangle(
-      data: _shapeData(drawing),
-      cornerRadii: const [0, 0, 0, 0],
-    );
+    return VecShape.rectangle(data: _shapeData(drawing), cornerRadii: const [0, 0, 0, 0]);
   }
 
   /// Creates an ellipse shape from a drag region.
   VecShape createEllipse(DrawingState drawing) {
-    return VecShape.ellipse(
-      data: _shapeData(drawing),
-    );
+    return VecShape.ellipse(data: _shapeData(drawing));
   }
 
   /// Creates a 2-node line (open path) from a drag. No fill, stroke only.
@@ -37,21 +42,15 @@ class DrawingToolHandler {
     final w = drawing.width < 1 ? 1.0 : drawing.width;
     final h = drawing.height < 1 ? 1.0 : drawing.height;
 
-    final startLocal = VecPoint(
-      x: drawing.startPoint.dx - left,
-      y: drawing.startPoint.dy - top,
-    );
-    final endLocal = VecPoint(
-      x: drawing.currentPoint.dx - left,
-      y: drawing.currentPoint.dy - top,
-    );
+    final startLocal = VecPoint(x: drawing.startPoint.dx - left, y: drawing.startPoint.dy - top);
+    final endLocal = VecPoint(x: drawing.currentPoint.dx - left, y: drawing.currentPoint.dy - top);
 
     return VecShape.path(
       data: VecShapeData(
         id: _uuid.v4(),
         transform: VecTransform(x: left, y: top, width: w, height: h),
         fills: const [],
-        strokes: _defaultStrokes,
+        strokes: _strokes,
       ),
       nodes: [
         VecPathNode(position: startLocal, type: VecNodeType.corner),
@@ -66,13 +65,8 @@ class DrawingToolHandler {
     return VecShape.text(
       data: VecShapeData(
         id: _uuid.v4(),
-        transform: VecTransform(
-          x: drawing.left,
-          y: drawing.top,
-          width: drawing.width,
-          height: drawing.height,
-        ),
-        fills: _defaultTextFills,
+        transform: VecTransform(x: drawing.left, y: drawing.top, width: drawing.width, height: drawing.height),
+        fills: _textFills,
         strokes: const [],
       ),
       content: 'Text',
@@ -87,8 +81,8 @@ class DrawingToolHandler {
         data: VecShapeData(
           id: _uuid.v4(),
           transform: const VecTransform(),
-          fills: closed ? _defaultFills : const [],
-          strokes: _defaultStrokes,
+          fills: closed ? _fills : const [],
+          strokes: _strokes,
         ),
         nodes: const [],
         isClosed: closed,
@@ -132,14 +126,9 @@ class DrawingToolHandler {
     return VecShape.path(
       data: VecShapeData(
         id: _uuid.v4(),
-        transform: VecTransform(
-          x: minX,
-          y: minY,
-          width: maxX - minX,
-          height: maxY - minY,
-        ),
-        fills: closed ? _defaultFills : const [],
-        strokes: _defaultStrokes,
+        transform: VecTransform(x: minX, y: minY, width: maxX - minX, height: maxY - minY),
+        fills: closed ? _fills : const [],
+        strokes: _strokes,
       ),
       nodes: nodes,
       isClosed: closed,
@@ -149,26 +138,9 @@ class DrawingToolHandler {
   VecShapeData _shapeData(DrawingState drawing) {
     return VecShapeData(
       id: _uuid.v4(),
-      transform: VecTransform(
-        x: drawing.left,
-        y: drawing.top,
-        width: drawing.width,
-        height: drawing.height,
-      ),
-      fills: _defaultFills,
-      strokes: _defaultStrokes,
+      transform: VecTransform(x: drawing.left, y: drawing.top, width: drawing.width, height: drawing.height),
+      fills: _fills,
+      strokes: _strokes,
     );
   }
-
-  static const _defaultFills = [
-    VecFill(color: VecColor(a: 255, r: 120, g: 160, b: 230), opacity: 1.0),
-  ];
-
-  static const _defaultTextFills = [
-    VecFill(color: VecColor(a: 255, r: 0, g: 0, b: 0), opacity: 1.0),
-  ];
-
-  static const _defaultStrokes = [
-    VecStroke(color: VecColor(a: 255, r: 50, g: 60, b: 80), width: 2),
-  ];
 }
