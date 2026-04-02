@@ -39,10 +39,7 @@ class AnimationPresetsPanel extends ConsumerWidget {
               margin: const EdgeInsets.symmetric(vertical: 8),
               width: 36,
               height: 4,
-              decoration: BoxDecoration(
-                color: theme.divider,
-                borderRadius: BorderRadius.circular(2),
-              ),
+              decoration: BoxDecoration(color: theme.divider, borderRadius: BorderRadius.circular(2)),
             ),
           ),
 
@@ -56,11 +53,7 @@ class AnimationPresetsPanel extends ConsumerWidget {
                   style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: theme.textPrimary),
                 ),
                 const Spacer(),
-                if (!canApply)
-                  Text(
-                    'Select a shape first',
-                    style: TextStyle(fontSize: 10, color: theme.textDisabled),
-                  ),
+                if (!canApply) Text('Select a shape first', style: TextStyle(fontSize: 10, color: theme.textDisabled)),
               ],
             ),
           ),
@@ -76,9 +69,7 @@ class AnimationPresetsPanel extends ConsumerWidget {
                   _CategorySection(
                     category: category,
                     theme: theme,
-                    presets: AnimationPresets.builtIn
-                        .where((p) => p.category == category)
-                        .toList(),
+                    presets: AnimationPresets.builtIn.where((p) => p.category == category).toList(),
                     canApply: canApply,
                     onApply: (preset) {
                       final s = scene;
@@ -96,13 +87,9 @@ class AnimationPresetsPanel extends ConsumerWidget {
                         if (layerId != null) break;
                       }
                       if (layerId == null) return;
-                      ref.read(vecDocumentStateProvider.notifier).applyAnimationPreset(
-                        s.id,
-                        layerId,
-                        shapeId,
-                        preset,
-                        playhead,
-                      );
+                      ref
+                          .read(vecDocumentStateProvider.notifier)
+                          .applyAnimationPreset(s.id, layerId, shapeId, preset, playhead);
                       Navigator.of(context).pop();
                     },
                   ),
@@ -135,11 +122,11 @@ class _CategorySection extends StatelessWidget {
   final void Function(AnimationPreset) onApply;
 
   String get _categoryLabel => switch (category) {
-        AnimationPresetCategory.enter => 'Enter',
-        AnimationPresetCategory.exit => 'Exit',
-        AnimationPresetCategory.loop => 'Loop',
-        AnimationPresetCategory.attention => 'Attention',
-      };
+    AnimationPresetCategory.enter => 'Enter',
+    AnimationPresetCategory.exit => 'Exit',
+    AnimationPresetCategory.loop => 'Loop',
+    AnimationPresetCategory.attention => 'Attention',
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -155,12 +142,9 @@ class _CategorySection extends StatelessWidget {
             style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: theme.textDisabled, letterSpacing: 0.8),
           ),
         ),
-        ...presets.map((preset) => _PresetTile(
-              preset: preset,
-              theme: theme,
-              enabled: canApply,
-              onTap: () => onApply(preset),
-            )),
+        ...presets.map(
+          (preset) => _PresetTile(preset: preset, theme: theme, enabled: canApply, onTap: () => onApply(preset)),
+        ),
       ],
     );
   }
@@ -171,12 +155,7 @@ class _CategorySection extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _PresetTile extends StatefulWidget {
-  const _PresetTile({
-    required this.preset,
-    required this.theme,
-    required this.enabled,
-    required this.onTap,
-  });
+  const _PresetTile({required this.preset, required this.theme, required this.enabled, required this.onTap});
 
   final AnimationPreset preset;
   final AppTheme theme;
@@ -205,14 +184,10 @@ class _PresetTileState extends State<_PresetTile> {
           margin: const EdgeInsets.only(bottom: 4),
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           decoration: BoxDecoration(
-            color: _hovering && widget.enabled
-                ? theme.accentColor.withAlpha(20)
-                : theme.surfaceVariant,
+            color: _hovering && widget.enabled ? theme.accentColor.withAlpha(20) : theme.surfaceVariant,
             borderRadius: BorderRadius.circular(6),
             border: Border.all(
-              color: _hovering && widget.enabled
-                  ? theme.accentColor.withAlpha(100)
-                  : theme.divider.withAlpha(60),
+              color: _hovering && widget.enabled ? theme.accentColor.withAlpha(100) : theme.divider.withAlpha(60),
             ),
           ),
           child: Row(
@@ -236,17 +211,11 @@ class _PresetTileState extends State<_PresetTile> {
                       ),
                     ),
                     if (preset.description.isNotEmpty)
-                      Text(
-                        preset.description,
-                        style: TextStyle(fontSize: 10, color: theme.textSecondary),
-                      ),
+                      Text(preset.description, style: TextStyle(fontSize: 10, color: theme.textSecondary)),
                   ],
                 ),
               ),
-              Text(
-                '${preset.duration}f',
-                style: TextStyle(fontSize: 9, color: theme.textDisabled),
-              ),
+              Text('${preset.duration}f', style: TextStyle(fontSize: 9, color: theme.textDisabled)),
             ],
           ),
         ),

@@ -349,8 +349,9 @@ class GraphEditorVisibleNotifier extends StateNotifier<bool> {
   void set(bool value) => state = value;
 }
 
-final graphEditorVisibleProvider =
-    StateNotifierProvider<GraphEditorVisibleNotifier, bool>((ref) => GraphEditorVisibleNotifier());
+final graphEditorVisibleProvider = StateNotifierProvider<GraphEditorVisibleNotifier, bool>(
+  (ref) => GraphEditorVisibleNotifier(),
+);
 
 // ---------------------------------------------------------------------------
 // Onion skinning
@@ -373,13 +374,7 @@ class OnionSettings {
   final double opacity;
   final OnionMode mode;
 
-  OnionSettings copyWith({
-    bool? enabled,
-    int? beforeFrames,
-    int? afterFrames,
-    double? opacity,
-    OnionMode? mode,
-  }) =>
+  OnionSettings copyWith({bool? enabled, int? beforeFrames, int? afterFrames, double? opacity, OnionMode? mode}) =>
       OnionSettings(
         enabled: enabled ?? this.enabled,
         beforeFrames: beforeFrames ?? this.beforeFrames,
@@ -399,5 +394,6 @@ class OnionSettingsNotifier extends StateNotifier<OnionSettings> {
   void setMode(OnionMode mode) => state = state.copyWith(mode: mode);
 }
 
-final onionSettingsProvider =
-    StateNotifierProvider<OnionSettingsNotifier, OnionSettings>((ref) => OnionSettingsNotifier());
+final onionSettingsProvider = StateNotifierProvider<OnionSettingsNotifier, OnionSettings>(
+  (ref) => OnionSettingsNotifier(),
+);

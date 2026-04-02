@@ -19,15 +19,10 @@ class KeyframeInterpolator {
   ///  • Between two keyframes → lerp based on [VecTweenType] of the left kf.
   ///    - [VecTweenType.none]  → hold: keeps left keyframe value.
   ///    - anything else        → linear interpolation.
-  static VecShape applyAtFrame(
-    VecShape shape,
-    List<VecKeyframe> keyframes,
-    int frame,
-  ) {
+  static VecShape applyAtFrame(VecShape shape, List<VecKeyframe> keyframes, int frame) {
     if (keyframes.isEmpty) return shape;
 
-    final sorted = List<VecKeyframe>.from(keyframes)
-      ..sort((a, b) => a.frame.compareTo(b.frame));
+    final sorted = List<VecKeyframe>.from(keyframes)..sort((a, b) => a.frame.compareTo(b.frame));
 
     // Before first keyframe → unchanged
     if (frame < sorted.first.frame) return shape;
@@ -69,23 +64,16 @@ class KeyframeInterpolator {
     return shape.copyWith(data: data);
   }
 
-  static VecShape _lerp(
-    VecShape shape,
-    VecKeyframe a,
-    VecKeyframe b,
-    double rawT,
-  ) {
+  static VecShape _lerp(VecShape shape, VecKeyframe a, VecKeyframe b, double rawT) {
     // Resolve per-property easing, falling back to the general easing field.
-    double t(VecEasing? perProp) =>
-        EasingEvaluator.evaluate(perProp ?? a.easing, rawT);
+    double t(VecEasing? perProp) => EasingEvaluator.evaluate(perProp ?? a.easing, rawT);
 
     var data = shape.data;
 
     // Transform (split into position, scale, rotation sub-properties)
     final ta = a.transform, tb = b.transform;
     if (ta != null && tb != null) {
-      data = data.copyWith(
-          transform: _lerpTransformPerProperty(ta, tb, a, b, rawT));
+      data = data.copyWith(transform: _lerpTransformPerProperty(ta, tb, a, b, rawT));
     } else if (ta != null) {
       data = data.copyWith(transform: ta);
     }
@@ -103,10 +91,7 @@ class KeyframeInterpolator {
     final fa = a.fills, fb = b.fills;
     if (fa != null && fb != null && fa.isNotEmpty && fb.isNotEmpty) {
       final tFill = t(a.fillColorEasing);
-      final lerpedFills = [
-        fa[0].copyWith(color: _lerpColor(fa[0].color, fb[0].color, tFill)),
-        ...fa.skip(1),
-      ];
+      final lerpedFills = [fa[0].copyWith(color: _lerpColor(fa[0].color, fb[0].color, tFill)), ...fa.skip(1)];
       data = data.copyWith(fills: lerpedFills);
     } else if (fa != null) {
       data = data.copyWith(fills: fa);
@@ -165,11 +150,11 @@ class KeyframeInterpolator {
   }
 
   static VecColor _lerpColor(VecColor a, VecColor b, double t) => VecColor(
-        a: (a.a + (b.a - a.a) * t).round().clamp(0, 255),
-        r: (a.r + (b.r - a.r) * t).round().clamp(0, 255),
-        g: (a.g + (b.g - a.g) * t).round().clamp(0, 255),
-        b: (a.b + (b.b - a.b) * t).round().clamp(0, 255),
-      );
+    a: (a.a + (b.a - a.a) * t).round().clamp(0, 255),
+    r: (a.r + (b.r - a.r) * t).round().clamp(0, 255),
+    g: (a.g + (b.g - a.g) * t).round().clamp(0, 255),
+    b: (a.b + (b.b - a.b) * t).round().clamp(0, 255),
+  );
 
   static double _ld(double a, double b, double t) => a + (b - a) * t;
 

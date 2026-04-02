@@ -192,9 +192,7 @@ class _TabletWorkspaceLayout extends ConsumerWidget {
                     duration: _slideDuration,
                     curve: Curves.easeOut,
                     top: 8,
-                    left: panels.layers
-                        ? _toolPanelWidth + _leftPanelWidth + 4
-                        : _toolPanelWidth + 4,
+                    left: panels.layers ? _toolPanelWidth + _leftPanelWidth + 4 : _toolPanelWidth + 4,
                     child: _TabletPanelToggle(
                       icon: panels.layers ? Icons.chevron_left : Icons.layers_outlined,
                       onTap: () => ref.read(panelVisibilityProvider.notifier).toggleLayers(),
@@ -285,11 +283,7 @@ class _TabletPanelToggle extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(6),
         hoverColor: theme.primaryColor.withAlpha(18),
-        child: SizedBox(
-          width: 28,
-          height: 28,
-          child: Icon(icon, size: 14, color: theme.textSecondary),
-        ),
+        child: SizedBox(width: 28, height: 28, child: Icon(icon, size: 14, color: theme.textSecondary)),
       ),
     );
   }

@@ -98,10 +98,7 @@ class _GraphEditorPanelState extends ConsumerState<GraphEditorPanel> {
           Expanded(
             child: track == null || track.keyframes.isEmpty
                 ? Center(
-                    child: Text(
-                      'No keyframes',
-                      style: TextStyle(fontSize: 10, color: theme.textDisabled),
-                    ),
+                    child: Text('No keyframes', style: TextStyle(fontSize: 10, color: theme.textDisabled)),
                   )
                 : _GraphArea(
                     theme: theme,
@@ -114,9 +111,9 @@ class _GraphEditorPanelState extends ConsumerState<GraphEditorPanel> {
                         (r) => r.shapeId == selectedShapeId,
                         orElse: () => widget.rows.first,
                       );
-                      ref.read(vecDocumentStateProvider.notifier).updateKeyframeForShape(
-                        scene.id, row.layerId, row.shapeId, frame, (_) => updatedKf,
-                      );
+                      ref
+                          .read(vecDocumentStateProvider.notifier)
+                          .updateKeyframeForShape(scene.id, row.layerId, row.shapeId, frame, (_) => updatedKf);
                     },
                   ),
           ),
@@ -157,36 +154,35 @@ class _GraphAreaState extends State<_GraphArea> {
   bool _draggingIsOut = false; // true = out-handle, false = in-handle
 
   List<VecKeyframe> get _sorted {
-    final s = List<VecKeyframe>.from(widget.track.keyframes)
-      ..sort((a, b) => a.frame.compareTo(b.frame));
+    final s = List<VecKeyframe>.from(widget.track.keyframes)..sort((a, b) => a.frame.compareTo(b.frame));
     return s;
   }
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(builder: (context, constraints) {
-      final h = constraints.maxHeight;
-      return GestureDetector(
-        onPanStart: (d) => _onPanStart(d, h),
-        onPanUpdate: (d) => _onPanUpdate(d, h),
-        onPanEnd: (_) => setState(() => _draggingHandleIndex = null),
-        child: CustomPaint(
-          painter: _GraphPainter(
-            timeline: widget.timeline,
-            track: widget.track,
-            showSpeed: widget.showSpeed,
-            scrollOffset: widget.scrollController.hasClients
-                ? widget.scrollController.offset
-                : 0.0,
-            frameWidth: _frameWidth,
-            curveColor: widget.theme.accentColor,
-            keyframeColor: widget.theme.primaryColor,
-            gridColor: widget.theme.divider,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final h = constraints.maxHeight;
+        return GestureDetector(
+          onPanStart: (d) => _onPanStart(d, h),
+          onPanUpdate: (d) => _onPanUpdate(d, h),
+          onPanEnd: (_) => setState(() => _draggingHandleIndex = null),
+          child: CustomPaint(
+            painter: _GraphPainter(
+              timeline: widget.timeline,
+              track: widget.track,
+              showSpeed: widget.showSpeed,
+              scrollOffset: widget.scrollController.hasClients ? widget.scrollController.offset : 0.0,
+              frameWidth: _frameWidth,
+              curveColor: widget.theme.accentColor,
+              keyframeColor: widget.theme.primaryColor,
+              gridColor: widget.theme.divider,
+            ),
+            size: Size(constraints.maxWidth, h),
           ),
-          size: Size(constraints.maxWidth, h),
-        ),
-      );
-    });
+        );
+      },
+    );
   }
 
   void _onPanStart(DragStartDetails d, double h) {
@@ -202,7 +198,10 @@ class _GraphAreaState extends State<_GraphArea> {
         final outX = kf.frame * _frameWidth + pts.$1 * _frameWidth * 2 - scrollOffset;
         final outY = h - pts.$2.clamp(0.0, 1.0) * h;
         if ((d.localPosition - Offset(outX, outY)).distance < 10) {
-          setState(() { _draggingHandleIndex = i; _draggingIsOut = true; });
+          setState(() {
+            _draggingHandleIndex = i;
+            _draggingIsOut = true;
+          });
           return;
         }
       }
@@ -212,7 +211,10 @@ class _GraphAreaState extends State<_GraphArea> {
           final inX = cx - prevPts.$3 * _frameWidth * 2;
           final inY = h - prevPts.$4.clamp(0.0, 1.0) * h;
           if ((d.localPosition - Offset(inX, inY)).distance < 10) {
-            setState(() { _draggingHandleIndex = i - 1; _draggingIsOut = false; });
+            setState(() {
+              _draggingHandleIndex = i - 1;
+              _draggingIsOut = false;
+            });
             return;
           }
         }
@@ -282,8 +284,7 @@ class _GraphPainter extends CustomPainter {
 
     _drawGrid(canvas, w, h);
 
-    final sorted = List<VecKeyframe>.from(track.keyframes)
-      ..sort((a, b) => a.frame.compareTo(b.frame));
+    final sorted = List<VecKeyframe>.from(track.keyframes)..sort((a, b) => a.frame.compareTo(b.frame));
 
     if (sorted.length < 2) {
       _drawKeyframeDots(canvas, sorted, h);
@@ -334,8 +335,7 @@ class _GraphPainter extends CustomPainter {
     }
   }
 
-  void _drawValueSegment(Canvas canvas, VecKeyframe a, VecKeyframe b, double h, Paint paint,
-      double x0, double x1) {
+  void _drawValueSegment(Canvas canvas, VecKeyframe a, VecKeyframe b, double h, Paint paint, double x0, double x1) {
     final easing = a.easing;
     final pts = EasingEvaluator.controlPoints(easing);
 
@@ -359,8 +359,7 @@ class _GraphPainter extends CustomPainter {
     canvas.drawPath(path, paint);
   }
 
-  void _drawSpeedSegment(Canvas canvas, VecKeyframe a, VecKeyframe b, double h, Paint paint,
-      double x0, double x1) {
+  void _drawSpeedSegment(Canvas canvas, VecKeyframe a, VecKeyframe b, double h, Paint paint, double x0, double x1) {
     const steps = 32;
     double? prevX, prevSpeed;
 
@@ -410,9 +409,7 @@ class _GraphPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _GraphPainter old) =>
-      old.track != track ||
-      old.scrollOffset != scrollOffset ||
-      old.showSpeed != showSpeed;
+      old.track != track || old.scrollOffset != scrollOffset || old.showSpeed != showSpeed;
 }
 
 // ---------------------------------------------------------------------------
@@ -420,12 +417,7 @@ class _GraphPainter extends CustomPainter {
 // ---------------------------------------------------------------------------
 
 class _ToggleChip extends StatelessWidget {
-  const _ToggleChip({
-    required this.label,
-    required this.selected,
-    required this.theme,
-    required this.onTap,
-  });
+  const _ToggleChip({required this.label, required this.selected, required this.theme, required this.onTap});
 
   final String label;
   final bool selected;
@@ -441,9 +433,7 @@ class _ToggleChip extends StatelessWidget {
         decoration: BoxDecoration(
           color: selected ? theme.accentColor.withAlpha(40) : Colors.transparent,
           borderRadius: BorderRadius.circular(4),
-          border: Border.all(
-            color: selected ? theme.accentColor.withAlpha(160) : theme.divider.withAlpha(80),
-          ),
+          border: Border.all(color: selected ? theme.accentColor.withAlpha(160) : theme.divider.withAlpha(80)),
         ),
         child: Text(
           label,

@@ -17,12 +17,7 @@ import 'easing_editor.dart';
 // ---------------------------------------------------------------------------
 
 class TrackRow {
-  const TrackRow({
-    required this.layerId,
-    required this.shapeId,
-    required this.name,
-    required this.icon,
-  });
+  const TrackRow({required this.layerId, required this.shapeId, required this.name, required this.icon});
 
   final String layerId;
   final String shapeId;
@@ -41,13 +36,7 @@ enum _DragMode { none, seek, moveKeyframe, duration }
 // ---------------------------------------------------------------------------
 
 class FrameGrid extends ConsumerStatefulWidget {
-  const FrameGrid({
-    super.key,
-    required this.timeline,
-    required this.rows,
-    required this.theme,
-    this.scrollController,
-  });
+  const FrameGrid({super.key, required this.timeline, required this.rows, required this.theme, this.scrollController});
 
   final VecTimeline timeline;
   final List<TrackRow> rows;
@@ -64,8 +53,7 @@ class FrameGrid extends ConsumerStatefulWidget {
   ConsumerState<FrameGrid> createState() => _FrameGridState();
 }
 
-class _FrameGridState extends ConsumerState<FrameGrid>
-    with SingleTickerProviderStateMixin {
+class _FrameGridState extends ConsumerState<FrameGrid> with SingleTickerProviderStateMixin {
   int _hoverFrame = -1;
   int _hoverRow = -1;
 
@@ -84,6 +72,7 @@ class _FrameGridState extends ConsumerState<FrameGrid>
   Offset _lastDurationDragPos = Offset.zero;
   Ticker? _autoScrollTicker;
   Duration? _autoScrollPrevTime;
+
   /// Independent canvas-X accumulator so duration grows even when
   /// maxScrollExtent is 0 (content not yet expanded).
   double _targetCanvasX = 0;
@@ -127,8 +116,7 @@ class _FrameGridState extends ConsumerState<FrameGrid>
     // duration regardless of whether the scroll controller has caught up yet.
     _targetCanvasX += _autoScrollSpeed * dt;
 
-    final newDuration =
-        (_targetCanvasX / FrameGrid.frameWidth).round().clamp(1, 9999);
+    final newDuration = (_targetCanvasX / FrameGrid.frameWidth).round().clamp(1, 9999);
 
     if (newDuration != _previewDuration) {
       setState(() => _previewDuration = newDuration);
@@ -146,10 +134,7 @@ class _FrameGridState extends ConsumerState<FrameGrid>
     });
   }
 
-  double get _scrollOffset =>
-      widget.scrollController?.hasClients == true
-          ? widget.scrollController!.offset
-          : 0.0;
+  double get _scrollOffset => widget.scrollController?.hasClients == true ? widget.scrollController!.offset : 0.0;
 
   /// Converts a screen-local x position to a canvas frame index.
   int _toFrame(double screenX, int duration) {
@@ -167,8 +152,7 @@ class _FrameGridState extends ConsumerState<FrameGrid>
     final canvasX = screenPos.dx + _scrollOffset;
     if (dy < FrameGrid.rulerHeight) return null;
 
-    final rowIndex =
-        ((dy - FrameGrid.rulerHeight) / FrameGrid.trackHeight).floor();
+    final rowIndex = ((dy - FrameGrid.rulerHeight) / FrameGrid.trackHeight).floor();
     if (rowIndex < 0 || rowIndex >= widget.rows.length) return null;
 
     final row = widget.rows[rowIndex];
@@ -178,12 +162,7 @@ class _FrameGridState extends ConsumerState<FrameGrid>
     for (final kf in track.keyframes) {
       final kfX = kf.frame * FrameGrid.frameWidth + FrameGrid.frameWidth / 2;
       if ((canvasX - kfX).abs() <= 6) {
-        return (
-          row: rowIndex,
-          shapeId: row.shapeId,
-          layerId: row.layerId,
-          frame: kf.frame,
-        );
+        return (row: rowIndex, shapeId: row.shapeId, layerId: row.layerId, frame: kf.frame);
       }
     }
     return null;
@@ -192,18 +171,15 @@ class _FrameGridState extends ConsumerState<FrameGrid>
   /// Returns true if [screenPos] is near the duration drag handle.
   bool _hitTestDurationHandle(Offset screenPos) {
     final canvasX = screenPos.dx + _scrollOffset;
-    final handleX =
-        widget.timeline.duration * FrameGrid.frameWidth;
-    return screenPos.dy < FrameGrid.rulerHeight &&
-        (canvasX - handleX).abs() <= FrameGrid._durationHandleWidth;
+    final handleX = widget.timeline.duration * FrameGrid.frameWidth;
+    return screenPos.dy < FrameGrid.rulerHeight && (canvasX - handleX).abs() <= FrameGrid._durationHandleWidth;
   }
 
   @override
   Widget build(BuildContext context) {
     final playhead = ref.watch(playheadFrameProvider);
     final selectedKf = ref.watch(selectedKeyframeFrameProvider);
-    final effectiveDuration =
-        _previewDuration > 0 ? _previewDuration : widget.timeline.duration;
+    final effectiveDuration = _previewDuration > 0 ? _previewDuration : widget.timeline.duration;
     final totalWidth = effectiveDuration * FrameGrid.frameWidth;
 
     // Build shapeId → track map for keyframe lookup
@@ -232,9 +208,7 @@ class _FrameGridState extends ConsumerState<FrameGrid>
         final canvasX = e.localPosition.dx + _scrollOffset;
         final dy = e.localPosition.dy;
         final row = ((dy - FrameGrid.rulerHeight) / FrameGrid.trackHeight).floor();
-        final frame = (canvasX / FrameGrid.frameWidth)
-            .floor()
-            .clamp(0, widget.timeline.duration - 1);
+        final frame = (canvasX / FrameGrid.frameWidth).floor().clamp(0, widget.timeline.duration - 1);
         setState(() {
           _hoverRow = row;
           _hoverFrame = frame;
@@ -246,12 +220,9 @@ class _FrameGridState extends ConsumerState<FrameGrid>
       }),
       child: GestureDetector(
         onTapDown: (d) => _handleTap(d.localPosition, trackMap),
-        onSecondaryTapDown: (d) =>
-            _handleSecondaryTap(d.localPosition, trackMap, context),
-        onHorizontalDragStart: (d) =>
-            _handleDragStart(d.localPosition, trackMap),
-        onHorizontalDragUpdate: (d) =>
-            _handleDragUpdate(d.localPosition, trackMap),
+        onSecondaryTapDown: (d) => _handleSecondaryTap(d.localPosition, trackMap, context),
+        onHorizontalDragStart: (d) => _handleDragStart(d.localPosition, trackMap),
+        onHorizontalDragUpdate: (d) => _handleDragUpdate(d.localPosition, trackMap),
         onHorizontalDragEnd: (_) => _handleDragEnd(),
         child: SingleChildScrollView(
           controller: widget.scrollController,
@@ -331,8 +302,7 @@ class _FrameGridState extends ConsumerState<FrameGrid>
           // zone doesn't jump.
           final canvasX = localPos.dx + _scrollOffset;
           _targetCanvasX = canvasX;
-          final newDuration =
-              (canvasX / FrameGrid.frameWidth).round().clamp(1, 9999);
+          final newDuration = (canvasX / FrameGrid.frameWidth).round().clamp(1, 9999);
           setState(() => _previewDuration = newDuration);
         }
       case _DragMode.none:
@@ -343,21 +313,14 @@ class _FrameGridState extends ConsumerState<FrameGrid>
   void _handleDragEnd() {
     switch (_dragMode) {
       case _DragMode.moveKeyframe:
-        if (_dragShapeId != null &&
-            _dragLayerId != null &&
-            _dragPreviewFrame != _dragFromFrame) {
+        if (_dragShapeId != null && _dragLayerId != null && _dragPreviewFrame != _dragFromFrame) {
           final scene = ref.read(activeSceneProvider);
           if (scene != null) {
-            ref.read(vecDocumentStateProvider.notifier).moveKeyframeForShape(
-                  scene.id,
-                  _dragLayerId!,
-                  _dragShapeId!,
-                  _dragFromFrame,
-                  _dragPreviewFrame,
-                );
+            ref
+                .read(vecDocumentStateProvider.notifier)
+                .moveKeyframeForShape(scene.id, _dragLayerId!, _dragShapeId!, _dragFromFrame, _dragPreviewFrame);
             // Update selected keyframe to the new position
-            ref.read(selectedKeyframeFrameProvider.notifier).state =
-                _dragPreviewFrame;
+            ref.read(selectedKeyframeFrameProvider.notifier).state = _dragPreviewFrame;
           }
         }
         setState(() {
@@ -372,9 +335,7 @@ class _FrameGridState extends ConsumerState<FrameGrid>
         if (_previewDuration > 0) {
           final scene = ref.read(activeSceneProvider);
           if (scene != null) {
-            ref
-                .read(vecDocumentStateProvider.notifier)
-                .setTimelineDuration(scene.id, _previewDuration);
+            ref.read(vecDocumentStateProvider.notifier).setTimelineDuration(scene.id, _previewDuration);
           }
         }
         setState(() {
@@ -390,17 +351,14 @@ class _FrameGridState extends ConsumerState<FrameGrid>
   void _handleTap(Offset localPos, Map<String, VecTrack> trackMap) {
     final dy = localPos.dy;
     final canvasX = localPos.dx + _scrollOffset;
-    final frame = (canvasX / FrameGrid.frameWidth)
-        .floor()
-        .clamp(0, widget.timeline.duration - 1);
+    final frame = (canvasX / FrameGrid.frameWidth).floor().clamp(0, widget.timeline.duration - 1);
 
     if (dy < FrameGrid.rulerHeight) {
       ref.read(playheadFrameProvider.notifier).set(frame);
       return;
     }
 
-    final rowIndex =
-        ((dy - FrameGrid.rulerHeight) / FrameGrid.trackHeight).floor();
+    final rowIndex = ((dy - FrameGrid.rulerHeight) / FrameGrid.trackHeight).floor();
     if (rowIndex < 0 || rowIndex >= widget.rows.length) {
       ref.read(playheadFrameProvider.notifier).set(frame);
       return;
@@ -415,8 +373,7 @@ class _FrameGridState extends ConsumerState<FrameGrid>
 
     if (hasKf) {
       if (HardwareKeyboard.instance.isMetaPressed) {
-        ref.read(vecDocumentStateProvider.notifier).removeKeyframeForShape(
-            scene.id, row.layerId, row.shapeId, frame);
+        ref.read(vecDocumentStateProvider.notifier).removeKeyframeForShape(scene.id, row.layerId, row.shapeId, frame);
       } else {
         // Select this keyframe and seek to it
         ref.read(selectedKeyframeFrameProvider.notifier).state = frame;
@@ -440,9 +397,7 @@ class _FrameGridState extends ConsumerState<FrameGrid>
         fills: List.unmodifiable(shape.data.fills),
         strokes: List.unmodifiable(shape.data.strokes),
       );
-      ref
-          .read(vecDocumentStateProvider.notifier)
-          .addKeyframeForShape(scene.id, row.layerId, row.shapeId, kf);
+      ref.read(vecDocumentStateProvider.notifier).addKeyframeForShape(scene.id, row.layerId, row.shapeId, kf);
 
       // New keyframe becomes the selected frame
       ref.read(selectedKeyframeFrameProvider.notifier).state = frame;
@@ -451,22 +406,15 @@ class _FrameGridState extends ConsumerState<FrameGrid>
   }
 
   /// Right-click: open the easing editor for an existing keyframe.
-  void _handleSecondaryTap(
-    Offset localPos,
-    Map<String, VecTrack> trackMap,
-    BuildContext ctx,
-  ) {
+  void _handleSecondaryTap(Offset localPos, Map<String, VecTrack> trackMap, BuildContext ctx) {
     final dy = localPos.dy;
     final canvasX = localPos.dx + _scrollOffset;
     if (dy < FrameGrid.rulerHeight) return;
 
-    final rowIndex =
-        ((dy - FrameGrid.rulerHeight) / FrameGrid.trackHeight).floor();
+    final rowIndex = ((dy - FrameGrid.rulerHeight) / FrameGrid.trackHeight).floor();
     if (rowIndex < 0 || rowIndex >= widget.rows.length) return;
 
-    final frame = (canvasX / FrameGrid.frameWidth)
-        .floor()
-        .clamp(0, widget.timeline.duration - 1);
+    final frame = (canvasX / FrameGrid.frameWidth).floor().clamp(0, widget.timeline.duration - 1);
 
     final row = widget.rows[rowIndex];
     final track = trackMap[row.shapeId];
@@ -481,8 +429,9 @@ class _FrameGridState extends ConsumerState<FrameGrid>
       theme: widget.theme,
       keyframe: kf,
       onChanged: (updatedKf) {
-        ref.read(vecDocumentStateProvider.notifier).updateKeyframeForShape(
-            scene.id, row.layerId, row.shapeId, frame, (_) => updatedKf);
+        ref
+            .read(vecDocumentStateProvider.notifier)
+            .updateKeyframeForShape(scene.id, row.layerId, row.shapeId, frame, (_) => updatedKf);
       },
     );
   }
@@ -548,37 +497,24 @@ class _FrameGridPainter extends CustomPainter {
       ..strokeWidth = 0.5;
 
     // Ruler background
-    canvas.drawRect(
-      Rect.fromLTWH(0, 0, size.width, _rh),
-      Paint()..color = dividerColor.withAlpha(20),
-    );
+    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, _rh), Paint()..color = dividerColor.withAlpha(20));
 
     // Hover row highlight
     if (hoverRow >= 0 && hoverRow < rows.length) {
-      canvas.drawRect(
-        Rect.fromLTWH(0, _rh + hoverRow * _th, size.width, _th),
-        Paint()..color = hoverColor,
-      );
+      canvas.drawRect(Rect.fromLTWH(0, _rh + hoverRow * _th, size.width, _th), Paint()..color = hoverColor);
     }
 
     // Selected keyframe column tint (behind everything)
     if (selectedKeyframeFrame >= 0 && selectedKeyframeFrame < timeline.duration) {
       final sx = selectedKeyframeFrame * _fw;
-      canvas.drawRect(
-        Rect.fromLTWH(sx, _rh, _fw, size.height - _rh),
-        Paint()..color = primaryColor.withAlpha(12),
-      );
+      canvas.drawRect(Rect.fromLTWH(sx, _rh, _fw, size.height - _rh), Paint()..color = primaryColor.withAlpha(12));
     }
 
     // Vertical frame lines + ruler numbers
     for (var f = 0; f <= timeline.duration; f++) {
       final x = f * _fw;
       final isMajor = f % 12 == 0;
-      canvas.drawLine(
-        Offset(x, _rh),
-        Offset(x, size.height),
-        isMajor ? majorGridPaint : gridPaint,
-      );
+      canvas.drawLine(Offset(x, _rh), Offset(x, size.height), isMajor ? majorGridPaint : gridPaint);
       if (isMajor && f < timeline.duration) {
         final tp = TextPainter(
           text: TextSpan(
@@ -594,10 +530,7 @@ class _FrameGridPainter extends CustomPainter {
     // Hover frame column highlight (in ruler only)
     if (hoverFrame >= 0) {
       final hx = hoverFrame * _fw;
-      canvas.drawRect(
-        Rect.fromLTWH(hx, 0, _fw, _rh),
-        Paint()..color = primaryColor.withAlpha(25),
-      );
+      canvas.drawRect(Rect.fromLTWH(hx, 0, _fw, _rh), Paint()..color = primaryColor.withAlpha(25));
     }
 
     // Horizontal track dividers
@@ -621,13 +554,7 @@ class _FrameGridPainter extends CustomPainter {
           if (dragPreviewFrame >= 0) {
             final cx = dragPreviewFrame * _fw + _fw / 2;
             final isSelected = dragPreviewFrame == selectedKeyframeFrame;
-            _drawDiamond(
-              canvas,
-              Offset(cx, cy),
-              5.5,
-              Paint()..color = primaryColor,
-              selected: isSelected,
-            );
+            _drawDiamond(canvas, Offset(cx, cy), 5.5, Paint()..color = primaryColor, selected: isSelected);
           }
           continue;
         }
@@ -644,8 +571,8 @@ class _FrameGridPainter extends CustomPainter {
             ..color = isSelected
                 ? primaryColor
                 : isHovered
-                    ? primaryColor.withAlpha(200)
-                    : accentColor,
+                ? primaryColor.withAlpha(200)
+                : accentColor,
           selected: isSelected,
         );
       }
@@ -657,9 +584,7 @@ class _FrameGridPainter extends CustomPainter {
       Offset(endX, 0),
       Offset(endX, size.height),
       Paint()
-        ..color = isDurationDrag
-            ? primaryColor
-            : dividerColor.withAlpha(180)
+        ..color = isDurationDrag ? primaryColor : dividerColor.withAlpha(180)
         ..strokeWidth = isDurationDrag ? 2.0 : 1.5,
     );
 
@@ -688,17 +613,8 @@ class _FrameGridPainter extends CustomPainter {
     // Small pill/tab on the ruler at the end
     const h = _rh - 4;
     const w = 10.0;
-    final rect = RRect.fromRectAndRadius(
-      Rect.fromLTWH(endX - w / 2, 2, w, h),
-      const Radius.circular(3),
-    );
-    canvas.drawRRect(
-      rect,
-      Paint()
-        ..color = isDurationDrag
-            ? primaryColor
-            : dividerColor.withAlpha(200),
-    );
+    final rect = RRect.fromRectAndRadius(Rect.fromLTWH(endX - w / 2, 2, w, h), const Radius.circular(3));
+    canvas.drawRRect(rect, Paint()..color = isDurationDrag ? primaryColor : dividerColor.withAlpha(200));
     // Small double-arrow hint
     const midY = 2 + h / 2;
     final arrowPaint = Paint()
@@ -713,8 +629,7 @@ class _FrameGridPainter extends CustomPainter {
     canvas.drawLine(Offset(endX + 3, midY + 2), Offset(endX + 5, midY), arrowPaint);
   }
 
-  void _drawDiamond(Canvas canvas, Offset c, double r, Paint paint,
-      {bool selected = false}) {
+  void _drawDiamond(Canvas canvas, Offset c, double r, Paint paint, {bool selected = false}) {
     final path = Path()
       ..moveTo(c.dx, c.dy - r)
       ..lineTo(c.dx + r, c.dy)
@@ -726,9 +641,7 @@ class _FrameGridPainter extends CustomPainter {
     canvas.drawPath(
       path,
       Paint()
-        ..color = selected
-            ? Colors.white.withAlpha(200)
-            : paint.color.withAlpha(180)
+        ..color = selected ? Colors.white.withAlpha(200) : paint.color.withAlpha(180)
         ..style = PaintingStyle.stroke
         ..strokeWidth = selected ? 1.5 : 0.8,
     );

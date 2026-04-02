@@ -129,12 +129,7 @@ class _TopBarBtn extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _PanelSheet extends StatelessWidget {
-  const _PanelSheet({
-    required this.title,
-    required this.initialSize,
-    required this.theme,
-    required this.child,
-  });
+  const _PanelSheet({required this.title, required this.initialSize, required this.theme, required this.child});
 
   final String title;
   final double initialSize;

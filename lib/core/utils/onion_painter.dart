@@ -80,9 +80,7 @@ class OnionPainter extends CustomPainter {
               for (final shape in layer.shapes)
                 () {
                   final kfs = shapeKeyframes[shape.id];
-                  return kfs != null
-                      ? KeyframeInterpolator.applyAtFrame(shape, kfs, frame)
-                      : shape;
+                  return kfs != null ? KeyframeInterpolator.applyAtFrame(shape, kfs, frame) : shape;
                 }(),
             ],
           ),
@@ -99,11 +97,7 @@ class OnionPainter extends CustomPainter {
     if (settings.mode == OnionMode.outline) {
       _paintOutlines(canvas, interpolatedScene, tint, alpha);
     } else {
-      final painter = ScenePainter(
-        scene: interpolatedScene,
-        symbols: symbols,
-        imageCache: imageCache,
-      );
+      final painter = ScenePainter(scene: interpolatedScene, symbols: symbols, imageCache: imageCache);
       painter.paint(canvas, size);
     }
 
@@ -116,8 +110,7 @@ class OnionPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.0;
 
-    final sortedLayers = List<VecLayer>.from(scene.layers)
-      ..sort((a, b) => a.order.compareTo(b.order));
+    final sortedLayers = List<VecLayer>.from(scene.layers)..sort((a, b) => a.order.compareTo(b.order));
 
     for (final layer in sortedLayers) {
       if (!layer.visible) continue;
@@ -151,17 +144,11 @@ class OnionPainter extends CustomPainter {
       },
       rectangle: (s) {
         final t = s.transform;
-        canvas.drawRect(
-          Rect.fromCenter(center: Offset(t.x, t.y), width: t.width, height: t.height),
-          paint,
-        );
+        canvas.drawRect(Rect.fromCenter(center: Offset(t.x, t.y), width: t.width, height: t.height), paint);
       },
       ellipse: (s) {
         final t = s.transform;
-        canvas.drawOval(
-          Rect.fromCenter(center: Offset(t.x, t.y), width: t.width, height: t.height),
-          paint,
-        );
+        canvas.drawOval(Rect.fromCenter(center: Offset(t.x, t.y), width: t.width, height: t.height), paint);
       },
       orElse: () {},
     );
@@ -169,7 +156,5 @@ class OnionPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant OnionPainter old) =>
-      old.scene != scene ||
-      old.currentFrame != currentFrame ||
-      old.settings != settings;
+      old.scene != scene || old.currentFrame != currentFrame || old.settings != settings;
 }

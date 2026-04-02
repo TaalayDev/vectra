@@ -12,11 +12,7 @@ import 'playback_controls.dart';
 import 'track_label_column.dart';
 
 class TimelinePanel extends ConsumerStatefulWidget {
-  const TimelinePanel({
-    super.key,
-    required this.theme,
-    required this.onResizeDrag,
-  });
+  const TimelinePanel({super.key, required this.theme, required this.onResizeDrag});
 
   final AppTheme theme;
   final void Function(double delta) onResizeDrag;
@@ -50,21 +46,21 @@ class _TimelinePanelState extends ConsumerState<TimelinePanel> {
     for (final layer in layers) {
       if (!layer.visible) continue;
       for (final shape in layer.shapes) {
-        rows.add(TrackRow(
-          layerId: layer.id,
-          shapeId: shape.id,
-          name: shape.name ?? _shapeName(shape),
-          icon: _shapeIcon(shape),
-        ));
+        rows.add(
+          TrackRow(
+            layerId: layer.id,
+            shapeId: shape.id,
+            name: shape.name ?? _shapeName(shape),
+            icon: _shapeIcon(shape),
+          ),
+        );
       }
     }
 
     return Container(
       decoration: BoxDecoration(
         color: theme.surface,
-        border: Border(
-          top: BorderSide(color: theme.divider, width: 0.5),
-        ),
+        border: Border(top: BorderSide(color: theme.divider, width: 0.5)),
       ),
       child: Column(
         children: [
@@ -94,11 +90,7 @@ class _TimelinePanelState extends ConsumerState<TimelinePanel> {
           Row(
             children: [
               Expanded(
-                child: PlaybackControls(
-                  theme: theme,
-                  fps: fps,
-                  duration: timeline?.duration ?? 72,
-                ),
+                child: PlaybackControls(theme: theme, fps: fps, duration: timeline?.duration ?? 72),
               ),
               // Graph editor toggle
               Tooltip(
@@ -150,11 +142,7 @@ class _TimelinePanelState extends ConsumerState<TimelinePanel> {
           Expanded(
             child: timeline == null
                 ? Center(
-                    child: Text(
-                      'No timeline',
-                      style:
-                          TextStyle(fontSize: 11, color: theme.textDisabled),
-                    ),
+                    child: Text('No timeline', style: TextStyle(fontSize: 11, color: theme.textDisabled)),
                   )
                 : Column(
                     children: [
@@ -163,16 +151,8 @@ class _TimelinePanelState extends ConsumerState<TimelinePanel> {
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             // Label column
-                            TrackLabelColumn(
-                              rows: rows,
-                              theme: theme,
-                              scrollController: _labelScroll,
-                            ),
-                            VerticalDivider(
-                              width: 1,
-                              thickness: 0.5,
-                              color: theme.divider,
-                            ),
+                            TrackLabelColumn(rows: rows, theme: theme, scrollController: _labelScroll),
+                            VerticalDivider(width: 1, thickness: 0.5, color: theme.divider),
                             // Frame grid
                             Expanded(
                               child: FrameGrid(
@@ -186,12 +166,7 @@ class _TimelinePanelState extends ConsumerState<TimelinePanel> {
                         ),
                       ),
                       if (graphVisible)
-                        GraphEditorPanel(
-                          theme: theme,
-                          timeline: timeline,
-                          rows: rows,
-                          scrollController: _gridHScroll,
-                        ),
+                        GraphEditorPanel(theme: theme, timeline: timeline, rows: rows, scrollController: _gridHScroll),
                     ],
                   ),
           ),
@@ -201,27 +176,26 @@ class _TimelinePanelState extends ConsumerState<TimelinePanel> {
   }
 
   static String _shapeName(VecShape shape) => shape.map(
-        path: (_) => 'Path',
-        rectangle: (_) => 'Rectangle',
-        ellipse: (_) => 'Ellipse',
-        polygon: (_) => 'Polygon',
-        text: (s) =>
-            s.content.isNotEmpty ? s.content.split('\n').first : 'Text',
-        group: (_) => 'Group',
-        symbolInstance: (_) => 'Symbol',
-        compound: (_) => 'Compound',
-        image: (_) => 'Image',
-      );
+    path: (_) => 'Path',
+    rectangle: (_) => 'Rectangle',
+    ellipse: (_) => 'Ellipse',
+    polygon: (_) => 'Polygon',
+    text: (s) => s.content.isNotEmpty ? s.content.split('\n').first : 'Text',
+    group: (_) => 'Group',
+    symbolInstance: (_) => 'Symbol',
+    compound: (_) => 'Compound',
+    image: (_) => 'Image',
+  );
 
   static IconData _shapeIcon(VecShape shape) => shape.map(
-        path: (_) => Icons.gesture,
-        rectangle: (_) => Icons.crop_square,
-        ellipse: (_) => Icons.circle_outlined,
-        polygon: (_) => Icons.change_history,
-        text: (_) => Icons.text_fields,
-        group: (_) => Icons.folder_outlined,
-        symbolInstance: (_) => Icons.link,
-        compound: (_) => Icons.join_inner,
-        image: (_) => Icons.image_outlined,
-      );
+    path: (_) => Icons.gesture,
+    rectangle: (_) => Icons.crop_square,
+    ellipse: (_) => Icons.circle_outlined,
+    polygon: (_) => Icons.change_history,
+    text: (_) => Icons.text_fields,
+    group: (_) => Icons.folder_outlined,
+    symbolInstance: (_) => Icons.link,
+    compound: (_) => Icons.join_inner,
+    image: (_) => Icons.image_outlined,
+  );
 }

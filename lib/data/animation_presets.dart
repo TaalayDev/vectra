@@ -11,10 +11,7 @@ enum AnimationPresetCategory { enter, exit, loop, attention }
 /// A single relative keyframe within a preset.
 /// [frameOffset] is relative to the start / application frame.
 class PresetKeyframe {
-  const PresetKeyframe({
-    required this.frameOffset,
-    required this.keyframe,
-  });
+  const PresetKeyframe({required this.frameOffset, required this.keyframe});
 
   final int frameOffset;
   final VecKeyframe keyframe;
@@ -61,14 +58,8 @@ class AnimationPresets {
       category: AnimationPresetCategory.enter,
       description: 'Fade from transparent to opaque',
       keyframes: [
-        PresetKeyframe(
-          frameOffset: 0,
-          keyframe: VecKeyframe(frame: 0, opacity: 0.0, easing: _easeOut),
-        ),
-        PresetKeyframe(
-          frameOffset: 18,
-          keyframe: VecKeyframe(frame: 18, opacity: 1.0),
-        ),
+        PresetKeyframe(frameOffset: 0, keyframe: VecKeyframe(frame: 0, opacity: 0.0, easing: _easeOut)),
+        PresetKeyframe(frameOffset: 18, keyframe: VecKeyframe(frame: 18, opacity: 1.0)),
       ],
     ),
     AnimationPreset(
@@ -88,11 +79,7 @@ class AnimationPresets {
         ),
         PresetKeyframe(
           frameOffset: 18,
-          keyframe: VecKeyframe(
-            frame: 18,
-            opacity: 1.0,
-            transform: VecTransform(x: 0, y: 0, width: 100, height: 100),
-          ),
+          keyframe: VecKeyframe(frame: 18, opacity: 1.0, transform: VecTransform(x: 0, y: 0, width: 100, height: 100)),
         ),
       ],
     ),
@@ -113,11 +100,7 @@ class AnimationPresets {
         ),
         PresetKeyframe(
           frameOffset: 18,
-          keyframe: VecKeyframe(
-            frame: 18,
-            opacity: 1.0,
-            transform: VecTransform(x: 0, y: 0, width: 100, height: 100),
-          ),
+          keyframe: VecKeyframe(frame: 18, opacity: 1.0, transform: VecTransform(x: 0, y: 0, width: 100, height: 100)),
         ),
       ],
     ),
@@ -179,14 +162,8 @@ class AnimationPresets {
       category: AnimationPresetCategory.exit,
       description: 'Fade to transparent',
       keyframes: [
-        PresetKeyframe(
-          frameOffset: 0,
-          keyframe: VecKeyframe(frame: 0, opacity: 1.0, easing: _easeIn),
-        ),
-        PresetKeyframe(
-          frameOffset: 18,
-          keyframe: VecKeyframe(frame: 18, opacity: 0.0),
-        ),
+        PresetKeyframe(frameOffset: 0, keyframe: VecKeyframe(frame: 0, opacity: 1.0, easing: _easeIn)),
+        PresetKeyframe(frameOffset: 18, keyframe: VecKeyframe(frame: 18, opacity: 0.0)),
       ],
     ),
     AnimationPreset(
@@ -206,11 +183,7 @@ class AnimationPresets {
         ),
         PresetKeyframe(
           frameOffset: 18,
-          keyframe: VecKeyframe(
-            frame: 18,
-            opacity: 0.0,
-            transform: VecTransform(x: 0, y: 60, width: 100, height: 100),
-          ),
+          keyframe: VecKeyframe(frame: 18, opacity: 0.0, transform: VecTransform(x: 0, y: 60, width: 100, height: 100)),
         ),
       ],
     ),
@@ -296,10 +269,7 @@ class AnimationPresets {
         ),
         PresetKeyframe(
           frameOffset: 48,
-          keyframe: VecKeyframe(
-            frame: 48,
-            transform: VecTransform(x: 0, y: 0, width: 100, height: 100),
-          ),
+          keyframe: VecKeyframe(frame: 48, transform: VecTransform(x: 0, y: 0, width: 100, height: 100)),
         ),
       ],
     ),
@@ -319,10 +289,7 @@ class AnimationPresets {
         ),
         PresetKeyframe(
           frameOffset: 36,
-          keyframe: VecKeyframe(
-            frame: 36,
-            transform: VecTransform(x: 0, y: 0, width: 100, height: 100, rotation: 360),
-          ),
+          keyframe: VecKeyframe(frame: 36, transform: VecTransform(x: 0, y: 0, width: 100, height: 100, rotation: 360)),
         ),
       ],
     ),
@@ -400,10 +367,7 @@ class AnimationPresets {
         ),
         PresetKeyframe(
           frameOffset: 28,
-          keyframe: VecKeyframe(
-            frame: 28,
-            transform: VecTransform(x: 0, y: 0, width: 100, height: 100),
-          ),
+          keyframe: VecKeyframe(frame: 28, transform: VecTransform(x: 0, y: 0, width: 100, height: 100)),
         ),
       ],
     ),

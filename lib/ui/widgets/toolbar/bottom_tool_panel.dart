@@ -174,11 +174,7 @@ class _ColorSection extends ConsumerWidget {
                 bottom: 0,
                 child: GestureDetector(
                   onTap: () async {
-                    final picked = await showColorPicker(
-                      context: context,
-                      initialColor: strokeColor,
-                      theme: theme,
-                    );
+                    final picked = await showColorPicker(context: context, initialColor: strokeColor, theme: theme);
                     if (picked != null) {
                       ref.read(baseColorProvider.notifier).setStroke(VecColor.fromFlutterColor(picked));
                     }
@@ -192,11 +188,7 @@ class _ColorSection extends ConsumerWidget {
                 top: 0,
                 child: GestureDetector(
                   onTap: () async {
-                    final picked = await showColorPicker(
-                      context: context,
-                      initialColor: fillColor,
-                      theme: theme,
-                    );
+                    final picked = await showColorPicker(context: context, initialColor: fillColor, theme: theme);
                     if (picked != null) {
                       ref.read(baseColorProvider.notifier).setFill(VecColor.fromFlutterColor(picked));
                     }

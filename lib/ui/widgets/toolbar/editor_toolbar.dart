@@ -590,11 +590,7 @@ class _OnionSkinToggle extends ConsumerWidget {
             decoration: active
                 ? BoxDecoration(color: theme.primaryColor.withAlpha(18), borderRadius: BorderRadius.circular(4))
                 : null,
-            child: Icon(
-              Icons.layers_outlined,
-              size: 15,
-              color: active ? theme.primaryColor : theme.inactiveIcon,
-            ),
+            child: Icon(Icons.layers_outlined, size: 15, color: active ? theme.primaryColor : theme.inactiveIcon),
           ),
         ),
       ),
