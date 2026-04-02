@@ -154,6 +154,73 @@ class AnimationPresets {
         ),
       ],
     ),
+    AnimationPreset(
+      id: 'enter_slide_left',
+      name: 'Slide Left',
+      category: AnimationPresetCategory.enter,
+      description: 'Slide in from the right side',
+      keyframes: [
+        PresetKeyframe(
+          frameOffset: 0,
+          keyframe: VecKeyframe(
+            frame: 0,
+            opacity: 0.0,
+            transform: VecTransform(x: 80, y: 0, width: 100, height: 100),
+            easing: _easeOut,
+          ),
+        ),
+        PresetKeyframe(
+          frameOffset: 18,
+          keyframe: VecKeyframe(frame: 18, opacity: 1.0, transform: VecTransform(x: 0, y: 0, width: 100, height: 100)),
+        ),
+      ],
+    ),
+    AnimationPreset(
+      id: 'enter_slide_right',
+      name: 'Slide Right',
+      category: AnimationPresetCategory.enter,
+      description: 'Slide in from the left side',
+      keyframes: [
+        PresetKeyframe(
+          frameOffset: 0,
+          keyframe: VecKeyframe(
+            frame: 0,
+            opacity: 0.0,
+            transform: VecTransform(x: -80, y: 0, width: 100, height: 100),
+            easing: _easeOut,
+          ),
+        ),
+        PresetKeyframe(
+          frameOffset: 18,
+          keyframe: VecKeyframe(frame: 18, opacity: 1.0, transform: VecTransform(x: 0, y: 0, width: 100, height: 100)),
+        ),
+      ],
+    ),
+    AnimationPreset(
+      id: 'enter_zoom_fade',
+      name: 'Zoom Fade In',
+      category: AnimationPresetCategory.enter,
+      description: 'Subtle zoom and fade entrance',
+      keyframes: [
+        PresetKeyframe(
+          frameOffset: 0,
+          keyframe: VecKeyframe(
+            frame: 0,
+            opacity: 0.0,
+            transform: VecTransform(x: 0, y: 0, width: 100, height: 100, scaleX: 0.85, scaleY: 0.85),
+            easing: _easeOut,
+          ),
+        ),
+        PresetKeyframe(
+          frameOffset: 20,
+          keyframe: VecKeyframe(
+            frame: 20,
+            opacity: 1.0,
+            transform: VecTransform(x: 0, y: 0, width: 100, height: 100, scaleX: 1.0, scaleY: 1.0),
+          ),
+        ),
+      ],
+    ),
 
     // ── Exit ──────────────────────────────────────────────────────────────
     AnimationPreset(
@@ -208,6 +275,56 @@ class AnimationPresets {
             frame: 18,
             opacity: 0.0,
             transform: VecTransform(x: 0, y: 0, width: 100, height: 100, scaleX: 0.0, scaleY: 0.0),
+          ),
+        ),
+      ],
+    ),
+    AnimationPreset(
+      id: 'exit_slide_left',
+      name: 'Slide Left',
+      category: AnimationPresetCategory.exit,
+      description: 'Slide out to the left',
+      keyframes: [
+        PresetKeyframe(
+          frameOffset: 0,
+          keyframe: VecKeyframe(
+            frame: 0,
+            opacity: 1.0,
+            transform: VecTransform(x: 0, y: 0, width: 100, height: 100),
+            easing: _easeIn,
+          ),
+        ),
+        PresetKeyframe(
+          frameOffset: 18,
+          keyframe: VecKeyframe(
+            frame: 18,
+            opacity: 0.0,
+            transform: VecTransform(x: -80, y: 0, width: 100, height: 100),
+          ),
+        ),
+      ],
+    ),
+    AnimationPreset(
+      id: 'exit_slide_right',
+      name: 'Slide Right',
+      category: AnimationPresetCategory.exit,
+      description: 'Slide out to the right',
+      keyframes: [
+        PresetKeyframe(
+          frameOffset: 0,
+          keyframe: VecKeyframe(
+            frame: 0,
+            opacity: 1.0,
+            transform: VecTransform(x: 0, y: 0, width: 100, height: 100),
+            easing: _easeIn,
+          ),
+        ),
+        PresetKeyframe(
+          frameOffset: 18,
+          keyframe: VecKeyframe(
+            frame: 18,
+            opacity: 0.0,
+            transform: VecTransform(x: 80, y: 0, width: 100, height: 100),
           ),
         ),
       ],
@@ -293,6 +410,84 @@ class AnimationPresets {
         ),
       ],
     ),
+    AnimationPreset(
+      id: 'loop_breathe_opacity',
+      name: 'Breathe Opacity',
+      category: AnimationPresetCategory.loop,
+      description: 'Gentle opacity breathing loop',
+      keyframes: [
+        PresetKeyframe(frameOffset: 0, keyframe: VecKeyframe(frame: 0, opacity: 1.0, easing: _easeInOut)),
+        PresetKeyframe(frameOffset: 20, keyframe: VecKeyframe(frame: 20, opacity: 0.65, easing: _easeInOut)),
+        PresetKeyframe(frameOffset: 40, keyframe: VecKeyframe(frame: 40, opacity: 1.0)),
+      ],
+    ),
+    AnimationPreset(
+      id: 'loop_wobble',
+      name: 'Wobble',
+      category: AnimationPresetCategory.loop,
+      description: 'Small alternating rotation wobble',
+      keyframes: [
+        PresetKeyframe(
+          frameOffset: 0,
+          keyframe: VecKeyframe(
+            frame: 0,
+            transform: VecTransform(x: 0, y: 0, width: 100, height: 100, rotation: 0),
+            easing: _easeInOut,
+          ),
+        ),
+        PresetKeyframe(
+          frameOffset: 10,
+          keyframe: VecKeyframe(
+            frame: 10,
+            transform: VecTransform(x: 0, y: 0, width: 100, height: 100, rotation: -6),
+            easing: _easeInOut,
+          ),
+        ),
+        PresetKeyframe(
+          frameOffset: 20,
+          keyframe: VecKeyframe(
+            frame: 20,
+            transform: VecTransform(x: 0, y: 0, width: 100, height: 100, rotation: 6),
+            easing: _easeInOut,
+          ),
+        ),
+        PresetKeyframe(
+          frameOffset: 30,
+          keyframe: VecKeyframe(
+            frame: 30,
+            transform: VecTransform(x: 0, y: 0, width: 100, height: 100, rotation: 0),
+          ),
+        ),
+      ],
+    ),
+    AnimationPreset(
+      id: 'loop_sway',
+      name: 'Sway',
+      category: AnimationPresetCategory.loop,
+      description: 'Horizontal drifting sway',
+      keyframes: [
+        PresetKeyframe(
+          frameOffset: 0,
+          keyframe: VecKeyframe(
+            frame: 0,
+            transform: VecTransform(x: -8, y: 0, width: 100, height: 100),
+            easing: _easeInOut,
+          ),
+        ),
+        PresetKeyframe(
+          frameOffset: 24,
+          keyframe: VecKeyframe(
+            frame: 24,
+            transform: VecTransform(x: 8, y: 0, width: 100, height: 100),
+            easing: _easeInOut,
+          ),
+        ),
+        PresetKeyframe(
+          frameOffset: 48,
+          keyframe: VecKeyframe(frame: 48, transform: VecTransform(x: -8, y: 0, width: 100, height: 100)),
+        ),
+      ],
+    ),
 
     // ── Attention ─────────────────────────────────────────────────────────
     AnimationPreset(
@@ -368,6 +563,80 @@ class AnimationPresets {
         PresetKeyframe(
           frameOffset: 28,
           keyframe: VecKeyframe(frame: 28, transform: VecTransform(x: 0, y: 0, width: 100, height: 100)),
+        ),
+      ],
+    ),
+    AnimationPreset(
+      id: 'attention_nudge',
+      name: 'Nudge',
+      category: AnimationPresetCategory.attention,
+      description: 'Quick directional nudge',
+      keyframes: [
+        PresetKeyframe(
+          frameOffset: 0,
+          keyframe: VecKeyframe(frame: 0, transform: VecTransform(x: 0, y: 0, width: 100, height: 100), easing: _easeOut),
+        ),
+        PresetKeyframe(
+          frameOffset: 6,
+          keyframe: VecKeyframe(frame: 6, transform: VecTransform(x: 18, y: 0, width: 100, height: 100), easing: _easeIn),
+        ),
+        PresetKeyframe(
+          frameOffset: 12,
+          keyframe: VecKeyframe(frame: 12, transform: VecTransform(x: 0, y: 0, width: 100, height: 100)),
+        ),
+      ],
+    ),
+    AnimationPreset(
+      id: 'attention_tada',
+      name: 'Ta-da',
+      category: AnimationPresetCategory.attention,
+      description: 'Pop scale with quick rotation accent',
+      keyframes: [
+        PresetKeyframe(
+          frameOffset: 0,
+          keyframe: VecKeyframe(
+            frame: 0,
+            transform: VecTransform(x: 0, y: 0, width: 100, height: 100, scaleX: 1.0, scaleY: 1.0, rotation: 0),
+            easing: _easeOut,
+          ),
+        ),
+        PresetKeyframe(
+          frameOffset: 8,
+          keyframe: VecKeyframe(
+            frame: 8,
+            transform: VecTransform(x: 0, y: 0, width: 100, height: 100, scaleX: 1.18, scaleY: 1.18, rotation: -8),
+            easing: _easeInOut,
+          ),
+        ),
+        PresetKeyframe(
+          frameOffset: 16,
+          keyframe: VecKeyframe(
+            frame: 16,
+            transform: VecTransform(x: 0, y: 0, width: 100, height: 100, scaleX: 1.0, scaleY: 1.0, rotation: 0),
+          ),
+        ),
+      ],
+    ),
+    AnimationPreset(
+      id: 'attention_flip',
+      name: 'Flip',
+      category: AnimationPresetCategory.attention,
+      description: 'Fast rotational flip accent',
+      keyframes: [
+        PresetKeyframe(
+          frameOffset: 0,
+          keyframe: VecKeyframe(
+            frame: 0,
+            transform: VecTransform(x: 0, y: 0, width: 100, height: 100, rotation: 0),
+            easing: const VecEasing.preset(preset: VecEasingPreset.linear),
+          ),
+        ),
+        PresetKeyframe(
+          frameOffset: 16,
+          keyframe: VecKeyframe(
+            frame: 16,
+            transform: VecTransform(x: 0, y: 0, width: 100, height: 100, rotation: 360),
+          ),
         ),
       ],
     ),

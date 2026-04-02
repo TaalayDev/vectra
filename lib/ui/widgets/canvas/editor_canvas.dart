@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:uuid/uuid.dart';
+import 'package:vectra/ui/contents/animated_background.dart';
 
 import '../../../app/theme/theme.dart';
 import '../../../core/rendering/bend_handle_overlay.dart';
@@ -380,641 +381,670 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
       }
     }
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final viewportSize = Size(constraints.maxWidth, constraints.maxHeight);
+    return ClipRRect(
+      child: AnimatedBackground(
+        enableAnimation: false,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final viewportSize = Size(constraints.maxWidth, constraints.maxHeight);
 
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          _handleViewportChange(
-            viewportSize,
-            meta,
-            fitRequest,
-            fitSelectionRequest,
-            scene,
-            selectedShapeIds.isNotEmpty
-                ? selectedShapeIds
-                : (selectedShapeId != null ? [selectedShapeId] : const <String>[]),
-          );
-        });
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              _handleViewportChange(
+                viewportSize,
+                meta,
+                fitRequest,
+                fitSelectionRequest,
+                scene,
+                selectedShapeIds.isNotEmpty
+                    ? selectedShapeIds
+                    : (selectedShapeId != null ? [selectedShapeId] : const <String>[]),
+              );
+            });
 
-        final stageScreenW = meta.stageWidth * zoom;
-        final stageScreenH = meta.stageHeight * zoom;
-        final stageLeft = (viewportSize.width - stageScreenW) / 2 + panOffset.dx;
-        final stageTop = (viewportSize.height - stageScreenH) / 2 + panOffset.dy;
-        // Cache for pan callbacks (which are closures outside the LayoutBuilder)
-        _stageLeft = stageLeft;
-        _stageTop = stageTop;
+            final stageScreenW = meta.stageWidth * zoom;
+            final stageScreenH = meta.stageHeight * zoom;
+            final stageLeft = (viewportSize.width - stageScreenW) / 2 + panOffset.dx;
+            final stageTop = (viewportSize.height - stageScreenH) / 2 + panOffset.dy;
+            // Cache for pan callbacks (which are closures outside the LayoutBuilder)
+            _stageLeft = stageLeft;
+            _stageTop = stageTop;
 
-        return Listener(
-          onPointerHover: (event) {
-            ref.read(cursorPositionProvider.notifier).set(event.localPosition);
-            if (isSelectTool && displaySelectedShape != null) {
-              _updateHoverCursor(displaySelectedShape.transform, zoom, event.localPosition);
-            }
-            if (isSelectTool && selectedShapeIds.length == 1) {
-              _updateHoverCorner(displaySelectedShape, zoom, event.localPosition);
-              _updateHoverBend(displaySelectedShape, zoom, event.localPosition);
-            }
-            if (isBendTool && selectedShapeIds.length == 1) {
-              _updateBendToolHover(displaySelectedShape, zoom, event.localPosition);
-            }
-            if (isPenTool && penDrawing == null && selectedShape != null) {
-              _updateHoverNode(selectedShape, event.localPosition, zoom);
-            }
-          },
-          onPointerSignal: (event) {
-            if (event is PointerScrollEvent) {
-              _handleScrollZoom(event, viewportSize);
-            }
-          },
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
+            return Listener(
+              onPointerHover: (event) {
+                ref.read(cursorPositionProvider.notifier).set(event.localPosition);
+                if (isSelectTool && displaySelectedShape != null) {
+                  _updateHoverCursor(displaySelectedShape.transform, zoom, event.localPosition);
+                }
+                if (isSelectTool && selectedShapeIds.length == 1) {
+                  _updateHoverCorner(displaySelectedShape, zoom, event.localPosition);
+                  _updateHoverBend(displaySelectedShape, zoom, event.localPosition);
+                }
+                if (isBendTool && selectedShapeIds.length == 1) {
+                  _updateBendToolHover(displaySelectedShape, zoom, event.localPosition);
+                }
+                if (isPenTool && penDrawing == null && selectedShape != null) {
+                  _updateHoverNode(selectedShape, event.localPosition, zoom);
+                }
+              },
+              onPointerSignal: (event) {
+                if (event is PointerScrollEvent) {
+                  _handleScrollZoom(event, viewportSize);
+                }
+              },
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
 
-            onPanStart: (details) {
-              if (_isPanning) return;
-              // ── Guide drag from rulers ──────────────────────────────────────
-              final snapSettings = ref.read(snapSettingsProvider);
-              if (snapSettings.showRulers) {
-                final pos = details.localPosition;
-                const rulerSize = 20.0;
-                final guides = ref.read(guidesProvider);
-                // Drag from horizontal ruler (top strip) → creates horizontal guide
-                if (pos.dy < rulerSize && pos.dx >= rulerSize) {
-                  final canvasY = _toCanvasPoint(pos).dy;
-                  setState(() {
-                    _guideDragAxis = 1;
-                    _guideDragPos = canvasY;
-                    _guideDragExisting = double.nan;
-                  });
-                  return;
-                }
-                // Drag from vertical ruler (left strip) → creates vertical guide
-                if (pos.dx < rulerSize && pos.dy >= rulerSize) {
-                  final canvasX = _toCanvasPoint(pos).dx;
-                  setState(() {
-                    _guideDragAxis = 2;
-                    _guideDragPos = canvasX;
-                    _guideDragExisting = double.nan;
-                  });
-                  return;
-                }
-                // Drag an existing horizontal guide
-                const hitPx = 5.0;
-                for (final gy in guides.horizontal) {
-                  final sy = _stageTop + gy * zoom;
-                  if ((pos.dy - sy).abs() < hitPx) {
-                    setState(() {
-                      _guideDragAxis = 1;
-                      _guideDragPos = gy;
-                      _guideDragExisting = gy;
-                    });
-                    return;
-                  }
-                }
-                // Drag an existing vertical guide
-                for (final gx in guides.vertical) {
-                  final sx = _stageLeft + gx * zoom;
-                  if ((pos.dx - sx).abs() < hitPx) {
-                    setState(() {
-                      _guideDragAxis = 2;
-                      _guideDragPos = gx;
-                      _guideDragExisting = gx;
-                    });
-                    return;
-                  }
-                }
-              }
-              // Exit text editing mode when starting any canvas drag
-              if (textEditingShapeId != null) {
-                _exitTextEditMode();
-                return;
-              }
-              if (isDrawingTool) {
-                final local = _toCanvasPoint(details.localPosition);
-                ref.read(activeDrawingProvider.notifier).start(local);
-                return;
-              }
-              if (isPenTool) {
-                _handlePenPanStart(details, selectedShape, zoom);
-                return;
-              }
-              if (isBendTool) {
-                _handleBendToolPanStart(details, selectedShape, displaySelectedShape, zoom);
-                return;
-              }
-              if (isKnifeTool) {
-                final local = _toCanvasPoint(details.localPosition);
-                setState(() {
-                  _knifePoints.clear();
-                  _knifePoints.add(local);
-                });
-                return;
-              }
-              if (isFreedrawTool) {
-                final local = _toCanvasPoint(details.localPosition);
-                setState(() {
-                  _freedrawPoints.clear();
-                  _freedrawPoints.add(local);
-                });
-                return;
-              }
-              if (isSelectTool) {
-                _handleSelectPanStart(details, scene, selectedShape, displaySelectedShape, zoom, activeGroup);
-              }
-            },
-
-            onPanUpdate: (details) {
-              // Guide drag update
-              if (_guideDragAxis != 0) {
-                final cp = _toCanvasPoint(details.localPosition);
-                setState(() => _guideDragPos = _guideDragAxis == 1 ? cp.dy : cp.dx);
-                return;
-              }
-              if (_isPanning) {
-                ref.read(canvasOffsetProvider.notifier).pan(details.delta);
-                return;
-              }
-              if (isDrawingTool) {
-                final local = _toCanvasPoint(details.localPosition);
-                ref.read(activeDrawingProvider.notifier).update(local);
-                return;
-              }
-              if (isPenTool && (_isPenHandleDrag || _editNodeIndex >= 0)) {
-                _handlePenPanUpdate(details, scene, selectedShape);
-                return;
-              }
-              if (isBendTool && _bendToolDragging) {
-                _handleBendToolPanUpdate(details, selectedShape, zoom);
-                return;
-              }
-              if (isKnifeTool && _knifePoints.isNotEmpty) {
-                final local = _toCanvasPoint(details.localPosition);
-                final last = _knifePoints.last;
-                // Throttle: only add if moved > 2 canvas units
-                if ((local - last).distance > 2.0) {
-                  setState(() => _knifePoints.add(local));
-                }
-                return;
-              }
-              if (isFreedrawTool && _freedrawPoints.isNotEmpty) {
-                final local = _toCanvasPoint(details.localPosition);
-                final last = _freedrawPoints.last;
-                if ((local - last).distance > 2.0) {
-                  setState(() => _freedrawPoints.add(local));
-                }
-                return;
-              }
-              if (_selectDragMode == _SelectDragMode.motionPathNode) {
-                _handleMpNodeDrag(details);
-                return;
-              }
-              if (isSelectTool && _isMarqueeDrag) {
-                setState(() => _marqueeCurrentCanvas = _toCanvasPoint(details.localPosition));
-                return;
-              }
-              if (isSelectTool && _selectDragMode != _SelectDragMode.none) {
-                _handleSelectPanUpdate(details, scene, selectedShape, zoom, activeGroup);
-              }
-            },
-
-            onPanEnd: (details) {
-              // Guide drag commit / remove
-              if (_guideDragAxis != 0) {
-                final guidesNotifier = ref.read(guidesProvider.notifier);
-                final pos = _guideDragPos;
-                final isExisting = !_guideDragExisting.isNaN;
-                // Remove if dragged back into ruler area (screen pos < 20px)
-                final lastPos = _guideDragAxis == 1 ? _stageTop + pos * zoom : _stageLeft + pos * zoom;
-                final removedToRuler = lastPos < 20.0;
-                if (_guideDragAxis == 1) {
-                  if (removedToRuler) {
-                    if (isExisting) guidesNotifier.removeHorizontal(_guideDragExisting);
-                  } else if (isExisting) {
-                    guidesNotifier.moveHorizontal(_guideDragExisting, pos);
-                  } else {
-                    guidesNotifier.addHorizontal(pos);
-                  }
-                } else {
-                  if (removedToRuler) {
-                    if (isExisting) guidesNotifier.removeVertical(_guideDragExisting);
-                  } else if (isExisting) {
-                    guidesNotifier.moveVertical(_guideDragExisting, pos);
-                  } else {
-                    guidesNotifier.addVertical(pos);
-                  }
-                }
-                setState(() {
-                  _guideDragAxis = 0;
-                  _guideDragPos = 0;
-                  _guideDragExisting = double.nan;
-                });
-                return;
-              }
-              if (_isPanning) return;
-              if (isDrawingTool) {
-                _finishDragDrawing(activeTool);
-                return;
-              }
-              if (isPenTool && (_isPenHandleDrag || _editNodeIndex >= 0)) {
-                _handlePenPanEnd(scene, selectedShape);
-                return;
-              }
-              if (isBendTool && _bendToolDragging) {
-                ref.read(vecDocumentStateProvider.notifier).commitCurrentState();
-                setState(() {
-                  _bendToolDragging = false;
-                  _bendToolDragSegment = -1;
-                });
-                return;
-              }
-              if (isKnifeTool && _knifePoints.length >= 2) {
-                _executeKnifeCut(scene);
-                return;
-              }
-              if (isKnifeTool) {
-                setState(() => _knifePoints.clear());
-                return;
-              }
-              if (isFreedrawTool) {
-                _finishFreeDrawing();
-                return;
-              }
-              if (_selectDragMode == _SelectDragMode.motionPathNode) {
-                ref.read(vecDocumentStateProvider.notifier).commitCurrentState();
-                setState(() {
-                  _selectDragMode = _SelectDragMode.none;
-                  _mpDragPathId = null;
-                  _mpDragNodeIndex = -1;
-                });
-                return;
-              }
-              if (isSelectTool && _isMarqueeDrag) {
-                _finishMarqueeSelection(scene, activeGroupId);
-                setState(() => _isMarqueeDrag = false);
-                return;
-              }
-              if (isSelectTool && _selectDragMode != _SelectDragMode.none) {
-                _handleSelectPanEnd(scene, selectedShape, activeGroup);
-              }
-            },
-
-            onTapDown: isMotionPathDrawing
-                ? (details) {
-                    final local = _toCanvasPoint(details.localPosition);
-                    _handleMotionPathTap(local, mpDrawTarget, zoom);
-                  }
-                : isPenTool
-                ? (details) {
-                    final local = _toCanvasPoint(details.localPosition);
-                    final pen = ref.read(activePenDrawingProvider);
-                    // If no active drawing and clicked near an existing node,
-                    // let onPanStart handle the drag instead.
-                    if (pen == null && selectedShape != null) {
-                      final pathShape = selectedShape.maybeMap(path: (s) => s, orElse: () => null);
-                      if (pathShape != null) {
-                        final nodeIdx = PathEditOverlayPainter.hitTestNode(pathShape, local, zoom);
-                        if (nodeIdx != -1) return;
-                      }
+                onPanStart: (details) {
+                  if (_isPanning) return;
+                  // ── Guide drag from rulers ──────────────────────────────────────
+                  final snapSettings = ref.read(snapSettingsProvider);
+                  if (snapSettings.showRulers) {
+                    final pos = details.localPosition;
+                    const rulerSize = 20.0;
+                    final guides = ref.read(guidesProvider);
+                    // Drag from horizontal ruler (top strip) → creates horizontal guide
+                    if (pos.dy < rulerSize && pos.dx >= rulerSize) {
+                      final canvasY = _toCanvasPoint(pos).dy;
+                      setState(() {
+                        _guideDragAxis = 1;
+                        _guideDragPos = canvasY;
+                        _guideDragExisting = double.nan;
+                      });
+                      return;
                     }
-                    if (pen == null) {
-                      ref.read(activePenDrawingProvider.notifier).start(local);
-                    } else {
-                      if (pen.points.length >= 2 && (pen.points.first - local).distance <= (10.0 / zoom)) {
-                        _finishPenDrawing(closed: true);
+                    // Drag from vertical ruler (left strip) → creates vertical guide
+                    if (pos.dx < rulerSize && pos.dy >= rulerSize) {
+                      final canvasX = _toCanvasPoint(pos).dx;
+                      setState(() {
+                        _guideDragAxis = 2;
+                        _guideDragPos = canvasX;
+                        _guideDragExisting = double.nan;
+                      });
+                      return;
+                    }
+                    // Drag an existing horizontal guide
+                    const hitPx = 5.0;
+                    for (final gy in guides.horizontal) {
+                      final sy = _stageTop + gy * zoom;
+                      if ((pos.dy - sy).abs() < hitPx) {
+                        setState(() {
+                          _guideDragAxis = 1;
+                          _guideDragPos = gy;
+                          _guideDragExisting = gy;
+                        });
                         return;
                       }
-                      ref.read(activePenDrawingProvider.notifier).addPoint(local);
                     }
-                  }
-                : isBendTool
-                ? (details) {
-                    final local = _toCanvasPoint(details.localPosition);
-                    _hitTestAndSelect(scene, local, false, activeGroupId: activeGroupId);
-                    // Reset hover when selecting a new shape
-                    setState(() => _bendToolHoverSegment = -1);
-                  }
-                : isSelectTool
-                ? (details) {
-                    // Exit text editing mode first (Figma-style: first click exits)
-                    if (textEditingShapeId != null) {
-                      _exitTextEditMode();
-                      return;
-                    }
-                    final local = _toCanvasPoint(details.localPosition);
-                    final cmdHeld =
-                        HardwareKeyboard.instance.isControlPressed || HardwareKeyboard.instance.isMetaPressed;
-                    _handleSelectTap(scene, selectedShape, displaySelectedShape, local, zoom, cmdHeld, activeGroupId);
-                  }
-                : null,
-
-            onSecondaryTapDown: isSelectTool
-                ? (details) async {
-                    final local = _toCanvasPoint(details.localPosition);
-                    _hitTestAndSelect(scene, local, false, activeGroupId: activeGroupId);
-                    await _showCanvasContextMenu(details.localPosition, viewportSize);
-                  }
-                : null,
-
-            onDoubleTap: isMotionPathDrawing
-                ? () => _finishMotionPathDrawing(mpDrawTarget)
-                : isPenTool
-                ? () => _finishPenDrawing(closed: true)
-                : isSelectTool
-                ? () {
-                    if (selectedShape == null) return;
-                    // Double-tap on text shape → enter inline edit mode
-                    final isText = selectedShape.maybeMap(text: (_) => true, orElse: () => false);
-                    if (isText) {
-                      selectedShape.maybeMap(text: (t) => _enterTextEditMode(t.id, t.content), orElse: () {});
-                      return;
-                    }
-                    // If the selected shape is a symbol instance, enter symbol edit mode.
-                    final isSymbol = selectedShape.maybeMap(symbolInstance: (_) => true, orElse: () => false);
-                    if (isSymbol) {
-                      final symId = selectedShape.maybeMap(symbolInstance: (s) => s.symbolId, orElse: () => null);
-                      if (symId != null) {
-                        ref.read(editingSymbolIdProvider.notifier).set(symId);
-                        ref.read(selectedShapeIdProvider.notifier).clear();
-                        ref.read(selectedShapeIdsProvider.notifier).clear();
+                    // Drag an existing vertical guide
+                    for (final gx in guides.vertical) {
+                      final sx = _stageLeft + gx * zoom;
+                      if ((pos.dx - sx).abs() < hitPx) {
+                        setState(() {
+                          _guideDragAxis = 2;
+                          _guideDragPos = gx;
+                          _guideDragExisting = gx;
+                        });
+                        return;
                       }
-                      return;
                     }
-                    // If the selected shape is a group and we're not already inside it,
-                    // enter group-edit mode.
-                    final isGroup = selectedShape.maybeMap(group: (_) => true, orElse: () => false);
-                    if (isGroup && activeGroupId == null) {
-                      ref.read(activeGroupIdProvider.notifier).set(selectedShape.id);
-                      ref.read(selectedShapeIdProvider.notifier).clear();
-                      ref.read(selectedShapeIdsProvider.notifier).clear();
-                      return;
-                    }
-
-                    // All other shapes: double-tap starts inline rename in properties panel.
-                    ref.read(renamingShapeIdProvider.notifier).state = selectedShape.id;
                   }
-                : null,
+                  // Exit text editing mode when starting any canvas drag
+                  if (textEditingShapeId != null) {
+                    _exitTextEditMode();
+                    return;
+                  }
+                  if (isDrawingTool) {
+                    final local = _toCanvasPoint(details.localPosition);
+                    ref.read(activeDrawingProvider.notifier).start(local);
+                    return;
+                  }
+                  if (isPenTool) {
+                    _handlePenPanStart(details, selectedShape, zoom);
+                    return;
+                  }
+                  if (isBendTool) {
+                    _handleBendToolPanStart(details, selectedShape, displaySelectedShape, zoom);
+                    return;
+                  }
+                  if (isKnifeTool) {
+                    final local = _toCanvasPoint(details.localPosition);
+                    setState(() {
+                      _knifePoints.clear();
+                      _knifePoints.add(local);
+                    });
+                    return;
+                  }
+                  if (isFreedrawTool) {
+                    final local = _toCanvasPoint(details.localPosition);
+                    setState(() {
+                      _freedrawPoints.clear();
+                      _freedrawPoints.add(local);
+                    });
+                    return;
+                  }
+                  if (isSelectTool) {
+                    _handleSelectPanStart(details, scene, selectedShape, displaySelectedShape, zoom, activeGroup);
+                  }
+                },
 
-            child: MouseRegion(
-              cursor: _isPanning ? SystemMouseCursors.grab : _currentCursor(activeTool, selectedShape),
-              child: SizedBox(
-                width: viewportSize.width,
-                height: viewportSize.height,
-                child: Stack(
-                  clipBehavior: Clip.hardEdge,
-                  children: [
-                    Positioned.fill(
-                      child: CustomPaint(
-                        painter: _CanvasBackgroundPainter(
-                          bgColor: theme.canvasBackground,
-                          dotColor: theme.gridLine.withAlpha(60),
-                        ),
-                      ),
-                    ),
+                onPanUpdate: (details) {
+                  // Guide drag update
+                  if (_guideDragAxis != 0) {
+                    final cp = _toCanvasPoint(details.localPosition);
+                    setState(() => _guideDragPos = _guideDragAxis == 1 ? cp.dy : cp.dx);
+                    return;
+                  }
+                  if (_isPanning) {
+                    ref.read(canvasOffsetProvider.notifier).pan(details.delta);
+                    return;
+                  }
+                  if (isDrawingTool) {
+                    final local = _toCanvasPoint(details.localPosition);
+                    ref.read(activeDrawingProvider.notifier).update(local);
+                    return;
+                  }
+                  if (isPenTool && (_isPenHandleDrag || _editNodeIndex >= 0)) {
+                    _handlePenPanUpdate(details, scene, selectedShape);
+                    return;
+                  }
+                  if (isBendTool && _bendToolDragging) {
+                    _handleBendToolPanUpdate(details, selectedShape, zoom);
+                    return;
+                  }
+                  if (isKnifeTool && _knifePoints.isNotEmpty) {
+                    final local = _toCanvasPoint(details.localPosition);
+                    final last = _knifePoints.last;
+                    // Throttle: only add if moved > 2 canvas units
+                    if ((local - last).distance > 2.0) {
+                      setState(() => _knifePoints.add(local));
+                    }
+                    return;
+                  }
+                  if (isFreedrawTool && _freedrawPoints.isNotEmpty) {
+                    final local = _toCanvasPoint(details.localPosition);
+                    final last = _freedrawPoints.last;
+                    if ((local - last).distance > 2.0) {
+                      setState(() => _freedrawPoints.add(local));
+                    }
+                    return;
+                  }
+                  if (_selectDragMode == _SelectDragMode.motionPathNode) {
+                    _handleMpNodeDrag(details);
+                    return;
+                  }
+                  if (isSelectTool && _isMarqueeDrag) {
+                    setState(() => _marqueeCurrentCanvas = _toCanvasPoint(details.localPosition));
+                    return;
+                  }
+                  if (isSelectTool && _selectDragMode != _SelectDragMode.none) {
+                    _handleSelectPanUpdate(details, scene, selectedShape, zoom, activeGroup);
+                  }
+                },
 
-                    Positioned(
-                      left: stageLeft,
-                      top: stageTop,
-                      width: stageScreenW,
-                      height: stageScreenH,
-                      child: ClipRect(
-                        child: OverflowBox(
-                          alignment: Alignment.topLeft,
-                          maxWidth: meta.stageWidth,
-                          maxHeight: meta.stageHeight,
-                          child: _buildStage(
-                            meta: meta,
-                            zoom: zoom,
-                            scene: scene,
-                            rawScene: rawScene,
-                            playhead: playhead,
-                            onionSettings: onionSettings,
-                            symbols: symbols,
-                            selectedShapeId: selectedShapeId,
-                            selectedShapeIds: selectedShapeIds,
-                            selectedShape: selectedShape,
-                            displaySelectedShape: displaySelectedShape,
-                            activeGroup: activeGroup,
-                            activeTool: activeTool,
-                            drawing: drawing,
-                            penDrawing: penDrawing,
-                            motionPaths: motionPaths,
-                            mpPreviewNodes: mpPreviewNodes,
-                            isKnifeTool: isKnifeTool,
-                            knifePoints: List.unmodifiable(_knifePoints),
-                            isFreedrawTool: isFreedrawTool,
-                            freedrawPoints: List.unmodifiable(_freedrawPoints),
-                            freedrawColor: freedrawSettings.color,
-                            freedrawStrokeWidth: freedrawSettings.width,
-                            panOffset: panOffset,
-                            viewportSize: viewportSize,
-                          ),
-                        ),
-                      ),
-                    ),
+                onPanEnd: (details) {
+                  // Guide drag commit / remove
+                  if (_guideDragAxis != 0) {
+                    final guidesNotifier = ref.read(guidesProvider.notifier);
+                    final pos = _guideDragPos;
+                    final isExisting = !_guideDragExisting.isNaN;
+                    // Remove if dragged back into ruler area (screen pos < 20px)
+                    final lastPos = _guideDragAxis == 1 ? _stageTop + pos * zoom : _stageLeft + pos * zoom;
+                    final removedToRuler = lastPos < 20.0;
+                    if (_guideDragAxis == 1) {
+                      if (removedToRuler) {
+                        if (isExisting) guidesNotifier.removeHorizontal(_guideDragExisting);
+                      } else if (isExisting) {
+                        guidesNotifier.moveHorizontal(_guideDragExisting, pos);
+                      } else {
+                        guidesNotifier.addHorizontal(pos);
+                      }
+                    } else {
+                      if (removedToRuler) {
+                        if (isExisting) guidesNotifier.removeVertical(_guideDragExisting);
+                      } else if (isExisting) {
+                        guidesNotifier.moveVertical(_guideDragExisting, pos);
+                      } else {
+                        guidesNotifier.addVertical(pos);
+                      }
+                    }
+                    setState(() {
+                      _guideDragAxis = 0;
+                      _guideDragPos = 0;
+                      _guideDragExisting = double.nan;
+                    });
+                    return;
+                  }
+                  if (_isPanning) return;
+                  if (isDrawingTool) {
+                    _finishDragDrawing(activeTool);
+                    return;
+                  }
+                  if (isPenTool && (_isPenHandleDrag || _editNodeIndex >= 0)) {
+                    _handlePenPanEnd(scene, selectedShape);
+                    return;
+                  }
+                  if (isBendTool && _bendToolDragging) {
+                    ref.read(vecDocumentStateProvider.notifier).commitCurrentState();
+                    setState(() {
+                      _bendToolDragging = false;
+                      _bendToolDragSegment = -1;
+                    });
+                    return;
+                  }
+                  if (isKnifeTool && _knifePoints.length >= 2) {
+                    _executeKnifeCut(scene);
+                    return;
+                  }
+                  if (isKnifeTool) {
+                    setState(() => _knifePoints.clear());
+                    return;
+                  }
+                  if (isFreedrawTool) {
+                    _finishFreeDrawing();
+                    return;
+                  }
+                  if (_selectDragMode == _SelectDragMode.motionPathNode) {
+                    ref.read(vecDocumentStateProvider.notifier).commitCurrentState();
+                    setState(() {
+                      _selectDragMode = _SelectDragMode.none;
+                      _mpDragPathId = null;
+                      _mpDragNodeIndex = -1;
+                    });
+                    return;
+                  }
+                  if (isSelectTool && _isMarqueeDrag) {
+                    _finishMarqueeSelection(scene, activeGroupId);
+                    setState(() => _isMarqueeDrag = false);
+                    return;
+                  }
+                  if (isSelectTool && _selectDragMode != _SelectDragMode.none) {
+                    _handleSelectPanEnd(scene, selectedShape, activeGroup);
+                  }
+                },
 
-                    if (scene != null)
-                      Positioned(
-                        left: stageLeft + 8,
-                        top: (stageTop - 28).clamp(4.0, viewportSize.height - 24.0),
-                        child: _SceneTag(
-                          name: scene.name,
-                          color: meta.backgroundColor.toFlutterColor(),
-                          theme: theme,
-                          onPickColor: () async {
-                            final picked = await showSimpleColorPicker(
-                              context: context,
-                              initialColor: meta.backgroundColor.toFlutterColor(),
-                              theme: theme,
-                            );
-                            if (picked != null) {
-                              ref
-                                  .read(vecDocumentStateProvider.notifier)
-                                  .updateMeta(meta.copyWith(backgroundColor: VecColor.fromFlutterColor(picked)));
-                            }
-                          },
-                        ),
-                      ),
+                onTapDown: isMotionPathDrawing
+                    ? (details) {
+                        final local = _toCanvasPoint(details.localPosition);
+                        _handleMotionPathTap(local, mpDrawTarget, zoom);
+                      }
+                    : isPenTool
+                    ? (details) {
+                        final local = _toCanvasPoint(details.localPosition);
+                        final pen = ref.read(activePenDrawingProvider);
+                        // If no active drawing and clicked near an existing node,
+                        // let onPanStart handle the drag instead.
+                        if (pen == null && selectedShape != null) {
+                          final pathShape = selectedShape.maybeMap(path: (s) => s, orElse: () => null);
+                          if (pathShape != null) {
+                            final nodeIdx = PathEditOverlayPainter.hitTestNode(pathShape, local, zoom);
+                            if (nodeIdx != -1) return;
+                          }
+                        }
+                        if (pen == null) {
+                          ref.read(activePenDrawingProvider.notifier).start(local);
+                        } else {
+                          if (pen.points.length >= 2 && (pen.points.first - local).distance <= (10.0 / zoom)) {
+                            _finishPenDrawing(closed: true);
+                            return;
+                          }
+                          ref.read(activePenDrawingProvider.notifier).addPoint(local);
+                        }
+                      }
+                    : isBendTool
+                    ? (details) {
+                        final local = _toCanvasPoint(details.localPosition);
+                        _hitTestAndSelect(scene, local, false, activeGroupId: activeGroupId);
+                        // Reset hover when selecting a new shape
+                        setState(() => _bendToolHoverSegment = -1);
+                      }
+                    : isSelectTool
+                    ? (details) {
+                        // Exit text editing mode first (Figma-style: first click exits)
+                        if (textEditingShapeId != null) {
+                          _exitTextEditMode();
+                          return;
+                        }
+                        final local = _toCanvasPoint(details.localPosition);
+                        final cmdHeld =
+                            HardwareKeyboard.instance.isControlPressed || HardwareKeyboard.instance.isMetaPressed;
+                        _handleSelectTap(
+                          scene,
+                          selectedShape,
+                          displaySelectedShape,
+                          local,
+                          zoom,
+                          cmdHeld,
+                          activeGroupId,
+                        );
+                      }
+                    : null,
 
-                    Positioned(
-                      left: stageLeft,
-                      top: stageTop,
-                      width: stageScreenW,
-                      height: stageScreenH,
-                      child: IgnorePointer(
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(border: Border.all(color: theme.divider.withAlpha(100), width: 1)),
-                        ),
-                      ),
-                    ),
+                onSecondaryTapDown: isSelectTool
+                    ? (details) async {
+                        final local = _toCanvasPoint(details.localPosition);
+                        _hitTestAndSelect(scene, local, false, activeGroupId: activeGroupId);
+                        await _showCanvasContextMenu(details.localPosition, viewportSize);
+                      }
+                    : null,
 
-                    // Inline text editing overlay
-                    if (textEditingShapeId != null)
-                      _buildTextEditingOverlay(
-                        editingId: textEditingShapeId,
-                        scene: scene,
-                        stageLeft: stageLeft,
-                        stageTop: stageTop,
-                        zoom: zoom,
-                      ),
+                onDoubleTap: isMotionPathDrawing
+                    ? () => _finishMotionPathDrawing(mpDrawTarget)
+                    : isPenTool
+                    ? () => _finishPenDrawing(closed: true)
+                    : isSelectTool
+                    ? () {
+                        if (selectedShape == null) return;
+                        // Double-tap on text shape → enter inline edit mode
+                        final isText = selectedShape.maybeMap(text: (_) => true, orElse: () => false);
+                        if (isText) {
+                          selectedShape.maybeMap(text: (t) => _enterTextEditMode(t.id, t.content), orElse: () {});
+                          return;
+                        }
+                        // If the selected shape is a symbol instance, enter symbol edit mode.
+                        final isSymbol = selectedShape.maybeMap(symbolInstance: (_) => true, orElse: () => false);
+                        if (isSymbol) {
+                          final symId = selectedShape.maybeMap(symbolInstance: (s) => s.symbolId, orElse: () => null);
+                          if (symId != null) {
+                            ref.read(editingSymbolIdProvider.notifier).set(symId);
+                            ref.read(selectedShapeIdProvider.notifier).clear();
+                            ref.read(selectedShapeIdsProvider.notifier).clear();
+                          }
+                          return;
+                        }
+                        // If the selected shape is a group and we're not already inside it,
+                        // enter group-edit mode.
+                        final isGroup = selectedShape.maybeMap(group: (_) => true, orElse: () => false);
+                        if (isGroup && activeGroupId == null) {
+                          ref.read(activeGroupIdProvider.notifier).set(selectedShape.id);
+                          ref.read(selectedShapeIdProvider.notifier).clear();
+                          ref.read(selectedShapeIdsProvider.notifier).clear();
+                          return;
+                        }
 
-                    // Symbol drop target — transparent Positioned.fill overlay for drag-and-drop
-                    Positioned.fill(
-                      child: DragTarget<VecSymbol>(
-                        onWillAcceptWithDetails: (_) => true,
-                        onAcceptWithDetails: (details) {
-                          final sym = details.data;
-                          final dropPos = details.offset;
-                          final box = context.findRenderObject() as RenderBox?;
-                          final canvasOrigin = box?.localToGlobal(Offset.zero) ?? Offset.zero;
-                          final local = dropPos - canvasOrigin;
-                          final canvasX = (local.dx - stageLeft) / zoom;
-                          final canvasY = (local.dy - stageTop) / zoom;
-                          final activeScene = ref.read(activeSceneProvider);
-                          final layerId = ref.read(activeLayerIdProvider);
-                          if (activeScene == null || layerId == null) return;
-                          const instanceSize = 100.0;
-                          final instanceId = const Uuid().v4();
-                          final instance = VecShape.symbolInstance(
-                            data: VecShapeData(
-                              id: instanceId,
-                              name: sym.name,
-                              transform: VecTransform(
-                                x: canvasX - instanceSize / 2,
-                                y: canvasY - instanceSize / 2,
-                                width: instanceSize,
-                                height: instanceSize,
-                              ),
-                            ),
-                            symbolId: sym.id,
-                          );
-                          ref.read(vecDocumentStateProvider.notifier).addShape(activeScene.id, layerId, instance);
-                          ref.read(selectedShapeIdProvider.notifier).set(instanceId);
-                          ref.read(selectedShapeIdsProvider.notifier).setSingle(instanceId);
-                        },
-                        builder: (ctx, candidateData, rejectedData) {
-                          if (candidateData.isEmpty) return const SizedBox.shrink();
-                          return IgnorePointer(child: ColoredBox(color: theme.accentColor.withAlpha(20)));
-                        },
-                      ),
-                    ),
+                        // All other shapes: double-tap starts inline rename in properties panel.
+                        ref.read(renamingShapeIdProvider.notifier).state = selectedShape.id;
+                      }
+                    : null,
 
-                    // Symbol edit mode banner
-                    if (editingSymbolId != null)
-                      Positioned(
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        child: _SymbolEditBanner(symbolId: editingSymbolId, theme: theme),
-                      ),
-
-                    // Group edit mode breadcrumb banner
-                    if (activeGroupId != null && editingSymbolId == null)
-                      Positioned(
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        child: _GroupEditBanner(groupId: activeGroupId, theme: theme),
-                      ),
-
-                    // Grid overlay (inside stage bounds)
-                    if (snapSettings.showGrid)
-                      Positioned(
-                        left: stageLeft,
-                        top: stageTop,
-                        width: stageScreenW,
-                        height: stageScreenH,
-                        child: IgnorePointer(
-                          child: CustomPaint(
-                            painter: _GridOverlayPainter(
-                              gridSize: snapSettings.gridSize.toDouble(),
-                              zoom: zoom,
-                              color: theme.gridLine.withAlpha(55),
-                            ),
-                          ),
-                        ),
-                      ),
-
-                    // Canvas guides (dragged from rulers)
-                    if (guides.horizontal.isNotEmpty || guides.vertical.isNotEmpty || _guideDragAxis != 0)
-                      Positioned.fill(
-                        child: IgnorePointer(
-                          child: CustomPaint(
-                            painter: _GuidePainter(
-                              guides: guides,
-                              dragAxis: _guideDragAxis,
-                              dragPos: _guideDragPos,
-                              stageLeft: stageLeft,
-                              stageTop: stageTop,
-                              zoom: zoom,
-                            ),
-                          ),
-                        ),
-                      ),
-
-                    // Smart guide lines
-                    if (_activeGuides.isNotEmpty)
-                      Positioned.fill(
-                        child: IgnorePointer(
-                          child: CustomPaint(
-                            painter: _SmartGuidePainter(
-                              guides: _activeGuides,
-                              stageLeft: stageLeft,
-                              stageTop: stageTop,
-                              zoom: zoom,
-                            ),
-                          ),
-                        ),
-                      ),
-
-                    // Rulers overlay
-                    if (snapSettings.showRulers)
-                      Positioned.fill(
-                        child: IgnorePointer(
-                          child: CustomPaint(
-                            painter: RulersPainter(
-                              zoom: zoom,
-                              stageLeft: stageLeft,
-                              stageTop: stageTop,
-                              cursorPos: cursorPosition,
-                              bgColor: theme.surface,
-                              tickColor: theme.textDisabled,
-                              borderColor: theme.divider,
-                            ),
-                          ),
-                        ),
-                      ),
-
-                    // Drag info badge — shows position/size/angle during select-tool drag
-                    if (_dragInfoText != null)
-                      Positioned(
-                        left: (_dragInfoPos.dx + 14).clamp(0, viewportSize.width - 140),
-                        top: (_dragInfoPos.dy + 14).clamp(0, viewportSize.height - 28),
-                        child: IgnorePointer(
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                child: MouseRegion(
+                  cursor: _isPanning ? SystemMouseCursors.grab : _currentCursor(activeTool, selectedShape),
+                  child: SizedBox(
+                    width: viewportSize.width,
+                    height: viewportSize.height,
+                    child: Stack(
+                      clipBehavior: Clip.hardEdge,
+                      children: [
+                        // Positioned.fill(
+                        //   child: CustomPaint(
+                        //     painter: _CanvasBackgroundPainter(
+                        //       bgColor: theme.canvasBackground,
+                        //       dotColor: theme.gridLine.withAlpha(60),
+                        //     ),
+                        //   ),
+                        // ),
+                        Positioned.fill(
+                          child: DecoratedBox(
                             decoration: BoxDecoration(
-                              color: const Color(0xE6111827),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              _dragInfoText!,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w500,
-                                letterSpacing: 0.5,
+                              gradient: LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [
+                                  theme.background.withOpacity(0.75),
+                                  theme.background.withOpacity(0.65),
+                                  Color.lerp(theme.background, theme.primaryColor, 0.03)!.withOpacity(0.7),
+                                ],
                               ),
                             ),
                           ),
                         ),
-                      ),
-                  ],
+                        Positioned(
+                          left: stageLeft,
+                          top: stageTop,
+                          width: stageScreenW,
+                          height: stageScreenH,
+                          child: ClipRect(
+                            child: OverflowBox(
+                              alignment: Alignment.topLeft,
+                              maxWidth: meta.stageWidth,
+                              maxHeight: meta.stageHeight,
+                              child: _buildStage(
+                                meta: meta,
+                                zoom: zoom,
+                                scene: scene,
+                                rawScene: rawScene,
+                                playhead: playhead,
+                                onionSettings: onionSettings,
+                                symbols: symbols,
+                                selectedShapeId: selectedShapeId,
+                                selectedShapeIds: selectedShapeIds,
+                                selectedShape: selectedShape,
+                                displaySelectedShape: displaySelectedShape,
+                                activeGroup: activeGroup,
+                                activeTool: activeTool,
+                                drawing: drawing,
+                                penDrawing: penDrawing,
+                                motionPaths: motionPaths,
+                                mpPreviewNodes: mpPreviewNodes,
+                                isKnifeTool: isKnifeTool,
+                                knifePoints: List.unmodifiable(_knifePoints),
+                                isFreedrawTool: isFreedrawTool,
+                                freedrawPoints: List.unmodifiable(_freedrawPoints),
+                                freedrawColor: freedrawSettings.color,
+                                freedrawStrokeWidth: freedrawSettings.width,
+                                panOffset: panOffset,
+                                viewportSize: viewportSize,
+                              ),
+                            ),
+                          ),
+                        ),
+
+                        if (scene != null)
+                          Positioned(
+                            left: stageLeft + 8,
+                            top: (stageTop - 28).clamp(4.0, viewportSize.height - 24.0),
+                            child: _SceneTag(
+                              name: scene.name,
+                              color: meta.backgroundColor.toFlutterColor(),
+                              theme: theme,
+                              onPickColor: () async {
+                                final picked = await showSimpleColorPicker(
+                                  context: context,
+                                  initialColor: meta.backgroundColor.toFlutterColor(),
+                                  theme: theme,
+                                );
+                                if (picked != null) {
+                                  ref
+                                      .read(vecDocumentStateProvider.notifier)
+                                      .updateMeta(meta.copyWith(backgroundColor: VecColor.fromFlutterColor(picked)));
+                                }
+                              },
+                            ),
+                          ),
+
+                        Positioned(
+                          left: stageLeft,
+                          top: stageTop,
+                          width: stageScreenW,
+                          height: stageScreenH,
+                          child: IgnorePointer(
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                border: Border.all(color: theme.divider.withAlpha(100), width: 1),
+                              ),
+                            ),
+                          ),
+                        ),
+
+                        // Inline text editing overlay
+                        if (textEditingShapeId != null)
+                          _buildTextEditingOverlay(
+                            editingId: textEditingShapeId,
+                            scene: scene,
+                            stageLeft: stageLeft,
+                            stageTop: stageTop,
+                            zoom: zoom,
+                          ),
+
+                        // Symbol drop target — transparent Positioned.fill overlay for drag-and-drop
+                        Positioned.fill(
+                          child: DragTarget<VecSymbol>(
+                            onWillAcceptWithDetails: (_) => true,
+                            onAcceptWithDetails: (details) {
+                              final sym = details.data;
+                              final dropPos = details.offset;
+                              final box = context.findRenderObject() as RenderBox?;
+                              final canvasOrigin = box?.localToGlobal(Offset.zero) ?? Offset.zero;
+                              final local = dropPos - canvasOrigin;
+                              final canvasX = (local.dx - stageLeft) / zoom;
+                              final canvasY = (local.dy - stageTop) / zoom;
+                              final activeScene = ref.read(activeSceneProvider);
+                              final layerId = ref.read(activeLayerIdProvider);
+                              if (activeScene == null || layerId == null) return;
+                              const instanceSize = 100.0;
+                              final instanceId = const Uuid().v4();
+                              final instance = VecShape.symbolInstance(
+                                data: VecShapeData(
+                                  id: instanceId,
+                                  name: sym.name,
+                                  transform: VecTransform(
+                                    x: canvasX - instanceSize / 2,
+                                    y: canvasY - instanceSize / 2,
+                                    width: instanceSize,
+                                    height: instanceSize,
+                                  ),
+                                ),
+                                symbolId: sym.id,
+                              );
+                              ref.read(vecDocumentStateProvider.notifier).addShape(activeScene.id, layerId, instance);
+                              ref.read(selectedShapeIdProvider.notifier).set(instanceId);
+                              ref.read(selectedShapeIdsProvider.notifier).setSingle(instanceId);
+                            },
+                            builder: (ctx, candidateData, rejectedData) {
+                              if (candidateData.isEmpty) return const SizedBox.shrink();
+                              return IgnorePointer(child: ColoredBox(color: theme.accentColor.withAlpha(20)));
+                            },
+                          ),
+                        ),
+
+                        // Symbol edit mode banner
+                        if (editingSymbolId != null)
+                          Positioned(
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            child: _SymbolEditBanner(symbolId: editingSymbolId, theme: theme),
+                          ),
+
+                        // Group edit mode breadcrumb banner
+                        if (activeGroupId != null && editingSymbolId == null)
+                          Positioned(
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            child: _GroupEditBanner(groupId: activeGroupId, theme: theme),
+                          ),
+
+                        // Grid overlay (inside stage bounds)
+                        if (snapSettings.showGrid)
+                          Positioned(
+                            left: stageLeft,
+                            top: stageTop,
+                            width: stageScreenW,
+                            height: stageScreenH,
+                            child: IgnorePointer(
+                              child: CustomPaint(
+                                painter: _GridOverlayPainter(
+                                  gridSize: snapSettings.gridSize.toDouble(),
+                                  zoom: zoom,
+                                  color: theme.gridLine.withAlpha(55),
+                                ),
+                              ),
+                            ),
+                          ),
+
+                        // Canvas guides (dragged from rulers)
+                        if (guides.horizontal.isNotEmpty || guides.vertical.isNotEmpty || _guideDragAxis != 0)
+                          Positioned.fill(
+                            child: IgnorePointer(
+                              child: CustomPaint(
+                                painter: _GuidePainter(
+                                  guides: guides,
+                                  dragAxis: _guideDragAxis,
+                                  dragPos: _guideDragPos,
+                                  stageLeft: stageLeft,
+                                  stageTop: stageTop,
+                                  zoom: zoom,
+                                ),
+                              ),
+                            ),
+                          ),
+
+                        // Smart guide lines
+                        if (_activeGuides.isNotEmpty)
+                          Positioned.fill(
+                            child: IgnorePointer(
+                              child: CustomPaint(
+                                painter: _SmartGuidePainter(
+                                  guides: _activeGuides,
+                                  stageLeft: stageLeft,
+                                  stageTop: stageTop,
+                                  zoom: zoom,
+                                ),
+                              ),
+                            ),
+                          ),
+
+                        // Rulers overlay
+                        if (snapSettings.showRulers)
+                          Positioned.fill(
+                            child: IgnorePointer(
+                              child: CustomPaint(
+                                painter: RulersPainter(
+                                  zoom: zoom,
+                                  stageLeft: stageLeft,
+                                  stageTop: stageTop,
+                                  cursorPos: cursorPosition,
+                                  bgColor: theme.surface,
+                                  tickColor: theme.textDisabled,
+                                  borderColor: theme.divider,
+                                ),
+                              ),
+                            ),
+                          ),
+
+                        // Drag info badge — shows position/size/angle during select-tool drag
+                        if (_dragInfoText != null)
+                          Positioned(
+                            left: (_dragInfoPos.dx + 14).clamp(0, viewportSize.width - 140),
+                            top: (_dragInfoPos.dy + 14).clamp(0, viewportSize.height - 28),
+                            child: IgnorePointer(
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xE6111827),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  _dragInfoText!,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w500,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
-            ),
-          ),
-        );
-      },
+            );
+          },
+        ),
+      ),
     );
   }
 

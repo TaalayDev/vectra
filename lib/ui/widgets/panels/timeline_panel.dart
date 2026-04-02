@@ -115,17 +115,7 @@ class _TimelinePanelState extends ConsumerState<TimelinePanel> {
               Tooltip(
                 message: 'Animation Presets',
                 child: InkWell(
-                  onTap: () => showModalBottomSheet<void>(
-                    context: context,
-                    isScrollControlled: true,
-                    backgroundColor: Colors.transparent,
-                    builder: (_) => DraggableScrollableSheet(
-                      initialChildSize: 0.55,
-                      minChildSize: 0.35,
-                      maxChildSize: 0.88,
-                      builder: (sheetCtx, scrollCtrl) => AnimationPresetsPanel(theme: theme),
-                    ),
-                  ),
+                  onTap: () => _openAnimationPresets(context, theme),
                   child: Container(
                     width: 28,
                     height: 28,
@@ -171,6 +161,41 @@ class _TimelinePanelState extends ConsumerState<TimelinePanel> {
                   ),
           ),
         ],
+      ),
+    );
+  }
+
+  Future<void> _openAnimationPresets(BuildContext context, AppTheme theme) async {
+    final width = MediaQuery.sizeOf(context).width;
+    final useBottomSheet = width < 900;
+
+    if (useBottomSheet) {
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (_) => DraggableScrollableSheet(
+          initialChildSize: 0.55,
+          minChildSize: 0.35,
+          maxChildSize: 0.88,
+          builder: (sheetCtx, scrollCtrl) => AnimationPresetsPanel(theme: theme),
+        ),
+      );
+      return;
+    }
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogCtx) => Dialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+        backgroundColor: Colors.transparent,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 520, maxHeight: 640),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: AnimationPresetsPanel(theme: theme),
+          ),
+        ),
       ),
     );
   }

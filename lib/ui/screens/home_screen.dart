@@ -102,26 +102,26 @@ class HomeScreen extends HookConsumerWidget {
         children: [
           Positioned.fill(
             child: AnimatedBackground(
-              intensity: 0.15,
+              // intensity: 0.15,
               enableAnimation: true,
               child: Container(color: Colors.transparent),
             ),
           ),
-          Positioned.fill(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    theme.background.withOpacity(0.95),
-                    theme.background.withOpacity(0.85),
-                    Color.lerp(theme.background, theme.primaryColor, 0.03)!.withOpacity(0.9),
-                  ],
-                ),
-              ),
-            ),
-          ),
+          // Positioned.fill(
+          //   child: DecoratedBox(
+          //     decoration: BoxDecoration(
+          //       gradient: LinearGradient(
+          //         begin: Alignment.topLeft,
+          //         end: Alignment.bottomRight,
+          //         colors: [
+          //           theme.background.withOpacity(0.95),
+          //           theme.background.withOpacity(0.85),
+          //           Color.lerp(theme.background, theme.primaryColor, 0.03)!.withOpacity(0.9),
+          //         ],
+          //       ),
+          //     ),
+          //   ),
+          // ),
           SafeArea(
             child: isWide
                 ? _WideLayout(theme: theme, recentProjects: recentProjects)

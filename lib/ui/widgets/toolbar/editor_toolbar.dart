@@ -16,6 +16,7 @@ import '../../../data/models/vec_transform.dart';
 import '../../../providers/document_provider.dart';
 import '../../../providers/editor_state_provider.dart';
 import '../../contents/dialogs/export_dialog.dart';
+import '../../screens/home_screen.dart';
 
 class EditorToolbar extends HookConsumerWidget {
   const EditorToolbar({super.key, required this.theme});
@@ -39,6 +40,7 @@ class EditorToolbar extends HookConsumerWidget {
       child: Row(
         children: [
           const SizedBox(width: 12),
+          _TopMenuBar(theme: theme),
 
           const Spacer(),
 
@@ -135,17 +137,254 @@ class EditorToolbar extends HookConsumerWidget {
           const SizedBox(width: 4),
           _OnionSkinToggle(theme: theme),
           const SizedBox(width: 8),
-          Container(width: 1, height: 20, color: theme.divider),
-          const SizedBox(width: 8),
-          _ImportImageButton(theme: theme),
-          const SizedBox(width: 6),
-          _ImportSvgButton(theme: theme),
-          const SizedBox(width: 6),
-          _ExportButton(theme: theme),
           const SizedBox(width: 12),
         ],
       ),
     );
+  }
+}
+
+enum _MenuAction {
+  // File
+  fileNew,
+  fileOpen,
+  fileSave,
+  fileSaveAs,
+  fileImportImage,
+  fileImportSvg,
+  fileExport,
+  fileReturnHome,
+
+  // Edit
+  editUndo,
+  editRedo,
+
+  // Layer
+  layerNew,
+  layerGroup,
+  layerUngroup,
+
+  // Window
+  windowResetLayout,
+
+  // Help
+  helpAbout,
+}
+
+class _TopMenuBar extends StatelessWidget {
+  const _TopMenuBar({required this.theme});
+
+  final AppTheme theme;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      spacing: 2,
+      children: [
+        _TopMenuButton(label: 'File', theme: theme, menu: _TopMenuType.file),
+        _TopMenuButton(label: 'Edit', theme: theme, menu: _TopMenuType.edit),
+        _TopMenuButton(label: 'Layer', theme: theme, menu: _TopMenuType.layer),
+        _TopMenuButton(label: 'Window', theme: theme, menu: _TopMenuType.window),
+        _TopMenuButton(label: 'Help', theme: theme, menu: _TopMenuType.help),
+      ],
+    );
+  }
+}
+
+enum _TopMenuType { file, edit, layer, window, help }
+
+class _TopMenuButton extends ConsumerWidget {
+  const _TopMenuButton({required this.label, required this.theme, required this.menu});
+
+  final String label;
+  final AppTheme theme;
+  final _TopMenuType menu;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return PopupMenuButton<_MenuAction>(
+      color: theme.surface,
+      elevation: 8,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(6),
+        side: BorderSide(color: theme.divider, width: 0.5),
+      ),
+      onSelected: (action) => _handleMenuAction(context, ref, action),
+      itemBuilder: (ctx) => _menuItems(theme, menu),
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 1),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: theme.divider.withAlpha(90), width: 0.5),
+          color: theme.surface.withAlpha(110),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: TextStyle(fontSize: 12, color: theme.textSecondary, fontWeight: FontWeight.w600),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  List<PopupMenuEntry<_MenuAction>> _menuItems(AppTheme theme, _TopMenuType type) {
+    switch (type) {
+      case _TopMenuType.file:
+        return [
+          _menuItem(theme, _MenuAction.fileNew, 'New', shortcut: _mod('N')),
+          _menuItem(theme, _MenuAction.fileOpen, 'Open...', shortcut: _mod('O')),
+          _menuItem(theme, _MenuAction.fileSave, 'Save', shortcut: _mod('S')),
+          _menuItem(theme, _MenuAction.fileSaveAs, 'Save As...', shortcut: _modShift('S')),
+          const PopupMenuDivider(height: 6),
+          _menuItem(theme, _MenuAction.fileImportImage, 'Import Image...'),
+          _menuItem(theme, _MenuAction.fileImportSvg, 'Import SVG...'),
+          const PopupMenuDivider(height: 6),
+          _menuItem(theme, _MenuAction.fileExport, 'Export...', shortcut: _mod('E')),
+          _menuItem(theme, _MenuAction.fileReturnHome, 'Return to Home', shortcut: _modShift('H')),
+        ];
+      case _TopMenuType.edit:
+        return [
+          _menuItem(theme, _MenuAction.editUndo, 'Undo', shortcut: _mod('Z')),
+          _menuItem(theme, _MenuAction.editRedo, 'Redo', shortcut: _modShift('Z')),
+        ];
+      case _TopMenuType.layer:
+        return [
+          _menuItem(theme, _MenuAction.layerNew, 'New Layer'),
+          _menuItem(theme, _MenuAction.layerGroup, 'Group Selection', shortcut: _mod('G')),
+          _menuItem(theme, _MenuAction.layerUngroup, 'Ungroup Selection', shortcut: _modShift('G')),
+        ];
+      case _TopMenuType.window:
+        return [_menuItem(theme, _MenuAction.windowResetLayout, 'Reset Layout')];
+      case _TopMenuType.help:
+        return [_menuItem(theme, _MenuAction.helpAbout, 'About Vectra')];
+    }
+  }
+
+  PopupMenuItem<_MenuAction> _menuItem(AppTheme theme, _MenuAction action, String text, {String? shortcut}) {
+    return PopupMenuItem<_MenuAction>(
+      value: action,
+      height: 32,
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(text, style: TextStyle(fontSize: 12, color: theme.textPrimary)),
+          ),
+          if (shortcut != null)
+            Text(
+              shortcut,
+              style: TextStyle(
+                fontSize: 11,
+                color: theme.textDisabled,
+                fontWeight: FontWeight.w500,
+                letterSpacing: 0.2,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  String _mod(String key) {
+    if (defaultTargetPlatform == TargetPlatform.macOS || defaultTargetPlatform == TargetPlatform.iOS) {
+      return 'Cmd+$key';
+    }
+    return 'Ctrl+$key';
+  }
+
+  String _modShift(String key) {
+    if (defaultTargetPlatform == TargetPlatform.macOS || defaultTargetPlatform == TargetPlatform.iOS) {
+      return 'Cmd+Shift+$key';
+    }
+    return 'Ctrl+Shift+$key';
+  }
+
+  Future<void> _handleMenuAction(BuildContext context, WidgetRef ref, _MenuAction action) async {
+    final notifier = ref.read(vecDocumentStateProvider.notifier);
+
+    switch (action) {
+      case _MenuAction.fileNew:
+        notifier.newDocument();
+        ref.read(selectedShapeIdProvider.notifier).clear();
+        ref.read(selectedShapeIdsProvider.notifier).clear();
+        break;
+      case _MenuAction.fileOpen:
+        final path = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['vct', 'json']);
+        final filePath = path?.files.firstOrNull?.path;
+        if (filePath == null) return;
+        await notifier.openFile(filePath);
+        break;
+      case _MenuAction.fileSave:
+        if (notifier.hasFilePath) {
+          await notifier.save();
+          return;
+        }
+        final savePath = await FilePicker.platform.saveFile(
+          dialogTitle: 'Save Vectra File',
+          fileName: '${ref.read(currentMetaProvider).name}.vct',
+          type: FileType.custom,
+          allowedExtensions: ['vct'],
+        );
+        if (savePath == null) return;
+        await notifier.saveAs(savePath);
+        break;
+      case _MenuAction.fileSaveAs:
+        final savePath = await FilePicker.platform.saveFile(
+          dialogTitle: 'Save Vectra File As',
+          fileName: '${ref.read(currentMetaProvider).name}.vct',
+          type: FileType.custom,
+          allowedExtensions: ['vct'],
+        );
+        if (savePath == null) return;
+        await notifier.saveAs(savePath);
+        break;
+      case _MenuAction.fileImportImage:
+        await _ImportImageButton.pickAndImport(context, ref);
+        break;
+      case _MenuAction.fileImportSvg:
+        await _ImportSvgButton.pickAndImport(ref);
+        break;
+      case _MenuAction.fileExport:
+        ExportDialog.show(context);
+        break;
+      case _MenuAction.fileReturnHome:
+        if (Navigator.of(context).canPop()) {
+          Navigator.of(context).pop();
+        } else {
+          Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const HomeScreen()));
+        }
+        break;
+      case _MenuAction.editUndo:
+        notifier.undo();
+        break;
+      case _MenuAction.editRedo:
+        notifier.redo();
+        break;
+      case _MenuAction.layerNew:
+      case _MenuAction.layerGroup:
+      case _MenuAction.layerUngroup:
+      case _MenuAction.windowResetLayout:
+        if (context.mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('This menu action will be wired in a follow-up update.')));
+        }
+        break;
+      case _MenuAction.helpAbout:
+        if (!context.mounted) return;
+        showAboutDialog(
+          context: context,
+          applicationName: 'Vectra',
+          applicationVersion: 'v0.2',
+          children: const [Text('Vector Graphics & Animation Tool')],
+        );
+        break;
+    }
   }
 }
 
@@ -418,7 +657,7 @@ class _ImportSvgButton extends ConsumerWidget {
         child: InkWell(
           borderRadius: BorderRadius.circular(6),
           hoverColor: theme.primaryColor.withAlpha(20),
-          onTap: () => _pickAndImport(ref),
+          onTap: () => pickAndImport(ref),
           child: Container(
             height: 28,
             padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -443,7 +682,7 @@ class _ImportSvgButton extends ConsumerWidget {
     );
   }
 
-  Future<void> _pickAndImport(WidgetRef ref) async {
+  static Future<void> pickAndImport(WidgetRef ref) async {
     try {
       String? svgContent;
 
@@ -481,51 +720,6 @@ class _ImportSvgButton extends ConsumerWidget {
     } catch (_) {
       // Silently ignore import errors
     }
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Export button
-// ---------------------------------------------------------------------------
-
-class _ExportButton extends StatelessWidget {
-  const _ExportButton({required this.theme});
-  final AppTheme theme;
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: 'Export (Cmd+E)',
-      waitDuration: const Duration(milliseconds: 500),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(6),
-          hoverColor: theme.primaryColor.withOpacity(0.12),
-          onTap: () => ExportDialog.show(context),
-          child: Container(
-            height: 28,
-            padding: const EdgeInsets.symmetric(horizontal: 10),
-            decoration: BoxDecoration(
-              color: theme.primaryColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: theme.primaryColor.withOpacity(0.25)),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.upload_rounded, size: 13, color: theme.primaryColor),
-                const SizedBox(width: 5),
-                Text(
-                  'Export',
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: theme.primaryColor),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
   }
 }
 
@@ -709,7 +903,7 @@ class _ImportImageButton extends ConsumerWidget {
         child: InkWell(
           borderRadius: BorderRadius.circular(6),
           hoverColor: theme.primaryColor.withAlpha(20),
-          onTap: () => _pickAndImport(context, ref),
+          onTap: () => pickAndImport(context, ref),
           child: Container(
             width: 30,
             height: 28,
@@ -724,7 +918,7 @@ class _ImportImageButton extends ConsumerWidget {
     );
   }
 
-  Future<void> _pickAndImport(BuildContext context, WidgetRef ref) async {
+  static Future<void> pickAndImport(BuildContext context, WidgetRef ref) async {
     try {
       List<int>? bytes;
       late String fileName;
@@ -795,7 +989,7 @@ class _ImportImageButton extends ConsumerWidget {
     }
   }
 
-  String? _mimeFromName(String name) {
+  static String? _mimeFromName(String name) {
     final ext = name.split('.').last.toLowerCase();
     switch (ext) {
       case 'png':

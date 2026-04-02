@@ -1,5 +1,6 @@
 import '../../data/models/vec_color.dart';
 import '../../data/models/vec_easing.dart';
+import '../../data/models/vec_gradient.dart';
 import '../../data/models/vec_keyframe.dart';
 import '../../data/models/vec_point.dart';
 import '../../data/models/vec_shape.dart';
@@ -87,11 +88,19 @@ class KeyframeInterpolator {
       data = data.copyWith(opacity: oa);
     }
 
-    // Fills: lerp first fill's color
+    // Fills: lerp corresponding fill entries (color + gradient)
     final fa = a.fills, fb = b.fills;
     if (fa != null && fb != null && fa.isNotEmpty && fb.isNotEmpty) {
       final tFill = t(a.fillColorEasing);
-      final lerpedFills = [fa[0].copyWith(color: _lerpColor(fa[0].color, fb[0].color, tFill)), ...fa.skip(1)];
+      final count = fa.length < fb.length ? fa.length : fb.length;
+      final lerpedFills = [
+        for (var i = 0; i < count; i++)
+          fa[i].copyWith(
+            color: _lerpColor(fa[i].color, fb[i].color, tFill),
+            gradient: _lerpGradient(fa[i].gradient, fb[i].gradient, tFill),
+          ),
+        ...fa.skip(count),
+      ];
       data = data.copyWith(fills: lerpedFills);
     } else if (fa != null) {
       data = data.copyWith(fills: fa);
@@ -155,6 +164,33 @@ class KeyframeInterpolator {
     g: (a.g + (b.g - a.g) * t).round().clamp(0, 255),
     b: (a.b + (b.b - a.b) * t).round().clamp(0, 255),
   );
+
+  static VecGradient? _lerpGradient(VecGradient? a, VecGradient? b, double t) {
+    if (a == null && b == null) return null;
+    if (a == null) return t < 0.5 ? null : b;
+    if (b == null) return t < 0.5 ? a : null;
+
+    final stopCount = a.stops.length < b.stops.length ? a.stops.length : b.stops.length;
+    final stops = [
+      for (var i = 0; i < stopCount; i++)
+        VecGradientStop(
+          color: _lerpColor(a.stops[i].color, b.stops[i].color, t),
+          position: _ld(a.stops[i].position, b.stops[i].position, t),
+        ),
+    ];
+
+    // Interpolate gradient geometry when types match. If types differ,
+    // cross-fade by switching type halfway while still interpolating shared fields.
+    final resolvedType = t < 0.5 ? a.type : b.type;
+    return VecGradient(
+      type: resolvedType,
+      stops: stops,
+      angle: _ld(a.angle, b.angle, t),
+      centerX: _ld(a.centerX, b.centerX, t),
+      centerY: _ld(a.centerY, b.centerY, t),
+      radius: _ld(a.radius, b.radius, t),
+    );
+  }
 
   static double _ld(double a, double b, double t) => a + (b - a) * t;
 
