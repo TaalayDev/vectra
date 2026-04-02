@@ -32,16 +32,12 @@ class PropertiesPanel extends ConsumerWidget {
       ),
       child: Column(
         children: [
-          _PropertiesHeader(
-            shape: shape,
-            selectedCount: selectedIds.length,
-            theme: theme,
-          ),
+          _PropertiesHeader(shape: shape, selectedCount: selectedIds.length, theme: theme),
           Expanded(
             child: shape == null && selectedIds.length < 2
                 ? activeTool == VecTool.freedraw
-                    ? _buildFreeDrawState()
-                    : _buildEmptyState()
+                      ? _buildFreeDrawState()
+                      : _buildEmptyState()
                 : _buildSections(context, ref, shape, selectedIds),
           ),
         ],
@@ -87,11 +83,7 @@ class PropertiesPanel extends ConsumerWidget {
     final scene = ref.watch(activeSceneProvider);
     final layerId = ref.watch(activeLayerIdProvider);
     final docNotifier = ref.read(vecDocumentStateProvider.notifier);
-    final imageAssets = ref
-        .watch(vecDocumentStateProvider)
-        .assets
-        .where((a) => a.type == VecAssetType.image)
-        .toList();
+    final imageAssets = ref.watch(vecDocumentStateProvider).assets.where((a) => a.type == VecAssetType.image).toList();
     final motionPath = ref.watch(selectedShapeMotionPathProvider);
     final drawTarget = ref.watch(motionPathDrawTargetProvider);
 
@@ -146,13 +138,7 @@ class PropertiesPanel extends ConsumerWidget {
         ...shape.maybeMap(
           ellipse: (e) => [
             Divider(height: 1, color: theme.divider.withAlpha(60)),
-            EllipseSection(
-              shape: e,
-              theme: theme,
-              onUpdate: onUpdate,
-              onLiveUpdate: onLiveUpdate,
-              onCommit: onCommit,
-            ),
+            EllipseSection(shape: e, theme: theme, onUpdate: onUpdate, onLiveUpdate: onLiveUpdate, onCommit: onCommit),
           ],
           orElse: () => const <Widget>[],
         ),
@@ -160,13 +146,7 @@ class PropertiesPanel extends ConsumerWidget {
         ...shape.maybeMap(
           polygon: (p) => [
             Divider(height: 1, color: theme.divider.withAlpha(60)),
-            PolygonSection(
-              shape: p,
-              theme: theme,
-              onUpdate: onUpdate,
-              onLiveUpdate: onLiveUpdate,
-              onCommit: onCommit,
-            ),
+            PolygonSection(shape: p, theme: theme, onUpdate: onUpdate, onLiveUpdate: onLiveUpdate, onCommit: onCommit),
           ],
           orElse: () => const <Widget>[],
         ),
@@ -226,14 +206,20 @@ class PropertiesPanel extends ConsumerWidget {
             },
             onToggleOrient: () {
               if (motionPath != null) {
-                docNotifier.updateMotionPath(sceneId, motionPath.id,
-                    (mp) => mp.copyWith(orientToPath: !mp.orientToPath));
+                docNotifier.updateMotionPath(
+                  sceneId,
+                  motionPath.id,
+                  (mp) => mp.copyWith(orientToPath: !mp.orientToPath),
+                );
               }
             },
             onToggleEase: () {
               if (motionPath != null) {
-                docNotifier.updateMotionPath(sceneId, motionPath.id,
-                    (mp) => mp.copyWith(easeAlongPath: !mp.easeAlongPath));
+                docNotifier.updateMotionPath(
+                  sceneId,
+                  motionPath.id,
+                  (mp) => mp.copyWith(easeAlongPath: !mp.easeAlongPath),
+                );
               }
             },
           ),
@@ -273,8 +259,7 @@ class PropertiesPanel extends ConsumerWidget {
     // Compute average opacity across selected shapes
     final avgOpacity = selectedShapes.isEmpty
         ? 1.0
-        : selectedShapes.fold<double>(0, (sum, s) => sum + (s.opacity as double)) /
-            selectedShapes.length;
+        : selectedShapes.fold<double>(0, (sum, s) => sum + (s.opacity as double)) / selectedShapes.length;
 
     void applyToAll(VecShape Function(VecShape) updater) {
       for (final id in selectedIds) {
@@ -299,10 +284,7 @@ class PropertiesPanel extends ConsumerWidget {
             children: [
               Icon(Icons.select_all_outlined, size: 14, color: theme.textDisabled),
               const SizedBox(width: 6),
-              Text(
-                '${selectedIds.length} shapes selected',
-                style: TextStyle(fontSize: 11, color: theme.textDisabled),
-              ),
+              Text('${selectedIds.length} shapes selected', style: TextStyle(fontSize: 11, color: theme.textDisabled)),
             ],
           ),
         ),
@@ -317,10 +299,7 @@ class PropertiesPanel extends ConsumerWidget {
             children: [
               Text(
                 'Opacity',
-                style: TextStyle(
-                    fontSize: 10,
-                    color: theme.textDisabled,
-                    fontWeight: FontWeight.w500),
+                style: TextStyle(fontSize: 10, color: theme.textDisabled, fontWeight: FontWeight.w500),
               ),
               const SizedBox(height: 4),
               Row(
@@ -329,9 +308,7 @@ class PropertiesPanel extends ConsumerWidget {
                     child: PanelSlider(
                       value: avgOpacity.clamp(0.0, 1.0),
                       theme: theme,
-                      onChanged: (v) => liveApplyToAll(
-                        (s) => s.copyWith(data: s.data.copyWith(opacity: v)),
-                      ),
+                      onChanged: (v) => liveApplyToAll((s) => s.copyWith(data: s.data.copyWith(opacity: v))),
                       onChangeEnd: (_) => docNotifier.commitCurrentState(),
                     ),
                   ),
@@ -360,10 +337,7 @@ class PropertiesPanel extends ConsumerWidget {
             children: [
               Text(
                 'Move All',
-                style: TextStyle(
-                    fontSize: 10,
-                    color: theme.textDisabled,
-                    fontWeight: FontWeight.w500),
+                style: TextStyle(fontSize: 10, color: theme.textDisabled, fontWeight: FontWeight.w500),
               ),
               const SizedBox(height: 6),
               Row(
@@ -371,41 +345,41 @@ class PropertiesPanel extends ConsumerWidget {
                   _NudgeButton(
                     label: '← −10',
                     theme: theme,
-                    onTap: () => applyToAll((s) => s.copyWith(
-                          data: s.data.copyWith(
-                              transform: s.transform
-                                  .copyWith(x: s.transform.x - 10)),
-                        )),
+                    onTap: () => applyToAll(
+                      (s) => s.copyWith(
+                        data: s.data.copyWith(transform: s.transform.copyWith(x: s.transform.x - 10)),
+                      ),
+                    ),
                   ),
                   const SizedBox(width: 4),
                   _NudgeButton(
                     label: '→ +10',
                     theme: theme,
-                    onTap: () => applyToAll((s) => s.copyWith(
-                          data: s.data.copyWith(
-                              transform: s.transform
-                                  .copyWith(x: s.transform.x + 10)),
-                        )),
+                    onTap: () => applyToAll(
+                      (s) => s.copyWith(
+                        data: s.data.copyWith(transform: s.transform.copyWith(x: s.transform.x + 10)),
+                      ),
+                    ),
                   ),
                   const SizedBox(width: 8),
                   _NudgeButton(
                     label: '↑ −10',
                     theme: theme,
-                    onTap: () => applyToAll((s) => s.copyWith(
-                          data: s.data.copyWith(
-                              transform: s.transform
-                                  .copyWith(y: s.transform.y - 10)),
-                        )),
+                    onTap: () => applyToAll(
+                      (s) => s.copyWith(
+                        data: s.data.copyWith(transform: s.transform.copyWith(y: s.transform.y - 10)),
+                      ),
+                    ),
                   ),
                   const SizedBox(width: 4),
                   _NudgeButton(
                     label: '↓ +10',
                     theme: theme,
-                    onTap: () => applyToAll((s) => s.copyWith(
-                          data: s.data.copyWith(
-                              transform: s.transform
-                                  .copyWith(y: s.transform.y + 10)),
-                        )),
+                    onTap: () => applyToAll(
+                      (s) => s.copyWith(
+                        data: s.data.copyWith(transform: s.transform.copyWith(y: s.transform.y + 10)),
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -436,7 +410,6 @@ class PropertiesPanel extends ConsumerWidget {
   // ---------------------------------------------------------------------------
   // Helpers
   // ---------------------------------------------------------------------------
-
 }
 
 String _shapeTypeNameOf(VecShape shape) {
@@ -458,11 +431,7 @@ String _shapeTypeNameOf(VecShape shape) {
 // ---------------------------------------------------------------------------
 
 class _PropertiesHeader extends ConsumerStatefulWidget {
-  const _PropertiesHeader({
-    required this.shape,
-    required this.selectedCount,
-    required this.theme,
-  });
+  const _PropertiesHeader({required this.shape, required this.selectedCount, required this.theme});
 
   final VecShape? shape;
   final int selectedCount;
@@ -527,12 +496,9 @@ class _PropertiesHeaderState extends ConsumerState<_PropertiesHeader> {
     final currentName = shape.data.name ?? '';
 
     if (nameToSave != currentName) {
-      ref.read(vecDocumentStateProvider.notifier).updateShape(
-        scene.id,
-        layerId,
-        shape.id,
-        (s) => s.copyWith(data: s.data.copyWith(name: nameToSave)),
-      );
+      ref
+          .read(vecDocumentStateProvider.notifier)
+          .updateShape(scene.id, layerId, shape.id, (s) => s.copyWith(data: s.data.copyWith(name: nameToSave)));
     }
     ref.read(renamingShapeIdProvider.notifier).state = null;
   }
@@ -662,10 +628,7 @@ class _ConvertToSymbolButton extends ConsumerWidget {
         width: double.infinity,
         child: OutlinedButton.icon(
           icon: Icon(Icons.widgets_outlined, size: 14, color: theme.accentColor),
-          label: Text(
-            'Convert to Symbol',
-            style: TextStyle(fontSize: 11, color: theme.accentColor),
-          ),
+          label: Text('Convert to Symbol', style: TextStyle(fontSize: 11, color: theme.accentColor)),
           style: OutlinedButton.styleFrom(
             side: BorderSide(color: theme.accentColor.withAlpha(100)),
             padding: const EdgeInsets.symmetric(vertical: 8),
@@ -677,19 +640,10 @@ class _ConvertToSymbolButton extends ConsumerWidget {
             final idsToConvert = selectedIds.length > 1 ? selectedIds : [shape.id];
             final defaultName = shape.name ?? 'Symbol ${DateTime.now().millisecondsSinceEpoch % 1000}';
 
-            final result = await ConvertToSymbolDialog.show(
-              context,
-              theme,
-              defaultName: defaultName,
-            );
+            final result = await ConvertToSymbolDialog.show(context, theme, defaultName: defaultName);
             if (result == null) return;
 
-            ref.read(vecDocumentStateProvider.notifier).convertToSymbol(
-              sceneId,
-              layerId,
-              idsToConvert,
-              result.name,
-            );
+            ref.read(vecDocumentStateProvider.notifier).convertToSymbol(sceneId, layerId, idsToConvert, result.name);
           },
         ),
       ),
@@ -721,10 +675,7 @@ class _NudgeButton extends StatelessWidget {
             borderRadius: BorderRadius.circular(4),
             border: Border.all(color: theme.divider, width: 0.5),
           ),
-          child: Text(
-            label,
-            style: TextStyle(fontSize: 10, color: theme.textSecondary),
-          ),
+          child: Text(label, style: TextStyle(fontSize: 10, color: theme.textSecondary)),
         ),
       ),
     );

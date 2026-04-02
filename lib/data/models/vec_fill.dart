@@ -38,6 +38,5 @@ class VecFill with _$VecFill {
     @Default(VecFillImageFit.cover) VecFillImageFit imageFit,
   }) = _VecFill;
 
-  factory VecFill.fromJson(Map<String, dynamic> json) =>
-      _$VecFillFromJson(json);
+  factory VecFill.fromJson(Map<String, dynamic> json) => _$VecFillFromJson(json);
 }

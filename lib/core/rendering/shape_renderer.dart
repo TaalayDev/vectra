@@ -174,13 +174,15 @@ class ShapeRenderer {
       switch (s.cornerStyle) {
         case VecCornerStyle.round:
           path = Path()
-            ..addRRect(RRect.fromRectAndCorners(
-              r,
-              topLeft: Radius.circular(tl),
-              topRight: Radius.circular(tr),
-              bottomRight: Radius.circular(br),
-              bottomLeft: Radius.circular(bl),
-            ));
+            ..addRRect(
+              RRect.fromRectAndCorners(
+                r,
+                topLeft: Radius.circular(tl),
+                topRight: Radius.circular(tr),
+                bottomRight: Radius.circular(br),
+                bottomLeft: Radius.circular(bl),
+              ),
+            );
           break;
         case VecCornerStyle.chamfer:
           path = _chamferRect(r, tl, tr, br, bl);
@@ -382,10 +384,7 @@ class ShapeRenderer {
   // ===========================================================================
 
   void _renderSymbolInstance(Canvas canvas, VecSymbolInstanceShape s) {
-    final symbol = symbols.cast<VecSymbol?>().firstWhere(
-      (sym) => sym!.id == s.symbolId,
-      orElse: () => null,
-    );
+    final symbol = symbols.cast<VecSymbol?>().firstWhere((sym) => sym!.id == s.symbolId, orElse: () => null);
 
     if (symbol == null) {
       // Render a placeholder when symbol is missing
@@ -397,11 +396,7 @@ class ShapeRenderer {
     final effectiveAlpha = s.alphaOverride.clamp(0.0, 1.0);
     final needsAlphaLayer = effectiveAlpha < 1.0;
     if (needsAlphaLayer) {
-      canvas.saveLayer(
-        null,
-        Paint()
-          ..color = Color.fromARGB((effectiveAlpha * 255).round(), 255, 255, 255),
-      );
+      canvas.saveLayer(null, Paint()..color = Color.fromARGB((effectiveAlpha * 255).round(), 255, 255, 255));
     }
 
     // Apply registration point offset so symbol origin aligns with instance origin
@@ -421,8 +416,7 @@ class ShapeRenderer {
   }
 
   void _renderSymbolLayers(Canvas canvas, List<VecLayer> layers) {
-    final sorted = List<VecLayer>.from(layers)
-      ..sort((a, b) => a.order.compareTo(b.order));
+    final sorted = List<VecLayer>.from(layers)..sort((a, b) => a.order.compareTo(b.order));
     for (final layer in sorted) {
       if (!layer.visible) continue;
       for (final shape in layer.shapes) {
@@ -446,8 +440,7 @@ class ShapeRenderer {
     }
     if (minX == double.infinity) return;
 
-    final tintColor = s.colorTint!.toFlutterColor()
-        .withAlpha((s.tintAmount.clamp(0.0, 1.0) * 255).round());
+    final tintColor = s.colorTint!.toFlutterColor().withAlpha((s.tintAmount.clamp(0.0, 1.0) * 255).round());
     canvas.drawRect(
       Rect.fromLTRB(minX, minY, maxX, maxY),
       Paint()
@@ -500,12 +493,7 @@ class ShapeRenderer {
           final scale = math.min(scaleX, scaleY);
           final fw = imgW * scale;
           final fh = imgH * scale;
-          finalDst = Rect.fromLTWH(
-            (dstRect.width - fw) / 2,
-            (dstRect.height - fh) / 2,
-            fw,
-            fh,
-          );
+          finalDst = Rect.fromLTWH((dstRect.width - fw) / 2, (dstRect.height - fh) / 2, fw, fh);
           srcRect = Rect.fromLTWH(0, 0, imgW, imgH);
         }
         break;
@@ -518,12 +506,7 @@ class ShapeRenderer {
           final fh = imgH * scale;
           final ox = (fw - dstRect.width) / 2;
           final oy = (fh - dstRect.height) / 2;
-          srcRect = Rect.fromLTWH(
-            ox / scale,
-            oy / scale,
-            dstRect.width / scale,
-            dstRect.height / scale,
-          );
+          srcRect = Rect.fromLTWH(ox / scale, oy / scale, dstRect.width / scale, dstRect.height / scale);
           finalDst = dstRect;
         }
         break;
@@ -583,12 +566,7 @@ class ShapeRenderer {
   // Fills & Strokes
   // ===========================================================================
 
-  void _applyFillsAndStrokes(
-    Canvas canvas,
-    Path path,
-    List<VecFill> fills,
-    List<VecStroke> strokes,
-  ) {
+  void _applyFillsAndStrokes(Canvas canvas, Path path, List<VecFill> fills, List<VecStroke> strokes) {
     // Fills first (bottom), then strokes (on top)
     for (final fill in fills) {
       final paint = Paint()
@@ -640,12 +618,7 @@ class ShapeRenderer {
           final scale = math.min(bounds.width / imgW, bounds.height / imgH);
           final w = imgW * scale;
           final h = imgH * scale;
-          dst = Rect.fromLTWH(
-            bounds.left + (bounds.width - w) / 2,
-            bounds.top + (bounds.height - h) / 2,
-            w,
-            h,
-          );
+          dst = Rect.fromLTWH(bounds.left + (bounds.width - w) / 2, bounds.top + (bounds.height - h) / 2, w, h);
         }
         break;
       case VecFillImageFit.cover:
@@ -653,12 +626,7 @@ class ShapeRenderer {
           final scale = math.max(bounds.width / imgW, bounds.height / imgH);
           final w = imgW * scale;
           final h = imgH * scale;
-          dst = Rect.fromLTWH(
-            bounds.left + (bounds.width - w) / 2,
-            bounds.top + (bounds.height - h) / 2,
-            w,
-            h,
-          );
+          dst = Rect.fromLTWH(bounds.left + (bounds.width - w) / 2, bounds.top + (bounds.height - h) / 2, w, h);
         }
         break;
       case VecFillImageFit.none:
@@ -692,9 +660,7 @@ class ShapeRenderer {
 
   Shader _buildGradientShader(VecGradient g, Rect bounds, double opacity) {
     final alphaFactor = opacity.clamp(0.0, 1.0);
-    final colors = g.stops
-        .map((s) => s.color.toFlutterColor().withAlpha((alphaFactor * 255).round()))
-        .toList();
+    final colors = g.stops.map((s) => s.color.toFlutterColor().withAlpha((alphaFactor * 255).round())).toList();
     final positions = g.stops.map((s) => s.position.toDouble()).toList();
 
     if (g.type == VecGradientType.linear) {
@@ -710,9 +676,7 @@ class ShapeRenderer {
         end: Alignment.centerRight,
         colors: colors,
         stops: positions,
-      ).createShader(Rect.fromLTWH(
-        cx - bx, cy - by, bx * 2, by * 2,
-      ));
+      ).createShader(Rect.fromLTWH(cx - bx, cy - by, bx * 2, by * 2));
     } else {
       return RadialGradient(
         center: Alignment(g.centerX * 2 - 1, g.centerY * 2 - 1),

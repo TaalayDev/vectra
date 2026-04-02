@@ -297,9 +297,7 @@ class _FillRow extends HookConsumerWidget {
               label: 'Solid',
               active: !isGradient && !isTexture,
               theme: theme,
-              onTap: () => onUpdate(
-                (s) => _updateFill(s, i, s.fills[i].copyWith(gradient: null, imageAssetId: null)),
-              ),
+              onTap: () => onUpdate((s) => _updateFill(s, i, s.fills[i].copyWith(gradient: null, imageAssetId: null))),
             ),
             const SizedBox(width: 4),
             _FillTypeButton(
@@ -334,11 +332,7 @@ class _FillRow extends HookConsumerWidget {
                   (s) => _updateFill(
                     s,
                     i,
-                    s.fills[i].copyWith(
-                      gradient: null,
-                      imageAssetId: firstImageId,
-                      imageFit: s.fills[i].imageFit,
-                    ),
+                    s.fills[i].copyWith(gradient: null, imageAssetId: firstImageId, imageFit: s.fills[i].imageFit),
                   ),
                 );
               },
