@@ -46,10 +46,23 @@ const _templates = [
   _Template(name: '4K UHD', category: 'Video', icon: Icons.monitor, width: 3840, height: 2160),
   _Template(name: '2K QHD', category: 'Video', icon: Icons.desktop_windows_outlined, width: 2560, height: 1440),
   // Social
-  _Template(name: 'Instagram Post', category: 'Social', icon: Icons.crop_square_rounded, width: 1080, height: 1080, fps: 30),
+  _Template(
+    name: 'Instagram Post',
+    category: 'Social',
+    icon: Icons.crop_square_rounded,
+    width: 1080,
+    height: 1080,
+    fps: 30,
+  ),
   _Template(name: 'Instagram Story', category: 'Social', icon: Icons.smartphone, width: 1080, height: 1920, fps: 30),
   _Template(name: 'YouTube Thumbnail', category: 'Social', icon: Icons.play_circle_outline, width: 1280, height: 720),
-  _Template(name: 'Twitter/X Header', category: 'Social', icon: Icons.panorama_wide_angle_rounded, width: 1500, height: 500),
+  _Template(
+    name: 'Twitter/X Header',
+    category: 'Social',
+    icon: Icons.panorama_wide_angle_rounded,
+    width: 1500,
+    height: 500,
+  ),
   // Web
   _Template(name: 'Web Banner', category: 'Web', icon: Icons.web, width: 728, height: 90),
   _Template(name: 'Leaderboard', category: 'Web', icon: Icons.view_column_outlined, width: 970, height: 250),
@@ -57,7 +70,14 @@ const _templates = [
   // Design
   _Template(name: 'App Icon', category: 'Design', icon: Icons.apps, width: 512, height: 512, fps: 12),
   _Template(name: 'Favicon', category: 'Design', icon: Icons.tab_rounded, width: 64, height: 64, fps: 12),
-  _Template(name: 'A4 Portrait', category: 'Design', icon: Icons.description_outlined, width: 2480, height: 3508, fps: 1),
+  _Template(
+    name: 'A4 Portrait',
+    category: 'Design',
+    icon: Icons.description_outlined,
+    width: 2480,
+    height: 3508,
+    fps: 1,
+  ),
   _Template(name: 'Presentation', category: 'Design', icon: Icons.slideshow_rounded, width: 1920, height: 1080),
 ];
 
@@ -134,9 +154,7 @@ class _WideLayout extends ConsumerWidget {
         ),
         Container(width: 1, color: theme.divider.withOpacity(0.3)),
         // Right — templates
-        Expanded(
-          child: _TemplatesArea(theme: theme),
-        ),
+        Expanded(child: _TemplatesArea(theme: theme)),
       ],
     );
   }
@@ -254,7 +272,12 @@ class _LogoHeader extends StatelessWidget {
             children: [
               Text(
                 'Vectra',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: theme.textPrimary, letterSpacing: -0.5),
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w800,
+                  color: theme.textPrimary,
+                  letterSpacing: -0.5,
+                ),
               ),
               Text(
                 'Vector Animation Studio',
@@ -317,7 +340,9 @@ class _ActionButtons extends ConsumerWidget {
   Future<void> _createNewProject(BuildContext context, WidgetRef ref) async {
     final result = await NewProjectDialog.show(context);
     if (result == null) return;
-    ref.read(vecDocumentStateProvider.notifier).newDocument(
+    ref
+        .read(vecDocumentStateProvider.notifier)
+        .newDocument(
           name: result.name,
           stageWidth: result.width,
           stageHeight: result.height,
@@ -444,9 +469,16 @@ class _RecentProjectsCompact extends ConsumerWidget {
           recentProjects.when(
             loading: () => Padding(
               padding: const EdgeInsets.symmetric(vertical: 16),
-              child: Center(child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: theme.primaryColor, strokeWidth: 1.5))),
+              child: Center(
+                child: SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(color: theme.primaryColor, strokeWidth: 1.5),
+                ),
+              ),
             ),
-            error: (_, __) => Text('Could not load projects', style: TextStyle(fontSize: 12, color: theme.textDisabled)),
+            error: (_, __) =>
+                Text('Could not load projects', style: TextStyle(fontSize: 12, color: theme.textDisabled)),
             data: (projects) {
               if (projects.isEmpty) {
                 return Padding(
@@ -528,10 +560,7 @@ class _RecentRowState extends State<_RecentRow> {
                 ),
               ),
               const SizedBox(width: 8),
-              Text(
-                _formatDate(widget.project.modifiedAt),
-                style: TextStyle(fontSize: 10, color: theme.textDisabled),
-              ),
+              Text(_formatDate(widget.project.modifiedAt), style: TextStyle(fontSize: 10, color: theme.textDisabled)),
             ],
           ),
         ),
@@ -565,21 +594,14 @@ class _TemplatesArea extends ConsumerWidget {
             style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: theme.textPrimary),
           ),
           const SizedBox(height: 4),
-          Text(
-            'Pick a canvas size and start creating',
-            style: TextStyle(fontSize: 13, color: theme.textSecondary),
-          ),
+          Text('Pick a canvas size and start creating', style: TextStyle(fontSize: 13, color: theme.textSecondary)),
           const SizedBox(height: 28),
           Expanded(
             child: SingleChildScrollView(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: categories.entries.map((entry) {
-                  return _TemplateCategorySection(
-                    theme: theme,
-                    category: entry.key,
-                    templates: entry.value,
-                  );
+                  return _TemplateCategorySection(theme: theme, category: entry.key, templates: entry.value);
                 }).toList(),
               ),
             ),
@@ -613,17 +635,10 @@ class _TemplatesSection extends ConsumerWidget {
           style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: theme.textPrimary),
         ),
         const SizedBox(height: 4),
-        Text(
-          'Pick a canvas size and start creating',
-          style: TextStyle(fontSize: 13, color: theme.textSecondary),
-        ),
+        Text('Pick a canvas size and start creating', style: TextStyle(fontSize: 13, color: theme.textSecondary)),
         const SizedBox(height: 20),
         ...categories.entries.map((entry) {
-          return _TemplateCategorySection(
-            theme: theme,
-            category: entry.key,
-            templates: entry.value,
-          );
+          return _TemplateCategorySection(theme: theme, category: entry.key, templates: entry.value);
         }),
       ],
     );
@@ -709,9 +724,7 @@ class _TemplateCardState extends ConsumerState<_TemplateCard> {
           decoration: BoxDecoration(
             color: _hovering ? theme.surfaceVariant : theme.surface.withOpacity(0.45),
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: _hovering ? theme.primaryColor.withOpacity(0.5) : theme.divider.withOpacity(0.2),
-            ),
+            border: Border.all(color: _hovering ? theme.primaryColor.withOpacity(0.5) : theme.divider.withOpacity(0.2)),
             boxShadow: _hovering
                 ? [BoxShadow(color: theme.primaryColor.withOpacity(0.08), blurRadius: 12, offset: const Offset(0, 3))]
                 : [],
@@ -728,20 +741,14 @@ class _TemplateCardState extends ConsumerState<_TemplateCard> {
                     aspectRatio: aspect,
                     child: Container(
                       decoration: BoxDecoration(
-                        color: _hovering
-                            ? theme.primaryColor.withOpacity(0.12)
-                            : theme.surfaceVariant.withOpacity(0.8),
+                        color: _hovering ? theme.primaryColor.withOpacity(0.12) : theme.surfaceVariant.withOpacity(0.8),
                         borderRadius: BorderRadius.circular(4),
                         border: Border.all(
                           color: _hovering ? theme.primaryColor.withOpacity(0.3) : theme.divider.withOpacity(0.3),
                         ),
                       ),
                       child: Center(
-                        child: Icon(
-                          t.icon,
-                          size: 16,
-                          color: _hovering ? theme.primaryColor : theme.textDisabled,
-                        ),
+                        child: Icon(t.icon, size: 16, color: _hovering ? theme.primaryColor : theme.textDisabled),
                       ),
                     ),
                   ),
@@ -776,12 +783,9 @@ class _TemplateCardState extends ConsumerState<_TemplateCard> {
 
   void _createFromTemplate(BuildContext context) {
     final t = widget.template;
-    ref.read(vecDocumentStateProvider.notifier).newDocument(
-          name: 'Untitled',
-          stageWidth: t.width,
-          stageHeight: t.height,
-          fps: t.fps,
-        );
+    ref
+        .read(vecDocumentStateProvider.notifier)
+        .newDocument(name: 'Untitled', stageWidth: t.width, stageHeight: t.height, fps: t.fps);
     Navigator.of(context).push(MaterialPageRoute(builder: (_) => const EditorScreen()));
   }
 }
@@ -800,9 +804,16 @@ class _BottomBar extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 28),
       child: Row(
         children: [
-          Text('v1.0.0', style: TextStyle(fontSize: 10, color: theme.textDisabled, fontWeight: FontWeight.w500)),
+          Text(
+            'v1.0.0',
+            style: TextStyle(fontSize: 10, color: theme.textDisabled, fontWeight: FontWeight.w500),
+          ),
           const SizedBox(width: 8),
-          Container(width: 3, height: 3, decoration: BoxDecoration(color: theme.textDisabled, shape: BoxShape.circle)),
+          Container(
+            width: 3,
+            height: 3,
+            decoration: BoxDecoration(color: theme.textDisabled, shape: BoxShape.circle),
+          ),
           const SizedBox(width: 8),
           Text('Flutter', style: TextStyle(fontSize: 10, color: theme.textDisabled)),
         ],

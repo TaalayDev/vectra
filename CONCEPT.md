@@ -185,6 +185,258 @@ Each object can have **multiple fills and multiple strokes**, stacked in order.
 
 ---
 
+### Effects System — from Flash Filters + AE Effects
+
+Effects are non-destructive post-processing operations applied per shape, stacked in the Appearance panel below fills and strokes. They are the vector equivalent of Photoshop layer styles: drop shadows, glows, blurs, and color corrections that paint on top of the shape's rendered artwork without modifying the underlying geometry.
+
+#### Mental model
+
+- **Flash** called them *Filters* (drop shadow, blur, bevel, glow, color matrix). Applied per-symbol-instance only.
+- **After Effects** calls them *Effects* and *Layer Styles*. Fully animatable, richer set.
+- Vectra adopts the AE model: effects are fully animatable, per-shape (not per-instance), and stacked in explicit order.
+- The Appearance panel shows them as a third section: Fills → Strokes → **Effects**.
+
+```
+Appearance panel (single selected shape)
+├── Fills
+│   ├── [●] Solid  #3B82F6  100%  Normal
+│   └── [+] Add fill
+├── Strokes
+│   ├── [●] Solid  #1E3A5F  2px
+│   └── [+] Add stroke
+└── Effects                        ← new section
+    ├── [●] Drop Shadow  ▼
+    ├── [●] Gaussian Blur  ▼
+    └── [+] Add effect
+```
+
+Each effect row has:
+- Enable/disable toggle (●)
+- Effect name + expand arrow
+- Drag handle for reordering
+- Delete button on hover
+
+Expanded view shows the effect's parameters with numeric inputs, sliders, and color swatches — same component language as fill/stroke rows.
+
+---
+
+#### Effect types — v1.2 baseline
+
+| Effect | Key parameters | Flutter primitive |
+|---|---|---|
+| **Drop Shadow** | offsetX, offsetY, blur, spread, color, opacity, `inner` bool | `ui.MaskFilter.blur` + shadow layer paint |
+| **Inner Shadow** | same as above with `inner: true` | Clipped shadow + `BlendMode.srcATop` |
+| **Outer Glow** | radius, color, opacity | `ui.MaskFilter.blur` on a copy layer |
+| **Inner Glow** | radius, color, opacity, source: center/edge | Clipped blur inward |
+| **Gaussian Blur** | radiusX, radiusY | `ui.ImageFilter.blur` |
+| **Color Matrix** | 4×5 float matrix (20 values) | `ColorFilter.matrix` |
+
+*Effects beyond this set are v1.3+: Motion Blur, Bevel & Emboss, Roughen Edges, Displacement Map.*
+
+---
+
+#### Data model
+
+A new sealed freezed union `VecEffect` is added to the data layer:
+
+```dart
+@Freezed(unionKey: 'type')
+class VecEffect with _$VecEffect {
+  // Drop Shadow / Inner Shadow (shared by `inner` flag)
+  const factory VecEffect.shadow({
+    @Default(false) bool inner,
+    @Default(4.0) double offsetX,
+    @Default(4.0) double offsetY,
+    @Default(8.0) double blur,
+    @Default(0.0) double spread,
+    required VecColor color,
+    @Default(0.75) double opacity,
+    @Default(true) bool enabled,
+  }) = VecShadowEffect;
+
+  // Outer / Inner Glow
+  const factory VecEffect.glow({
+    @Default(false) bool inner,
+    @Default(12.0) double radius,
+    required VecColor color,
+    @Default(0.8) double opacity,
+    @Default(true) bool enabled,
+  }) = VecGlowEffect;
+
+  // Gaussian Blur
+  const factory VecEffect.blur({
+    @Default(4.0) double radiusX,
+    @Default(4.0) double radiusY,
+    @Default(true) bool enabled,
+  }) = VecBlurEffect;
+
+  // Color Matrix (full 4×5 = 20 floats)
+  const factory VecEffect.colorMatrix({
+    required List<double> matrix,   // always length 20
+    @Default(true) bool enabled,
+  }) = VecColorMatrixEffect;
+}
+```
+
+`VecShapeData` gains one new field:
+
+```dart
+@Default([]) List<VecEffect> effects,
+```
+
+Effects are ordered: index 0 is applied first (bottom of the stack), same convention as fills/strokes.
+
+---
+
+#### Keyframe animation
+
+Effect parameters are animatable. `VecKeyframe` gains:
+
+```dart
+@Default([]) List<VecEffect> effects,
+```
+
+The keyframe interpolator (`KeyframeInterpolator`) linearly interpolates effect parameters between keyframes using per-parameter easing, the same mechanism as transform interpolation. Specifically:
+
+- `VecShadowEffect`: interpolate offsetX, offsetY, blur, spread, opacity, color (ARGB lerp).
+- `VecGlowEffect`: interpolate radius, opacity, color.
+- `VecBlurEffect`: interpolate radiusX, radiusY.
+- `VecColorMatrixEffect`: interpolate each of the 20 matrix coefficients independently.
+
+Non-numeric parameters (`inner`, `enabled`) are stepped (no interpolation — they snap at the midpoint between keyframes as with all boolean properties). The easing editor already supports per-property tabs; effect properties are exposed as additional tabs if an effects keyframe is detected.
+
+---
+
+#### Rendering pipeline
+
+Effects are applied as a compositing layer on top of the shape's rendered fills+strokes in `ScenePainter`. The render order per shape is:
+
+```
+1. Save layer (isolate the shape composite)
+2. Paint fills (bottom to top)
+3. Paint strokes (bottom to top)
+4. For each enabled effect in stack order:
+   a. Snapshot the layer to an offscreen image
+   b. Apply effect transform (ImageFilter / ColorFilter / shadow paint pass)
+   c. Composite back using the effect's blend mode
+5. Restore layer with shape's global opacity + blend mode
+```
+
+Drop shadow and glow are rendered as **separate paint passes** beneath (outer) or inside (inner) the shape layer, not as filters on the layer itself — this preserves crisp edges:
+
+```
+Outer effects pass → paint shadow/glow below shape layer
+Shape layer (fills + strokes)
+Inner effects pass → paint clipped inside the shape layer
+Post-effects pass → blur, color matrix applied to entire layer snapshot
+```
+
+Performance: effects are cached as `ui.Picture` objects keyed by `(shapeId, effectHash, canvasTransformHash)`. Invalidated on any change to geometry, fills, strokes, or effect parameters. For a 500-shape document with 50 effected shapes, the target is <5ms overhead per frame on a mid-range device.
+
+---
+
+#### Appearance panel UI changes
+
+The existing Appearance panel adds a third collapsible section: **Effects**. The `+` button opens a compact picker of effect types (icons + names in a 2-column grid). Selecting one appends the default instance to the effect stack.
+
+Each effect row expands inline to show its parameters:
+
+**Drop Shadow**
+```
+ ● Drop Shadow                          [×]
+   Distance  [────●────]  4px    Angle [────●────] 45°
+   Blur      [──●──────]  8px    Spread [●────────] 0px
+   Color     [■ #000000]  75%    [x] Inner
+```
+
+**Gaussian Blur**
+```
+ ● Gaussian Blur                        [×]
+   Radius X  [────●────]  4px
+   Radius Y  [────●────]  4px    [x] Uniform
+```
+
+**Color Matrix** shows 20 numeric inputs in a 5-column × 4-row grid with a "Reset to identity" button and quick-access preset buttons: Grayscale, Invert, Sepia, Saturate ×2.
+
+---
+
+#### Color Matrix presets
+
+| Preset | Effect |
+|---|---|
+| **Grayscale** | Luma weights row (0.299, 0.587, 0.114, 0, 0) replicated |
+| **Invert** | Diagonal –1, last column = 1 |
+| **Sepia** | Warm-tinted grayscale coefficients |
+| **Saturate** | Scale chromatic channels outward from luma |
+| **Hue Rotate (°)** | Rotate in LMS color space (parameterized) |
+| **Brightness / Contrast** | Bias and scale on RGB rows |
+
+These map directly to SVG `feColorMatrix` and Lottie's `mn: "ADBE Color Balance-HLS"` equivalents.
+
+---
+
+#### Export mapping
+
+**SVG `<filter>` elements**
+
+Each unique combination of active effects on a shape generates one `<filter>` element with stacked filter primitives. The `filter` attribute is applied to the shape's `<path>` element.
+
+| VecEffect | SVG filter primitives |
+|---|---|
+| Drop Shadow | `<feFlood>` + `<feComposite>` + `<feGaussianBlur>` + `<feOffset>` + `<feMerge>` |
+| Inner Shadow | `<feGaussianBlur>` + `<feOffset>` + `<feComposite in2="SourceGraphic" operator="in">` |
+| Outer Glow | `<feGaussianBlur>` + `<feComposite>` + `<feMerge>` |
+| Gaussian Blur | `<feGaussianBlur>` |
+| Color Matrix | `<feColorMatrix type="matrix" values="...">` |
+
+Static export only for SVG. Animated SVG export with `<animate>` on filter primitive attributes is planned for v1.3.
+
+**Lottie JSON**
+
+Effects are exported as Lottie layer effects (`ef` array) using the well-known After Effects ADBE effect IDs:
+
+| VecEffect | Lottie `mn` | Lottie `ty` |
+|---|---|---|
+| Drop Shadow | `"ADBE Drop Shadow"` | 29 |
+| Outer Glow | `"ADBE Outer Glow"` | 29 |
+| Gaussian Blur | `"ADBE Gaussian Blur 2"` | 29 |
+| Color Matrix | `"ADBE Color Balance-HLS"` | 29 (or `"ADBE Color Control"`) |
+
+All animatable effect properties generate Lottie `k` (keyframe) arrays inside the effect's property values, enabling effect animation playback in lottie-web, Lottie iOS/Android, and Flutter Lottie renderers.
+
+Effects that have no Lottie equivalent (e.g. Inner Shadow, Inner Glow) are baked into the exported artwork as pre-rendered metadata — flagged in the export dialog with a warning icon.
+
+**MP4 / GIF**
+
+All effects render natively through Flutter's CustomPainter pipeline. No special handling required.
+
+---
+
+#### Animator's workflow — example
+
+1. Draw a UI button rectangle.
+2. Open Appearance → Effects → **Drop Shadow**: offsetX 0, offsetY 8, blur 24, color #000 30%.
+3. Insert keyframe at frame 0, then at frame 12.
+4. At frame 0: Shadow opacity 0%, blur 0, offsetY 0.
+5. At frame 12: Shadow opacity 30%, blur 24, offsetY 8.
+6. The button "lifts" on press — a material elevation animation — expressed entirely through effect keyframes, no extra shape needed.
+
+---
+
+#### Future effects — v1.3+
+
+| Effect | Description |
+|---|---|
+| **Motion Blur** | Directional blur based on velocity between keyframes — auto-computed or manual angle/length |
+| **Bevel & Emboss** | Lit 3D-style bevel along shape edges; light angle configurable |
+| **Roughen Edges** | Noise-displaced edge fractal — for organic/aged artwork |
+| **Scatter** | Randomises copies of the shape across a defined area |
+| **Displacement Map** | Warp shape pixel content using a second layer as a map |
+| **Chromatic Aberration** | Per-channel offset for glitch aesthetics |
+| **Noise / Film Grain** | Animated noise overlay, animatable intensity |
+
+---
+
 ### Align & Distribute Panel — from Illustrator
 
 Select two or more objects and align or space them precisely.
@@ -341,6 +593,72 @@ Each tweened property has its own easing curve, editable in the **Motion Editor*
 - Curves can be copied between property rows.
 - *This is the feature that separates professional motion work from mechanical tweens.*
 
+#### Animation presets — from AE animation libraries + Lottie workflows
+Animation presets are reusable keyframe bundles that can be applied to any selected shape at the current playhead. They are designed for fast production motion: instead of manually keyframing every icon and card entrance, designers can apply a preset, tweak timing, and move on.
+
+**Core goals**
+- Reduce repetitive keyframing for common motion patterns (fade in, slide up, pop, pulse).
+- Keep output editable: applied presets become normal keyframes, never a locked black box.
+- Preserve consistency across a project by standardizing motion language.
+
+**Preset categories**
+| Category | Typical use |
+|---|---|
+| **Enter** | Elements appearing on stage (fade/slide/scale-in) |
+| **Exit** | Elements leaving stage (fade/slide/scale-out) |
+| **Loop** | Ambient idle motion (float, pulse, drift, spin) |
+| **Attention** | Micro-emphasis (shake, bounce, nudge) |
+
+**Preset definition model**
+- A preset is a list of relative keyframes, each with a frame offset from the apply point.
+- Each relative keyframe stores transform/opacity/color and per-property easing data.
+- Applying a preset at frame N writes concrete keyframes at N + offset.
+- Presets never overwrite by default: when a collision is detected, user chooses Merge, Replace, or Skip.
+
+Data shape in concept terms:
+- Preset id, name, category, description.
+- Relative keyframes array: frameOffset + keyframe snapshot.
+- Optional tags: subtle, snappy, playful, cinematic, ui, character.
+
+**Built-in library (v1.0)**
+- Enter: Fade In, Slide Up, Slide Down, Scale Up, Bounce In.
+- Exit: Fade Out, Slide Down Out, Scale Down.
+- Loop: Pulse, Float, Slow Spin.
+- Attention: Shake, Bounce, Nudge.
+
+All built-ins are editable after application. Future v1.1 adds user-saved custom presets.
+
+**Timeline UX**
+- Timeline toolbar includes an Animation Presets button (spark icon).
+- Clicking opens a bottom sheet with grouped preset cards and mini curve previews.
+- Selecting a preset applies it to the currently selected shape at the current playhead.
+- If no shape is selected, panel remains browsable but Apply is disabled with a clear hint.
+
+**Bulk apply + stagger workflow**
+- Multi-select shapes and apply one preset to all.
+- Follow with Stagger to cascade starts by a frame offset.
+- This creates production-ready sequences in seconds (for onboarding, lists, icon systems).
+
+**Editing after apply**
+- Every generated keyframe is standard timeline data.
+- Designers can adjust positions, easing handles, or delete individual keyframes.
+- A metadata flag marks keyframes as "from preset" for optional future relink/reapply flows.
+
+**Export behavior**
+- No special export format is needed.
+- Presets are compiled into regular keyframes before render/export.
+- SVG/Lottie/MP4/GIF export sees only concrete animation data.
+
+**Performance constraints**
+- Applying presets is O(k) in number of preset keyframes per shape.
+- Bulk apply target: 200 selected shapes, 10-keyframe preset under 50ms UI-blocking time on desktop.
+- Timeline redraw should remain incremental and avoid full track recompute where possible.
+
+**Roadmap split**
+- v1.0: built-in preset library + panel + apply to selected shape.
+- v1.1: user-defined presets (save selection as preset), project preset library, import/export preset packs.
+- v1.2: smart presets parameterization (distance, direction, intensity) and context-aware variants.
+
 #### Playback controls
 - Play / Pause (`Space`).
 - Step forward / back one frame (`< >`).
@@ -428,7 +746,7 @@ The following are excluded from v1 to maintain focus. Candidates for future vers
 - Graph tool
 - Expression-based / code-driven animation
 - Inverse kinematics / bone tool — considered for v2.0
-- Particle effects
+- Particle effects — v2.0+ (too stateful for the keyframe model; requires its own emitter system)
 
 ---
 
@@ -526,16 +844,16 @@ JSON document model with four top-level sections:
 ## Roadmap
 
 ### v1.0 — Core
-Five drawing tools + width tool, pathfinder, appearance panel, align panel, clipping masks, symbol library (MovieClip + Graphic), flat layer panel, Flash-style frame timeline with motion tweens + shape tweens + shape hints, onion skinning, motion path, per-property easing curves, named frame markers, SVG + Lottie export, `.vct` file format, local autosave.
+Five drawing tools + width tool, pathfinder, appearance panel, align panel, clipping masks, symbol library (MovieClip + Graphic), flat layer panel, Flash-style frame timeline with motion tweens + shape tweens + shape hints, onion skinning, motion path, per-property easing curves, animation presets library, named frame markers, SVG + Lottie export, `.vct` file format, local autosave.
 
 ### v1.1 — Collaboration & Artboards
 Multiple artboards, cloud sync, share-by-link (view only), comments on layers, version history, per-artboard export.
 
 ### v1.2 — Gradients & Effects
-Linear/radial gradients in the Appearance panel, drop shadow, Gaussian blur (static export only). Button symbols with interactive SVG hover/click states.
+Linear/radial gradients in the Appearance panel. **Effects system** (Drop Shadow, Inner Shadow, Outer Glow, Inner Glow, Gaussian Blur, Color Matrix) with full keyframe animation support. SVG `<filter>` and Lottie `ef` export. Effects panel in Appearance. Button symbols with interactive SVG hover/click states.
 
 ### v1.3 — Components & Scenes
-Scene panel for multi-section animations. Reusable component overrides. Component instances share a master animation. Lottie marker-driven scene transitions.
+Scene panel for multi-section animations. Reusable component overrides. Component instances share a master animation. Lottie marker-driven scene transitions. **Advanced effects**: Motion Blur, Bevel & Emboss, Roughen Edges, Displacement Map. Animated SVG filter export (`<animate>` on filter primitives).
 
 ### v2.0 — Interactive Animation & IK
 State machine for interactive SVG (hover, click, scroll-triggered states), driven by named frame markers. Inverse kinematics / bone tool for character rigs. Expression-based animation properties.

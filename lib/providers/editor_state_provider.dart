@@ -338,3 +338,66 @@ class BaseColorNotifier extends StateNotifier<BaseColorState> {
 }
 
 final baseColorProvider = StateNotifierProvider<BaseColorNotifier, BaseColorState>((ref) => BaseColorNotifier());
+
+// ---------------------------------------------------------------------------
+// Graph editor
+// ---------------------------------------------------------------------------
+
+class GraphEditorVisibleNotifier extends StateNotifier<bool> {
+  GraphEditorVisibleNotifier() : super(false);
+  void toggle() => state = !state;
+  void set(bool value) => state = value;
+}
+
+final graphEditorVisibleProvider =
+    StateNotifierProvider<GraphEditorVisibleNotifier, bool>((ref) => GraphEditorVisibleNotifier());
+
+// ---------------------------------------------------------------------------
+// Onion skinning
+// ---------------------------------------------------------------------------
+
+enum OnionMode { outline, filled }
+
+class OnionSettings {
+  const OnionSettings({
+    this.enabled = false,
+    this.beforeFrames = 2,
+    this.afterFrames = 2,
+    this.opacity = 0.35,
+    this.mode = OnionMode.outline,
+  });
+
+  final bool enabled;
+  final int beforeFrames;
+  final int afterFrames;
+  final double opacity;
+  final OnionMode mode;
+
+  OnionSettings copyWith({
+    bool? enabled,
+    int? beforeFrames,
+    int? afterFrames,
+    double? opacity,
+    OnionMode? mode,
+  }) =>
+      OnionSettings(
+        enabled: enabled ?? this.enabled,
+        beforeFrames: beforeFrames ?? this.beforeFrames,
+        afterFrames: afterFrames ?? this.afterFrames,
+        opacity: opacity ?? this.opacity,
+        mode: mode ?? this.mode,
+      );
+}
+
+class OnionSettingsNotifier extends StateNotifier<OnionSettings> {
+  OnionSettingsNotifier() : super(const OnionSettings());
+
+  void toggleEnabled() => state = state.copyWith(enabled: !state.enabled);
+  void setBeforeFrames(int n) => state = state.copyWith(beforeFrames: n.clamp(0, 10));
+  void setAfterFrames(int n) => state = state.copyWith(afterFrames: n.clamp(0, 10));
+  void setOpacity(double v) => state = state.copyWith(opacity: v.clamp(0.0, 1.0));
+  void setMode(OnionMode mode) => state = state.copyWith(mode: mode);
+}
+
+final onionSettingsProvider =
+    StateNotifierProvider<OnionSettingsNotifier, OnionSettings>((ref) => OnionSettingsNotifier());

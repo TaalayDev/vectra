@@ -1,9 +1,8 @@
 import '../../data/models/vec_color.dart';
-import '../../data/models/vec_fill.dart';
+import '../../data/models/vec_easing.dart';
 import '../../data/models/vec_keyframe.dart';
 import '../../data/models/vec_point.dart';
 import '../../data/models/vec_shape.dart';
-import '../../data/models/vec_stroke.dart';
 import '../../data/models/vec_transform.dart';
 import 'easing_evaluator.dart';
 
@@ -54,8 +53,7 @@ class KeyframeInterpolator {
 
     // Apply easing to the raw linear t
     final rawT = (frame - before.frame) / (after.frame - before.frame);
-    final t = EasingEvaluator.evaluate(before.easing, rawT);
-    return _lerp(shape, before, after, t);
+    return _lerp(shape, before, after, rawT);
   }
 
   // ---------------------------------------------------------------------------
@@ -75,14 +73,19 @@ class KeyframeInterpolator {
     VecShape shape,
     VecKeyframe a,
     VecKeyframe b,
-    double t,
+    double rawT,
   ) {
+    // Resolve per-property easing, falling back to the general easing field.
+    double t(VecEasing? perProp) =>
+        EasingEvaluator.evaluate(perProp ?? a.easing, rawT);
+
     var data = shape.data;
 
-    // Transform
+    // Transform (split into position, scale, rotation sub-properties)
     final ta = a.transform, tb = b.transform;
     if (ta != null && tb != null) {
-      data = data.copyWith(transform: _lerpTransform(ta, tb, t));
+      data = data.copyWith(
+          transform: _lerpTransformPerProperty(ta, tb, a, b, rawT));
     } else if (ta != null) {
       data = data.copyWith(transform: ta);
     }
@@ -90,7 +93,8 @@ class KeyframeInterpolator {
     // Opacity
     final oa = a.opacity, ob = b.opacity;
     if (oa != null && ob != null) {
-      data = data.copyWith(opacity: (oa + (ob - oa) * t).clamp(0.0, 1.0));
+      final tOp = t(a.opacityEasing);
+      data = data.copyWith(opacity: (oa + (ob - oa) * tOp).clamp(0.0, 1.0));
     } else if (oa != null) {
       data = data.copyWith(opacity: oa);
     }
@@ -98,8 +102,9 @@ class KeyframeInterpolator {
     // Fills: lerp first fill's color
     final fa = a.fills, fb = b.fills;
     if (fa != null && fb != null && fa.isNotEmpty && fb.isNotEmpty) {
+      final tFill = t(a.fillColorEasing);
       final lerpedFills = [
-        fa[0].copyWith(color: _lerpColor(fa[0].color, fb[0].color, t)),
+        fa[0].copyWith(color: _lerpColor(fa[0].color, fb[0].color, tFill)),
         ...fa.skip(1),
       ];
       data = data.copyWith(fills: lerpedFills);
@@ -110,10 +115,11 @@ class KeyframeInterpolator {
     // Strokes: lerp first stroke's color + width
     final sa = a.strokes, sb = b.strokes;
     if (sa != null && sb != null && sa.isNotEmpty && sb.isNotEmpty) {
+      final tStroke = t(a.strokeColorEasing);
       final lerpedStrokes = [
         sa[0].copyWith(
-          color: _lerpColor(sa[0].color, sb[0].color, t),
-          width: sa[0].width + (sb[0].width - sa[0].width) * t,
+          color: _lerpColor(sa[0].color, sb[0].color, tStroke),
+          width: sa[0].width + (sb[0].width - sa[0].width) * tStroke,
         ),
         ...sa.skip(1),
       ];
@@ -125,29 +131,35 @@ class KeyframeInterpolator {
     return shape.copyWith(data: data);
   }
 
-  static VecTransform _lerpTransform(VecTransform a, VecTransform b, double t) {
+  /// Lerps a transform using per-property easings for position, scale, and rotation.
+  static VecTransform _lerpTransformPerProperty(
+    VecTransform a,
+    VecTransform b,
+    VecKeyframe ka,
+    VecKeyframe kb,
+    double rawT,
+  ) {
+    final tPos = EasingEvaluator.evaluate(ka.positionEasing ?? ka.easing, rawT);
+    final tScale = EasingEvaluator.evaluate(ka.scaleEasing ?? ka.easing, rawT);
+    final tRot = EasingEvaluator.evaluate(ka.rotationEasing ?? ka.easing, rawT);
+
     final VecPoint? pivot;
     if (a.pivot != null && b.pivot != null) {
-      pivot = VecPoint(
-        x: _ld(a.pivot!.x, b.pivot!.x, t),
-        y: _ld(a.pivot!.y, b.pivot!.y, t),
-      );
+      pivot = VecPoint(x: _ld(a.pivot!.x, b.pivot!.x, tPos), y: _ld(a.pivot!.y, b.pivot!.y, tPos));
     } else {
-      // If only one keyframe has a pivot, hold the defined value rather than
-      // snapping to null at the midpoint.
       pivot = a.pivot ?? b.pivot;
     }
 
     return VecTransform(
-      x: _ld(a.x, b.x, t),
-      y: _ld(a.y, b.y, t),
-      width: _ld(a.width, b.width, t),
-      height: _ld(a.height, b.height, t),
-      rotation: _lerpAngle(a.rotation, b.rotation, t),
-      scaleX: _ld(a.scaleX, b.scaleX, t),
-      scaleY: _ld(a.scaleY, b.scaleY, t),
-      skewX: _ld(a.skewX, b.skewX, t),
-      skewY: _ld(a.skewY, b.skewY, t),
+      x: _ld(a.x, b.x, tPos),
+      y: _ld(a.y, b.y, tPos),
+      width: _ld(a.width, b.width, tScale),
+      height: _ld(a.height, b.height, tScale),
+      rotation: _lerpAngle(a.rotation, b.rotation, tRot),
+      scaleX: _ld(a.scaleX, b.scaleX, tScale),
+      scaleY: _ld(a.scaleY, b.scaleY, tScale),
+      skewX: _ld(a.skewX, b.skewX, tScale),
+      skewY: _ld(a.skewY, b.skewY, tScale),
       pivot: pivot,
     );
   }

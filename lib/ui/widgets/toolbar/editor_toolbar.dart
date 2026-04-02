@@ -132,6 +132,8 @@ class EditorToolbar extends HookConsumerWidget {
           Container(width: 1, height: 20, color: theme.divider),
           const SizedBox(width: 8),
           _SnapControls(theme: theme),
+          const SizedBox(width: 4),
+          _OnionSkinToggle(theme: theme),
           const SizedBox(width: 8),
           Container(width: 1, height: 20, color: theme.divider),
           const SizedBox(width: 8),
@@ -554,6 +556,48 @@ class _UndoRedoButtons extends ConsumerWidget {
           enabled: availability.canRedo,
         ),
       ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Onion skin toggle
+// ---------------------------------------------------------------------------
+
+class _OnionSkinToggle extends ConsumerWidget {
+  const _OnionSkinToggle({required this.theme});
+
+  final AppTheme theme;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final settings = ref.watch(onionSettingsProvider);
+    final notifier = ref.read(onionSettingsProvider.notifier);
+    final active = settings.enabled;
+
+    return Tooltip(
+      message: 'Onion skinning',
+      waitDuration: const Duration(milliseconds: 500),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: notifier.toggleEnabled,
+          borderRadius: BorderRadius.circular(4),
+          hoverColor: theme.primaryColor.withAlpha(20),
+          child: Container(
+            width: 28,
+            height: 28,
+            decoration: active
+                ? BoxDecoration(color: theme.primaryColor.withAlpha(18), borderRadius: BorderRadius.circular(4))
+                : null,
+            child: Icon(
+              Icons.layers_outlined,
+              size: 15,
+              color: active ? theme.primaryColor : theme.inactiveIcon,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

@@ -476,14 +476,13 @@ class _FrameGridState extends ConsumerState<FrameGrid>
     final scene = ref.read(activeSceneProvider);
     if (scene == null) return;
 
-    showEasingEditor(
+    showKeyframeEasingEditor(
       context: ctx,
       theme: widget.theme,
-      currentEasing: kf.easing,
-      onChanged: (newEasing) {
+      keyframe: kf,
+      onChanged: (updatedKf) {
         ref.read(vecDocumentStateProvider.notifier).updateKeyframeForShape(
-            scene.id, row.layerId, row.shapeId, frame,
-            (k) => k.copyWith(easing: newEasing));
+            scene.id, row.layerId, row.shapeId, frame, (_) => updatedKf);
       },
     );
   }

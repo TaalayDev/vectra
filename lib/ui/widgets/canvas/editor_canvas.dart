@@ -18,6 +18,7 @@ import '../../../core/rendering/path_edit_overlay.dart';
 import '../../../core/rendering/rulers_painter.dart';
 import '../../../core/rendering/scene_painter.dart';
 import '../../../core/rendering/selection_overlay.dart';
+import '../../../core/utils/onion_painter.dart';
 import '../../../core/tools/drawing_tool_handler.dart';
 import '../../../core/tools/freedraw_tool_handler.dart';
 import '../../../core/tools/knife_tool.dart';
@@ -303,6 +304,10 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
     ref.watch(playbackTickerProvider);
     // Use the animation-interpolated scene for rendering
     final scene = ref.watch(animatedSceneProvider);
+    // Raw (non-interpolated) scene + playhead for onion skinning
+    final rawScene = ref.watch(activeSceneProvider);
+    final playhead = ref.watch(playheadFrameProvider);
+    final onionSettings = ref.watch(onionSettingsProvider);
     final symbols = ref.watch(symbolLibraryProvider);
     final editingSymbolId = ref.watch(editingSymbolIdProvider);
     final selectedShapeId = ref.watch(selectedShapeIdProvider);
@@ -780,6 +785,9 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
                             meta: meta,
                             zoom: zoom,
                             scene: scene,
+                            rawScene: rawScene,
+                            playhead: playhead,
+                            onionSettings: onionSettings,
                             symbols: symbols,
                             selectedShapeId: selectedShapeId,
                             selectedShapeIds: selectedShapeIds,
@@ -1098,6 +1106,9 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
     required VecMeta meta,
     required double zoom,
     required dynamic scene,
+    required dynamic rawScene,
+    required int playhead,
+    required OnionSettings onionSettings,
     required List<dynamic> symbols,
     required String? selectedShapeId,
     required List<String> selectedShapeIds,
@@ -1133,6 +1144,22 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
                 child: ColoredBox(color: meta.backgroundColor.toFlutterColor()),
               ),
             ),
+
+            // Onion skin — rendered before the live scene
+            if (rawScene != null && onionSettings.enabled)
+              Positioned.fill(
+                child: ClipRect(
+                  child: CustomPaint(
+                    painter: OnionPainter(
+                      scene: rawScene,
+                      currentFrame: playhead,
+                      settings: onionSettings,
+                      symbols: symbols.cast(),
+                      imageCache: _imageCache,
+                    ),
+                  ),
+                ),
+              ),
 
             if (scene != null)
               Positioned.fill(

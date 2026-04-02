@@ -1,7 +1,9 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:uuid/uuid.dart';
 
+import '../core/utils/keyframe_interpolator.dart';
 import '../core/pathfinder/pathfinder.dart';
+import '../data/animation_presets.dart';
 import '../data/models/vec_asset.dart';
 import '../data/models/vec_color.dart';
 import '../data/models/vec_document.dart';
@@ -1423,6 +1425,73 @@ class VecDocumentState extends _$VecDocumentState {
       return scene.copyWith(
           timeline: scene.timeline.copyWith(tracks: newTracks));
     }));
+  }
+
+  /// Applies an [AnimationPreset] to [shapeId] starting at [atFrame].
+  /// Each preset keyframe's [frameOffset] is added to [atFrame] to produce the
+  /// absolute frame number. Existing keyframes at those frames are replaced.
+  void applyAnimationPreset(
+    String sceneId,
+    String layerId,
+    String shapeId,
+    AnimationPreset preset,
+    int atFrame,
+  ) {
+    final scene = state.scenes.where((s) => s.id == sceneId).firstOrNull;
+    if (scene == null) return;
+
+    final layer = scene.layers.where((l) => l.id == layerId).firstOrNull;
+    if (layer == null) return;
+
+    final baseShape = layer.shapes.where((s) => s.id == shapeId).firstOrNull;
+    if (baseShape == null) return;
+
+    final existingTrack = scene.timeline.tracks
+        .where((t) => t.layerId == layerId && t.shapeId == shapeId)
+        .firstOrNull;
+
+    // Anchor presets to the shape state at apply time, so presets are relative
+    // and do not snap objects toward origin.
+    final anchoredShape = existingTrack == null
+        ? baseShape
+        : KeyframeInterpolator.applyAtFrame(
+            baseShape,
+            existingTrack.keyframes,
+            atFrame,
+          );
+    final anchor = anchoredShape.transform;
+
+    for (final pk in preset.keyframes) {
+      final absoluteFrame = atFrame + pk.frameOffset;
+      final presetKf = pk.keyframe;
+      final presetT = presetKf.transform;
+
+      // Resolve the preset transform to be relative to the current shape position
+      VecTransform? resolvedT;
+      if (presetT != null) {
+        resolvedT = presetT.copyWith(
+          x: anchor.x + presetT.x,
+          y: anchor.y + presetT.y,
+          width: anchor.width,
+          height: anchor.height,
+          rotation: anchor.rotation + presetT.rotation,
+          scaleX: anchor.scaleX * presetT.scaleX,
+          scaleY: anchor.scaleY * presetT.scaleY,
+          skewX: anchor.skewX + presetT.skewX,
+          skewY: anchor.skewY + presetT.skewY,
+          pivot: anchor.pivot,
+        );
+      }
+
+      // Build the final keyframe, preserving all preset properties but ensuring
+      // tweenType is set to motion (not none, which is the default).
+      final kf = presetKf.copyWith(
+        frame: absoluteFrame,
+        transform: resolvedT,
+        tweenType: VecTweenType.motion,
+      );
+      addKeyframeForShape(sceneId, layerId, shapeId, kf);
+    }
   }
 
   /// Sets the total frame count (duration) of the scene's timeline.

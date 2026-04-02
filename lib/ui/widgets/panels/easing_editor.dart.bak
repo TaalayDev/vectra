@@ -5,84 +5,29 @@ import 'package:flutter/material.dart';
 import '../../../app/theme/theme.dart';
 import '../../../core/utils/easing_evaluator.dart';
 import '../../../data/models/vec_easing.dart';
-import '../../../data/models/vec_keyframe.dart';
 
 // ---------------------------------------------------------------------------
 // Public entry-point
 // ---------------------------------------------------------------------------
 
-/// Opens the easing editor with per-property tabs.
-/// [onChanged] receives the full updated [VecKeyframe] on every change.
-Future<void> showKeyframeEasingEditor({
+/// Opens the easing editor as a modal dialog.
+/// Calls [onChanged] when the user commits a new easing (preset select or
+/// bezier drag-end). Changes are immediate (no need to "confirm").
+Future<void> showEasingEditor({
   required BuildContext context,
   required AppTheme theme,
-  required VecKeyframe keyframe,
-  required void Function(VecKeyframe) onChanged,
+  required VecEasing? currentEasing,
+  required void Function(VecEasing?) onChanged,
 }) {
   return showDialog<void>(
     context: context,
     barrierColor: Colors.black26,
     builder: (_) => _EasingEditorDialog(
       theme: theme,
-      keyframe: keyframe,
+      initialEasing: currentEasing,
       onChanged: onChanged,
     ),
   );
-}
-
-// ---------------------------------------------------------------------------
-// Per-property descriptor
-// ---------------------------------------------------------------------------
-
-enum _EasingProp {
-  all,
-  position,
-  scale,
-  rotation,
-  opacity,
-  fill,
-  stroke;
-
-  String get label => switch (this) {
-        all => 'All',
-        position => 'Pos',
-        scale => 'Scale',
-        rotation => 'Rot',
-        opacity => 'Opacity',
-        fill => 'Fill',
-        stroke => 'Stroke',
-      };
-
-  VecEasing? easingFrom(VecKeyframe kf) => switch (this) {
-        all => kf.easing,
-        position => kf.positionEasing,
-        scale => kf.scaleEasing,
-        rotation => kf.rotationEasing,
-        opacity => kf.opacityEasing,
-        fill => kf.fillColorEasing,
-        stroke => kf.strokeColorEasing,
-      };
-
-  VecKeyframe setEasing(VecKeyframe kf, VecEasing? easing) => switch (this) {
-        all => kf.copyWith(easing: easing),
-        position => kf.copyWith(positionEasing: easing),
-        scale => kf.copyWith(scaleEasing: easing),
-        rotation => kf.copyWith(rotationEasing: easing),
-        opacity => kf.copyWith(opacityEasing: easing),
-        fill => kf.copyWith(fillColorEasing: easing),
-        stroke => kf.copyWith(strokeColorEasing: easing),
-      };
-
-  /// Returns true if the keyframe has data relevant to this property.
-  bool isRelevant(VecKeyframe kf) => switch (this) {
-        all => true,
-        position => kf.transform != null,
-        scale => kf.transform != null,
-        rotation => kf.transform != null,
-        opacity => kf.opacity != null,
-        fill => kf.fills != null,
-        stroke => kf.strokes != null,
-      };
 }
 
 // ---------------------------------------------------------------------------
@@ -92,96 +37,100 @@ enum _EasingProp {
 class _EasingEditorDialog extends StatefulWidget {
   const _EasingEditorDialog({
     required this.theme,
-    required this.keyframe,
+    required this.initialEasing,
     required this.onChanged,
   });
 
   final AppTheme theme;
-  final VecKeyframe keyframe;
-  final void Function(VecKeyframe) onChanged;
+  final VecEasing? initialEasing;
+  final void Function(VecEasing?) onChanged;
 
   @override
   State<_EasingEditorDialog> createState() => _EasingEditorDialogState();
 }
 
 class _EasingEditorDialogState extends State<_EasingEditorDialog> {
-  late VecKeyframe _kf;
-  _EasingProp _activeProp = _EasingProp.all;
+  late VecEasing? _easing;
 
+  // Cubic-bezier handle coords (always kept up-to-date from _easing or preset)
   double _x1 = 0.42, _y1 = 0.0, _x2 = 0.58, _y2 = 1.0;
-  int? _dragHandle;
+  int? _dragHandle; // 0 = h1, 1 = h2
 
+  // Canvas size for the curve widget (assigned in build)
   static const _cw = 220.0;
   static const _ch = 180.0;
 
-  VecEasing? get _currentEasing => _activeProp.easingFrom(_kf);
-  bool get _isCustom => _currentEasing is VecCubicBezierEasing;
+  bool get _isCustom => _easing is VecCubicBezierEasing;
 
   @override
   void initState() {
     super.initState();
-    _kf = widget.keyframe;
-    _syncHandles();
+    _easing = widget.initialEasing;
+    _syncHandlesFromEasing();
   }
 
-  void _syncHandles() {
-    final easing = _currentEasing;
-    if (easing is VecCubicBezierEasing) {
-      _x1 = easing.x1; _y1 = easing.y1; _x2 = easing.x2; _y2 = easing.y2;
+  void _syncHandlesFromEasing() {
+    if (_easing is VecCubicBezierEasing) {
+      final cb = _easing as VecCubicBezierEasing;
+      _x1 = cb.x1; _y1 = cb.y1; _x2 = cb.x2; _y2 = cb.y2;
     } else {
-      final pts = EasingEvaluator.controlPoints(easing);
-      if (pts != null) { _x1 = pts.$1; _y1 = pts.$2; _x2 = pts.$3; _y2 = pts.$4; }
+      final pts = EasingEvaluator.controlPoints(_easing);
+      if (pts != null) {
+        _x1 = pts.$1; _y1 = pts.$2; _x2 = pts.$3; _y2 = pts.$4;
+      }
     }
   }
 
-  void _commit(VecEasing? easing) {
+  void _selectPreset(VecEasing? easing) {
     setState(() {
-      _kf = _activeProp.setEasing(_kf, easing);
-      _syncHandles();
+      _easing = easing;
+      _syncHandlesFromEasing();
     });
-    widget.onChanged(_kf);
+    widget.onChanged(_easing);
   }
-
-  void _selectPreset(VecEasing? easing) => _commit(easing);
 
   void _switchToCustom() {
-    _commit(VecEasing.cubicBezier(x1: _x1, y1: _y1, x2: _x2, y2: _y2));
+    final newEasing = VecEasing.cubicBezier(
+        x1: _x1, y1: _y1, x2: _x2, y2: _y2);
+    setState(() => _easing = newEasing);
+    widget.onChanged(newEasing);
   }
 
+  // Bezier handle drag
   void _onPanStart(DragStartDetails d) {
     if (!_isCustom) return;
     final pos = d.localPosition;
     final h1 = Offset(_x1 * _cw, (1 - _y1.clamp(0.0, 1.0)) * _ch);
     final h2 = Offset(_x2 * _cw, (1 - _y2.clamp(0.0, 1.0)) * _ch);
-    if ((pos - h1).distance < 14) _dragHandle = 0;
-    else if ((pos - h2).distance < 14) _dragHandle = 1;
-    else _dragHandle = null;
+    if ((pos - h1).distance < 14) {
+      _dragHandle = 0;
+    } else if ((pos - h2).distance < 14) {
+      _dragHandle = 1;
+    } else {
+      _dragHandle = null;
+    }
   }
 
   void _onPanUpdate(DragUpdateDetails d) {
     if (!_isCustom || _dragHandle == null) return;
     final pos = d.localPosition;
     final nx = (pos.dx / _cw).clamp(0.0, 1.0);
-    final ny = 1.0 - pos.dy / _ch;
+    final ny = 1.0 - pos.dy / _ch; // unclamped y allows overshoot
     setState(() {
       if (_dragHandle == 0) { _x1 = nx; _y1 = ny; }
-      else { _x2 = nx; _y2 = ny; }
-      _kf = _activeProp.setEasing(
-          _kf, VecEasing.cubicBezier(x1: _x1, y1: _y1, x2: _x2, y2: _y2));
+      else                  { _x2 = nx; _y2 = ny; }
+      _easing = VecEasing.cubicBezier(x1: _x1, y1: _y1, x2: _x2, y2: _y2);
     });
   }
 
   void _onPanEnd(DragEndDetails _) {
-    if (_dragHandle != null) widget.onChanged(_kf);
+    if (_dragHandle != null) widget.onChanged(_easing);
     setState(() => _dragHandle = null);
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = widget.theme;
-    final visibleProps = _EasingProp.values
-        .where((p) => p == _EasingProp.all || p.isRelevant(_kf))
-        .toList();
 
     return Dialog(
       backgroundColor: theme.surface,
@@ -199,7 +148,9 @@ class _EasingEditorDialogState extends State<_EasingEditorDialog> {
                 children: [
                   Text('Easing',
                       style: TextStyle(
-                          fontSize: 13, fontWeight: FontWeight.w600, color: theme.textPrimary)),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: theme.textPrimary)),
                   const Spacer(),
                   GestureDetector(
                     onTap: () => Navigator.of(context).pop(),
@@ -207,33 +158,7 @@ class _EasingEditorDialogState extends State<_EasingEditorDialog> {
                   ),
                 ],
               ),
-              const SizedBox(height: 10),
-
-              // ── Property tabs ─────────────────────────────────────
-              if (visibleProps.length > 1) ...[
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      for (final prop in visibleProps)
-                        _PropTab(
-                          label: prop.label,
-                          selected: _activeProp == prop,
-                          hasOverride: prop != _EasingProp.all &&
-                              prop.easingFrom(_kf) != null,
-                          theme: theme,
-                          onTap: () {
-                            setState(() {
-                              _activeProp = prop;
-                              _syncHandles();
-                            });
-                          },
-                        ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 10),
-              ],
+              const SizedBox(height: 12),
 
               // ── Curve canvas ───────────────────────────────────────
               Container(
@@ -242,7 +167,8 @@ class _EasingEditorDialogState extends State<_EasingEditorDialog> {
                 decoration: BoxDecoration(
                   color: theme.surfaceVariant,
                   borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: theme.divider.withAlpha(80), width: 0.5),
+                  border: Border.all(
+                      color: theme.divider.withAlpha(80), width: 0.5),
                 ),
                 clipBehavior: Clip.hardEdge,
                 child: GestureDetector(
@@ -252,7 +178,7 @@ class _EasingEditorDialogState extends State<_EasingEditorDialog> {
                   child: CustomPaint(
                     size: const Size(_cw, _ch),
                     painter: _CurvePainter(
-                      easing: _currentEasing,
+                      easing: _easing,
                       x1: _x1, y1: _y1, x2: _x2, y2: _y2,
                       isCustom: _isCustom,
                       curveColor: theme.accentColor,
@@ -271,55 +197,58 @@ class _EasingEditorDialogState extends State<_EasingEditorDialog> {
                 runSpacing: 6,
                 children: [
                   _Chip('Linear',
-                      _currentEasing is VecPresetEasing &&
-                          (_currentEasing as VecPresetEasing).preset == VecEasingPreset.linear,
-                      () => _selectPreset(const VecEasing.preset(preset: VecEasingPreset.linear)),
+                      _easing is VecPresetEasing &&
+                          (_easing as VecPresetEasing).preset ==
+                              VecEasingPreset.linear,
+                      () => _selectPreset(const VecEasing.preset(
+                          preset: VecEasingPreset.linear)),
                       theme),
                   _Chip('Ease In',
-                      _currentEasing is VecPresetEasing &&
-                          (_currentEasing as VecPresetEasing).preset == VecEasingPreset.easeIn,
-                      () => _selectPreset(const VecEasing.preset(preset: VecEasingPreset.easeIn)),
+                      _easing is VecPresetEasing &&
+                          (_easing as VecPresetEasing).preset ==
+                              VecEasingPreset.easeIn,
+                      () => _selectPreset(const VecEasing.preset(
+                          preset: VecEasingPreset.easeIn)),
                       theme),
                   _Chip('Ease Out',
-                      _currentEasing is VecPresetEasing &&
-                          (_currentEasing as VecPresetEasing).preset == VecEasingPreset.easeOut,
-                      () => _selectPreset(const VecEasing.preset(preset: VecEasingPreset.easeOut)),
+                      _easing is VecPresetEasing &&
+                          (_easing as VecPresetEasing).preset ==
+                              VecEasingPreset.easeOut,
+                      () => _selectPreset(const VecEasing.preset(
+                          preset: VecEasingPreset.easeOut)),
                       theme),
                   _Chip('Ease In/Out',
-                      _currentEasing is VecPresetEasing &&
-                          (_currentEasing as VecPresetEasing).preset == VecEasingPreset.easeInOut,
-                      () => _selectPreset(const VecEasing.preset(preset: VecEasingPreset.easeInOut)),
+                      _easing is VecPresetEasing &&
+                          (_easing as VecPresetEasing).preset ==
+                              VecEasingPreset.easeInOut,
+                      () => _selectPreset(const VecEasing.preset(
+                          preset: VecEasingPreset.easeInOut)),
                       theme),
                   _Chip('Bounce',
-                      _currentEasing is VecPresetEasing &&
-                          (_currentEasing as VecPresetEasing).preset == VecEasingPreset.bounce,
-                      () => _selectPreset(const VecEasing.preset(preset: VecEasingPreset.bounce)),
+                      _easing is VecPresetEasing &&
+                          (_easing as VecPresetEasing).preset ==
+                              VecEasingPreset.bounce,
+                      () => _selectPreset(const VecEasing.preset(
+                          preset: VecEasingPreset.bounce)),
                       theme),
                   _Chip('Elastic',
-                      _currentEasing is VecPresetEasing &&
-                          (_currentEasing as VecPresetEasing).preset == VecEasingPreset.elastic,
-                      () => _selectPreset(const VecEasing.preset(preset: VecEasingPreset.elastic)),
+                      _easing is VecPresetEasing &&
+                          (_easing as VecPresetEasing).preset ==
+                              VecEasingPreset.elastic,
+                      () => _selectPreset(const VecEasing.preset(
+                          preset: VecEasingPreset.elastic)),
                       theme),
                   _Chip('Spring',
-                      _currentEasing is VecPresetEasing &&
-                          (_currentEasing as VecPresetEasing).preset == VecEasingPreset.spring,
-                      () => _selectPreset(const VecEasing.preset(preset: VecEasingPreset.spring)),
+                      _easing is VecPresetEasing &&
+                          (_easing as VecPresetEasing).preset ==
+                              VecEasingPreset.spring,
+                      () => _selectPreset(const VecEasing.preset(
+                          preset: VecEasingPreset.spring)),
                       theme),
-                  _Chip('Custom', _isCustom, _switchToCustom, theme, icon: Icons.tune),
+                  _Chip('Custom', _isCustom, _switchToCustom, theme,
+                      icon: Icons.tune),
                 ],
               ),
-
-              // ── Reset per-property override ──────────────────────
-              if (_activeProp != _EasingProp.all && _activeProp.easingFrom(_kf) != null) ...[
-                const SizedBox(height: 8),
-                GestureDetector(
-                  onTap: () => _commit(null),
-                  child: Text(
-                    'Reset to "All" easing',
-                    style: TextStyle(fontSize: 10, color: theme.primaryColor),
-                  ),
-                ),
-              ],
 
               // ── Custom bezier inputs ───────────────────────────────
               if (_isCustom) ...[
@@ -330,10 +259,10 @@ class _EasingEditorDialogState extends State<_EasingEditorDialog> {
                   onChanged: (x1, y1, x2, y2) {
                     setState(() {
                       _x1 = x1; _y1 = y1; _x2 = x2; _y2 = y2;
-                      _kf = _activeProp.setEasing(
-                          _kf, VecEasing.cubicBezier(x1: _x1, y1: _y1, x2: _x2, y2: _y2));
+                      _easing = VecEasing.cubicBezier(
+                          x1: _x1, y1: _y1, x2: _x2, y2: _y2);
                     });
-                    widget.onChanged(_kf);
+                    widget.onChanged(_easing);
                   },
                 ),
               ],
@@ -344,70 +273,6 @@ class _EasingEditorDialogState extends State<_EasingEditorDialog> {
     );
   }
 }
-
-// ---------------------------------------------------------------------------
-// Property tab chip
-// ---------------------------------------------------------------------------
-
-class _PropTab extends StatelessWidget {
-  const _PropTab({
-    required this.label,
-    required this.selected,
-    required this.hasOverride,
-    required this.theme,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool selected;
-  final bool hasOverride; // true if per-property easing differs from "All"
-  final AppTheme theme;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 120),
-        margin: const EdgeInsets.only(right: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: selected ? theme.accentColor.withAlpha(40) : theme.surfaceVariant,
-          borderRadius: BorderRadius.circular(5),
-          border: Border.all(
-            color: selected ? theme.accentColor.withAlpha(160) : theme.divider.withAlpha(80),
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 9,
-                fontWeight: selected ? FontWeight.w700 : FontWeight.normal,
-                color: selected ? theme.accentColor : theme.textSecondary,
-              ),
-            ),
-            if (hasOverride) ...[
-              const SizedBox(width: 3),
-              Container(
-                width: 5,
-                height: 5,
-                decoration: BoxDecoration(
-                  color: theme.accentColor,
-                  shape: BoxShape.circle,
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 
 // ---------------------------------------------------------------------------
 // Chip

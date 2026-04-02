@@ -5,7 +5,9 @@ import '../../../app/theme/theme.dart';
 import '../../../data/models/vec_shape.dart';
 import '../../../providers/document_provider.dart';
 import '../../../providers/editor_state_provider.dart';
+import 'animation_presets_panel.dart';
 import 'frame_grid.dart';
+import 'graph_editor_panel.dart';
 import 'playback_controls.dart';
 import 'track_label_column.dart';
 
@@ -41,6 +43,7 @@ class _TimelinePanelState extends ConsumerState<TimelinePanel> {
     final layers = scene?.layers ?? [];
     final fps = ref.watch(currentMetaProvider).fps;
     final theme = widget.theme;
+    final graphVisible = ref.watch(graphEditorVisibleProvider);
 
     // Build per-shape rows from all visible layers
     final rows = <TrackRow>[];
@@ -88,10 +91,59 @@ class _TimelinePanelState extends ConsumerState<TimelinePanel> {
           ),
 
           // Playback controls
-          PlaybackControls(
-            theme: theme,
-            fps: fps,
-            duration: timeline?.duration ?? 72,
+          Row(
+            children: [
+              Expanded(
+                child: PlaybackControls(
+                  theme: theme,
+                  fps: fps,
+                  duration: timeline?.duration ?? 72,
+                ),
+              ),
+              // Graph editor toggle
+              Tooltip(
+                message: 'Graph Editor',
+                child: InkWell(
+                  onTap: () => ref.read(graphEditorVisibleProvider.notifier).toggle(),
+                  child: Container(
+                    width: 28,
+                    height: 28,
+                    alignment: Alignment.center,
+                    color: graphVisible ? theme.accentColor.withAlpha(30) : Colors.transparent,
+                    child: Icon(
+                      Icons.show_chart,
+                      size: 15,
+                      color: graphVisible ? theme.accentColor : theme.textDisabled,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 2),
+              // Animation presets
+              Tooltip(
+                message: 'Animation Presets',
+                child: InkWell(
+                  onTap: () => showModalBottomSheet<void>(
+                    context: context,
+                    isScrollControlled: true,
+                    backgroundColor: Colors.transparent,
+                    builder: (_) => DraggableScrollableSheet(
+                      initialChildSize: 0.55,
+                      minChildSize: 0.35,
+                      maxChildSize: 0.88,
+                      builder: (sheetCtx, scrollCtrl) => AnimationPresetsPanel(theme: theme),
+                    ),
+                  ),
+                  child: Container(
+                    width: 28,
+                    height: 28,
+                    alignment: Alignment.center,
+                    child: Icon(Icons.auto_awesome, size: 15, color: theme.textDisabled),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
+            ],
           ),
 
           // Timeline content
@@ -104,29 +156,42 @@ class _TimelinePanelState extends ConsumerState<TimelinePanel> {
                           TextStyle(fontSize: 11, color: theme.textDisabled),
                     ),
                   )
-                : Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                : Column(
                     children: [
-                      // Label column
-                      TrackLabelColumn(
-                        rows: rows,
-                        theme: theme,
-                        scrollController: _labelScroll,
-                      ),
-                      VerticalDivider(
-                        width: 1,
-                        thickness: 0.5,
-                        color: theme.divider,
-                      ),
-                      // Frame grid
                       Expanded(
-                        child: FrameGrid(
-                          timeline: timeline,
-                          rows: rows,
-                          theme: theme,
-                          scrollController: _gridHScroll,
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            // Label column
+                            TrackLabelColumn(
+                              rows: rows,
+                              theme: theme,
+                              scrollController: _labelScroll,
+                            ),
+                            VerticalDivider(
+                              width: 1,
+                              thickness: 0.5,
+                              color: theme.divider,
+                            ),
+                            // Frame grid
+                            Expanded(
+                              child: FrameGrid(
+                                timeline: timeline,
+                                rows: rows,
+                                theme: theme,
+                                scrollController: _gridHScroll,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
+                      if (graphVisible)
+                        GraphEditorPanel(
+                          theme: theme,
+                          timeline: timeline,
+                          rows: rows,
+                          scrollController: _gridHScroll,
+                        ),
                     ],
                   ),
           ),
