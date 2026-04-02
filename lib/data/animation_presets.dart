@@ -321,11 +321,7 @@ class AnimationPresets {
         ),
         PresetKeyframe(
           frameOffset: 18,
-          keyframe: VecKeyframe(
-            frame: 18,
-            opacity: 0.0,
-            transform: VecTransform(x: 80, y: 0, width: 100, height: 100),
-          ),
+          keyframe: VecKeyframe(frame: 18, opacity: 0.0, transform: VecTransform(x: 80, y: 0, width: 100, height: 100)),
         ),
       ],
     ),
@@ -453,10 +449,7 @@ class AnimationPresets {
         ),
         PresetKeyframe(
           frameOffset: 30,
-          keyframe: VecKeyframe(
-            frame: 30,
-            transform: VecTransform(x: 0, y: 0, width: 100, height: 100, rotation: 0),
-          ),
+          keyframe: VecKeyframe(frame: 30, transform: VecTransform(x: 0, y: 0, width: 100, height: 100, rotation: 0)),
         ),
       ],
     ),
@@ -574,11 +567,19 @@ class AnimationPresets {
       keyframes: [
         PresetKeyframe(
           frameOffset: 0,
-          keyframe: VecKeyframe(frame: 0, transform: VecTransform(x: 0, y: 0, width: 100, height: 100), easing: _easeOut),
+          keyframe: VecKeyframe(
+            frame: 0,
+            transform: VecTransform(x: 0, y: 0, width: 100, height: 100),
+            easing: _easeOut,
+          ),
         ),
         PresetKeyframe(
           frameOffset: 6,
-          keyframe: VecKeyframe(frame: 6, transform: VecTransform(x: 18, y: 0, width: 100, height: 100), easing: _easeIn),
+          keyframe: VecKeyframe(
+            frame: 6,
+            transform: VecTransform(x: 18, y: 0, width: 100, height: 100),
+            easing: _easeIn,
+          ),
         ),
         PresetKeyframe(
           frameOffset: 12,
@@ -633,10 +634,7 @@ class AnimationPresets {
         ),
         PresetKeyframe(
           frameOffset: 16,
-          keyframe: VecKeyframe(
-            frame: 16,
-            transform: VecTransform(x: 0, y: 0, width: 100, height: 100, rotation: 360),
-          ),
+          keyframe: VecKeyframe(frame: 16, transform: VecTransform(x: 0, y: 0, width: 100, height: 100, rotation: 360)),
         ),
       ],
     ),
