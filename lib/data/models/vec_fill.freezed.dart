@@ -25,6 +25,8 @@ mixin _$VecFill {
   double get opacity => throw _privateConstructorUsedError;
   VecBlendMode get blendMode => throw _privateConstructorUsedError;
   VecGradient? get gradient => throw _privateConstructorUsedError;
+  String? get imageAssetId => throw _privateConstructorUsedError;
+  VecFillImageFit get imageFit => throw _privateConstructorUsedError;
 
   /// Serializes this VecFill to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -45,6 +47,8 @@ abstract class $VecFillCopyWith<$Res> {
     double opacity,
     VecBlendMode blendMode,
     VecGradient? gradient,
+    String? imageAssetId,
+    VecFillImageFit imageFit,
   });
 
   $VecColorCopyWith<$Res> get color;
@@ -69,6 +73,8 @@ class _$VecFillCopyWithImpl<$Res, $Val extends VecFill>
     Object? opacity = null,
     Object? blendMode = null,
     Object? gradient = freezed,
+    Object? imageAssetId = freezed,
+    Object? imageFit = null,
   }) {
     return _then(
       _value.copyWith(
@@ -88,6 +94,14 @@ class _$VecFillCopyWithImpl<$Res, $Val extends VecFill>
                 ? _value.gradient
                 : gradient // ignore: cast_nullable_to_non_nullable
                       as VecGradient?,
+            imageAssetId: freezed == imageAssetId
+                ? _value.imageAssetId
+                : imageAssetId // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            imageFit: null == imageFit
+                ? _value.imageFit
+                : imageFit // ignore: cast_nullable_to_non_nullable
+                      as VecFillImageFit,
           )
           as $Val,
     );
@@ -117,6 +131,8 @@ abstract class _$$VecFillImplCopyWith<$Res> implements $VecFillCopyWith<$Res> {
     double opacity,
     VecBlendMode blendMode,
     VecGradient? gradient,
+    String? imageAssetId,
+    VecFillImageFit imageFit,
   });
 
   @override
@@ -141,6 +157,8 @@ class __$$VecFillImplCopyWithImpl<$Res>
     Object? opacity = null,
     Object? blendMode = null,
     Object? gradient = freezed,
+    Object? imageAssetId = freezed,
+    Object? imageFit = null,
   }) {
     return _then(
       _$VecFillImpl(
@@ -160,6 +178,14 @@ class __$$VecFillImplCopyWithImpl<$Res>
             ? _value.gradient
             : gradient // ignore: cast_nullable_to_non_nullable
                   as VecGradient?,
+        imageAssetId: freezed == imageAssetId
+            ? _value.imageAssetId
+            : imageAssetId // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        imageFit: null == imageFit
+            ? _value.imageFit
+            : imageFit // ignore: cast_nullable_to_non_nullable
+                  as VecFillImageFit,
       ),
     );
   }
@@ -173,6 +199,8 @@ class _$VecFillImpl implements _VecFill {
     this.opacity = 1.0,
     this.blendMode = VecBlendMode.normal,
     this.gradient,
+    this.imageAssetId,
+    this.imageFit = VecFillImageFit.cover,
   });
 
   factory _$VecFillImpl.fromJson(Map<String, dynamic> json) =>
@@ -188,10 +216,15 @@ class _$VecFillImpl implements _VecFill {
   final VecBlendMode blendMode;
   @override
   final VecGradient? gradient;
+  @override
+  final String? imageAssetId;
+  @override
+  @JsonKey()
+  final VecFillImageFit imageFit;
 
   @override
   String toString() {
-    return 'VecFill(color: $color, opacity: $opacity, blendMode: $blendMode, gradient: $gradient)';
+    return 'VecFill(color: $color, opacity: $opacity, blendMode: $blendMode, gradient: $gradient, imageAssetId: $imageAssetId, imageFit: $imageFit)';
   }
 
   @override
@@ -204,13 +237,24 @@ class _$VecFillImpl implements _VecFill {
             (identical(other.blendMode, blendMode) ||
                 other.blendMode == blendMode) &&
             (identical(other.gradient, gradient) ||
-                other.gradient == gradient));
+                other.gradient == gradient) &&
+            (identical(other.imageAssetId, imageAssetId) ||
+                other.imageAssetId == imageAssetId) &&
+            (identical(other.imageFit, imageFit) ||
+                other.imageFit == imageFit));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode =>
-      Object.hash(runtimeType, color, opacity, blendMode, gradient);
+  int get hashCode => Object.hash(
+    runtimeType,
+    color,
+    opacity,
+    blendMode,
+    gradient,
+    imageAssetId,
+    imageFit,
+  );
 
   /// Create a copy of VecFill
   /// with the given fields replaced by the non-null parameter values.
@@ -232,6 +276,8 @@ abstract class _VecFill implements VecFill {
     final double opacity,
     final VecBlendMode blendMode,
     final VecGradient? gradient,
+    final String? imageAssetId,
+    final VecFillImageFit imageFit,
   }) = _$VecFillImpl;
 
   factory _VecFill.fromJson(Map<String, dynamic> json) = _$VecFillImpl.fromJson;
@@ -244,6 +290,10 @@ abstract class _VecFill implements VecFill {
   VecBlendMode get blendMode;
   @override
   VecGradient? get gradient;
+  @override
+  String? get imageAssetId;
+  @override
+  VecFillImageFit get imageFit;
 
   /// Create a copy of VecFill
   /// with the given fields replaced by the non-null parameter values.

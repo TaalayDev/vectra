@@ -25,6 +25,8 @@ enum VecBlendMode {
   luminosity,
 }
 
+enum VecFillImageFit { contain, cover, fill, none }
+
 @freezed
 class VecFill with _$VecFill {
   const factory VecFill({
@@ -32,6 +34,8 @@ class VecFill with _$VecFill {
     @Default(1.0) double opacity,
     @Default(VecBlendMode.normal) VecBlendMode blendMode,
     VecGradient? gradient,
+    String? imageAssetId,
+    @Default(VecFillImageFit.cover) VecFillImageFit imageFit,
   }) = _VecFill;
 
   factory VecFill.fromJson(Map<String, dynamic> json) =>

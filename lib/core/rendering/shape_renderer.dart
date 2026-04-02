@@ -595,7 +595,21 @@ class ShapeRenderer {
         ..style = PaintingStyle.fill
         ..blendMode = mapBlendMode(fill.blendMode);
 
-      if (fill.gradient != null) {
+      if (fill.imageAssetId != null) {
+        final image = imageCache[fill.imageAssetId!];
+        if (image != null) {
+          final bounds = path.getBounds();
+          if (!bounds.isEmpty) {
+            paint.shader = _buildImageFillShader(image, bounds, fill.imageFit);
+            paint.color = const Color(0xFFFFFFFF).withAlpha((fill.opacity.clamp(0.0, 1.0) * 255).round());
+          } else {
+            paint.color = fill.color.toFlutterColor().withAlpha((fill.opacity * 255).round());
+          }
+        } else {
+          // Fallback color while image is loading or missing.
+          paint.color = fill.color.toFlutterColor().withAlpha((fill.opacity * 255).round());
+        }
+      } else if (fill.gradient != null) {
         final bounds = path.getBounds();
         if (!bounds.isEmpty) {
           paint.shader = _buildGradientShader(fill.gradient!, bounds, fill.opacity);
@@ -610,6 +624,70 @@ class ShapeRenderer {
     for (final stroke in strokes) {
       _applyStroke(canvas, path, stroke);
     }
+  }
+
+  Shader _buildImageFillShader(Image image, Rect bounds, VecFillImageFit fit) {
+    final imgW = image.width.toDouble();
+    final imgH = image.height.toDouble();
+
+    Rect dst;
+    switch (fit) {
+      case VecFillImageFit.fill:
+        dst = bounds;
+        break;
+      case VecFillImageFit.contain:
+        {
+          final scale = math.min(bounds.width / imgW, bounds.height / imgH);
+          final w = imgW * scale;
+          final h = imgH * scale;
+          dst = Rect.fromLTWH(
+            bounds.left + (bounds.width - w) / 2,
+            bounds.top + (bounds.height - h) / 2,
+            w,
+            h,
+          );
+        }
+        break;
+      case VecFillImageFit.cover:
+        {
+          final scale = math.max(bounds.width / imgW, bounds.height / imgH);
+          final w = imgW * scale;
+          final h = imgH * scale;
+          dst = Rect.fromLTWH(
+            bounds.left + (bounds.width - w) / 2,
+            bounds.top + (bounds.height - h) / 2,
+            w,
+            h,
+          );
+        }
+        break;
+      case VecFillImageFit.none:
+        dst = Rect.fromLTWH(bounds.left, bounds.top, imgW, imgH);
+        break;
+    }
+
+    final sx = imgW / dst.width;
+    final sy = imgH / dst.height;
+
+    final matrix = Float64List(16);
+    matrix[0] = sx;
+    matrix[1] = 0;
+    matrix[2] = 0;
+    matrix[3] = 0;
+    matrix[4] = 0;
+    matrix[5] = sy;
+    matrix[6] = 0;
+    matrix[7] = 0;
+    matrix[8] = 0;
+    matrix[9] = 0;
+    matrix[10] = 1;
+    matrix[11] = 0;
+    matrix[12] = -dst.left * sx;
+    matrix[13] = -dst.top * sy;
+    matrix[14] = 0;
+    matrix[15] = 1;
+
+    return ImageShader(image, TileMode.clamp, TileMode.clamp, matrix);
   }
 
   Shader _buildGradientShader(VecGradient g, Rect bounds, double opacity) {

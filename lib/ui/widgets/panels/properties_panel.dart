@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import '../../../app/theme/theme.dart';
+import '../../../data/models/vec_asset.dart';
 import '../../../data/models/vec_shape.dart';
 import '../../../providers/document_provider.dart';
 import '../../../providers/editor_state_provider.dart';
@@ -86,6 +87,11 @@ class PropertiesPanel extends ConsumerWidget {
     final scene = ref.watch(activeSceneProvider);
     final layerId = ref.watch(activeLayerIdProvider);
     final docNotifier = ref.read(vecDocumentStateProvider.notifier);
+    final imageAssets = ref
+        .watch(vecDocumentStateProvider)
+        .assets
+        .where((a) => a.type == VecAssetType.image)
+        .toList();
     final motionPath = ref.watch(selectedShapeMotionPathProvider);
     final drawTarget = ref.watch(motionPathDrawTargetProvider);
 
@@ -187,6 +193,7 @@ class PropertiesPanel extends ConsumerWidget {
         ] else ...[
           FillSection(
             fills: shape.fills,
+            imageAssets: imageAssets,
             theme: theme,
             onUpdate: onUpdate,
             onLiveUpdate: onLiveUpdate,

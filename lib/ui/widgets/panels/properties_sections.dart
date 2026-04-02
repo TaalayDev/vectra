@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import '../../../app/theme/theme.dart';
+import '../../../data/models/vec_asset.dart';
 import '../../../data/models/vec_color.dart';
 import '../../../data/models/vec_fill.dart';
 import '../../../data/models/vec_gradient.dart';
@@ -197,6 +199,7 @@ class FillSection extends HookWidget {
   const FillSection({
     super.key,
     required this.fills,
+    required this.imageAssets,
     required this.theme,
     required this.onUpdate,
     required this.onLiveUpdate,
@@ -204,6 +207,7 @@ class FillSection extends HookWidget {
   });
 
   final List<VecFill> fills;
+  final List<VecAsset> imageAssets;
   final AppTheme theme;
   final ShapeCommit onUpdate;
   final ShapeLiveUpdate onLiveUpdate;
@@ -242,6 +246,7 @@ class FillSection extends HookWidget {
                 child: _FillRow(
                   fill: fills[i],
                   index: i,
+                  imageAssets: imageAssets,
                   theme: theme,
                   onUpdate: onUpdate,
                   onLiveUpdate: onLiveUpdate,
@@ -254,10 +259,11 @@ class FillSection extends HookWidget {
   }
 }
 
-class _FillRow extends HookWidget {
+class _FillRow extends HookConsumerWidget {
   const _FillRow({
     required this.fill,
     required this.index,
+    required this.imageAssets,
     required this.theme,
     required this.onUpdate,
     required this.onLiveUpdate,
@@ -266,28 +272,34 @@ class _FillRow extends HookWidget {
 
   final VecFill fill;
   final int index;
+  final List<VecAsset> imageAssets;
   final AppTheme theme;
   final ShapeCommit onUpdate;
   final ShapeLiveUpdate onLiveUpdate;
   final VoidCallback onCommit;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final i = index;
     final isGradient = fill.gradient != null;
+    final isTexture = fill.imageAssetId != null;
     final gradType = fill.gradient?.type ?? VecGradientType.linear;
+    final selectedAssetId = fill.imageAssetId;
+    final hasSelectedAsset = selectedAssetId != null && imageAssets.any((a) => a.id == selectedAssetId);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Type toggle: Solid | Linear | Radial
+        // Type toggle: Solid | Linear | Radial | Texture
         Row(
           children: [
             _FillTypeButton(
               label: 'Solid',
-              active: !isGradient,
+              active: !isGradient && !isTexture,
               theme: theme,
-              onTap: () => onUpdate((s) => _updateFill(s, i, s.fills[i].copyWith(gradient: null))),
+              onTap: () => onUpdate(
+                (s) => _updateFill(s, i, s.fills[i].copyWith(gradient: null, imageAssetId: null)),
+              ),
             ),
             const SizedBox(width: 4),
             _FillTypeButton(
@@ -296,7 +308,7 @@ class _FillRow extends HookWidget {
               theme: theme,
               onTap: () {
                 final g = fill.gradient?.copyWith(type: VecGradientType.linear) ?? VecGradient.defaultLinear;
-                onUpdate((s) => _updateFill(s, i, s.fills[i].copyWith(gradient: g)));
+                onUpdate((s) => _updateFill(s, i, s.fills[i].copyWith(gradient: g, imageAssetId: null)));
               },
             ),
             const SizedBox(width: 4),
@@ -308,7 +320,27 @@ class _FillRow extends HookWidget {
                 final g =
                     (fill.gradient?.copyWith(type: VecGradientType.radial)) ??
                     VecGradient.defaultLinear.copyWith(type: VecGradientType.radial);
-                onUpdate((s) => _updateFill(s, i, s.fills[i].copyWith(gradient: g)));
+                onUpdate((s) => _updateFill(s, i, s.fills[i].copyWith(gradient: g, imageAssetId: null)));
+              },
+            ),
+            const SizedBox(width: 4),
+            _FillTypeButton(
+              label: 'Texture',
+              active: isTexture,
+              theme: theme,
+              onTap: () {
+                final firstImageId = imageAssets.isNotEmpty ? imageAssets.first.id : null;
+                onUpdate(
+                  (s) => _updateFill(
+                    s,
+                    i,
+                    s.fills[i].copyWith(
+                      gradient: null,
+                      imageAssetId: firstImageId,
+                      imageFit: s.fills[i].imageFit,
+                    ),
+                  ),
+                );
               },
             ),
             const Spacer(),
@@ -330,7 +362,101 @@ class _FillRow extends HookWidget {
         ),
         const SizedBox(height: 6),
 
-        if (!isGradient) ...[
+        if (isTexture) ...[
+          if (imageAssets.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Text(
+                'No imported images yet. Import an image from File menu first.',
+                style: TextStyle(fontSize: 10, color: theme.textDisabled),
+              ),
+            )
+          else ...[
+            Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    height: 26,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    decoration: BoxDecoration(
+                      color: theme.surfaceVariant,
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: theme.divider, width: 0.5),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        isExpanded: true,
+                        value: hasSelectedAsset ? selectedAssetId : imageAssets.first.id,
+                        dropdownColor: theme.surface,
+                        style: TextStyle(fontSize: 11, color: theme.textPrimary),
+                        items: [
+                          for (final a in imageAssets)
+                            DropdownMenuItem<String>(
+                              value: a.id,
+                              child: Text(a.name, overflow: TextOverflow.ellipsis),
+                            ),
+                        ],
+                        onChanged: (id) {
+                          if (id == null) return;
+                          onUpdate((s) => _updateFill(s, i, s.fills[i].copyWith(imageAssetId: id, gradient: null)));
+                        },
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  height: 26,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  decoration: BoxDecoration(
+                    color: theme.surfaceVariant,
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: theme.divider, width: 0.5),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<VecFillImageFit>(
+                      value: fill.imageFit,
+                      dropdownColor: theme.surface,
+                      style: TextStyle(fontSize: 11, color: theme.textPrimary),
+                      items: const [
+                        DropdownMenuItem(value: VecFillImageFit.cover, child: Text('Cover')),
+                        DropdownMenuItem(value: VecFillImageFit.contain, child: Text('Contain')),
+                        DropdownMenuItem(value: VecFillImageFit.fill, child: Text('Fill')),
+                        DropdownMenuItem(value: VecFillImageFit.none, child: Text('None')),
+                      ],
+                      onChanged: (fit) {
+                        if (fit == null) return;
+                        onUpdate((s) => _updateFill(s, i, s.fills[i].copyWith(imageFit: fit)));
+                      },
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Expanded(
+                  child: PanelSlider(
+                    value: fill.opacity,
+                    theme: theme,
+                    onChanged: (v) => onLiveUpdate((s) => _updateFill(s, i, s.fills[i].copyWith(opacity: v))),
+                    onChangeEnd: (_) => onCommit(),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                SizedBox(
+                  width: 30,
+                  child: Text(
+                    '${(fill.opacity * 100).round()}%',
+                    style: TextStyle(fontSize: 10, color: theme.textDisabled),
+                    textAlign: TextAlign.right,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ] else if (!isGradient) ...[
           // Solid fill: color + opacity
           Row(
             children: [

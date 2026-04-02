@@ -98,6 +98,8 @@ class KeyframeInterpolator {
           fa[i].copyWith(
             color: _lerpColor(fa[i].color, fb[i].color, tFill),
             gradient: _lerpGradient(fa[i].gradient, fb[i].gradient, tFill),
+            imageAssetId: tFill < 0.5 ? fa[i].imageAssetId : fb[i].imageAssetId,
+            imageFit: tFill < 0.5 ? fa[i].imageFit : fb[i].imageFit,
           ),
         ...fa.skip(count),
       ];
