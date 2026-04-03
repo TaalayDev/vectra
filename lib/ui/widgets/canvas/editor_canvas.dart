@@ -20,6 +20,7 @@ import '../../../core/rendering/rulers_painter.dart';
 import '../../../core/rendering/scene_painter.dart';
 import '../../../core/rendering/selection_overlay.dart';
 import '../../../core/utils/onion_painter.dart';
+import '../../../core/utils/shape_scaler.dart';
 import '../../../core/tools/drawing_tool_handler.dart';
 import '../../../core/tools/freedraw_tool_handler.dart';
 import '../../../core/tools/knife_tool.dart';
@@ -96,6 +97,7 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
   int _hoverNodeIndex = -1; // index of node under cursor, or -1
   Offset _editDragStartCanvas = Offset.zero;
   dynamic _editDragStartTransform; // VecTransform captured at drag start
+  Offset? _editDragStartNodeCanvas; // Absolute canvas pos of node at drag start
 
   // Corner-radius editing (rectangle only, single selection)
   Set<int> _selectedCorners = {0, 1, 2, 3}; // 0=TL,1=TR,2=BR,3=BL
@@ -113,6 +115,7 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
   // Bend tool state (VecTool.bend)
   int _bendToolHoverSegment = -1; // segment index hovered (-1 = none)
   int _bendToolDragSegment = -1; // segment being dragged
+  int _bendToolDragNode = -1; // node directly being dragged
   bool _bendToolDragging = false;
   Offset _bendDragStartCanvas = Offset.zero; // canvas-space drag origin
 
@@ -628,6 +631,7 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
                     setState(() {
                       _bendToolDragging = false;
                       _bendToolDragSegment = -1;
+                      _bendToolDragNode = -1;
                     });
                     return;
                   }
@@ -693,6 +697,23 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
                     : isBendTool
                     ? (details) {
                         final local = _toCanvasPoint(details.localPosition);
+
+                        // If tapping a node or segment of the active shape, do NOT hit test / deselect it!
+                        if (displaySelectedShape != null) {
+                          final pathShape = displaySelectedShape.maybeMap(
+                            path: (p) => p,
+                            rectangle: (r) => _convertRectToPath(r),
+                            ellipse: (e) => _convertEllipseToPath(e),
+                            polygon: (p) => _convertPolygonToPath(p),
+                            orElse: () => null,
+                          );
+                          if (pathShape != null) {
+                            if (PathEditOverlayPainter.hitTestNode(pathShape, local, zoom) != -1) return;
+                            if (SegmentBendOverlayPainter.hitTestHandle(pathShape, zoom, local) != -1) return;
+                            if (SegmentBendOverlayPainter.nearestSegmentToPoint(pathShape, zoom, local) != -1) return;
+                          }
+                        }
+
                         _hitTestAndSelect(scene, local, false, activeGroupId: activeGroupId);
                         // Reset hover when selecting a new shape
                         setState(() => _bendToolHoverSegment = -1);
@@ -1945,26 +1966,13 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
           );
     } else {
       ref.read(vecDocumentStateProvider.notifier).updateShapeNoHistory(scene.id, layerId, selectedShape.id, (s) {
-        // For path shapes during resize: scale node positions proportionally
+        // Perform deep geometric scaling during resize (handles paths, groups, compounds)
         if (_selectDragMode == _SelectDragMode.resizeHandle) {
-          return s.maybeMap(
-            path: (pathS) {
-              final scX = start.width > 0 ? newCanvasTransform.width / start.width : 1.0;
-              final scY = start.height > 0 ? newCanvasTransform.height / start.height : 1.0;
-              final scaledNodes = pathS.nodes.map((n) {
-                return n.copyWith(
-                  position: VecPoint(x: n.position.x * scX, y: n.position.y * scY),
-                  handleOut: n.handleOut == null ? null : VecPoint(x: n.handleOut!.x * scX, y: n.handleOut!.y * scY),
-                  handleIn: n.handleIn == null ? null : VecPoint(x: n.handleIn!.x * scX, y: n.handleIn!.y * scY),
-                );
-              }).toList();
-              return pathS.copyWith(
-                data: pathS.data.copyWith(transform: newCanvasTransform),
-                nodes: scaledNodes,
-              );
-            },
-            orElse: () => s.copyWith(data: s.data.copyWith(transform: newCanvasTransform)),
-          );
+          final scX = s.transform.width > 0 ? newCanvasTransform.width / s.transform.width : 1.0;
+          final scY = s.transform.height > 0 ? newCanvasTransform.height / s.transform.height : 1.0;
+
+          final scaledShape = ShapeScaler.scaleGeometry(s, scX, scY);
+          return scaledShape.copyWith(data: scaledShape.data.copyWith(transform: newCanvasTransform));
         }
         return s.copyWith(data: s.data.copyWith(transform: newCanvasTransform));
       });
@@ -2054,6 +2062,9 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
             _editNodeIndex = nodeIdx;
             _editDragStartCanvas = canvasPoint;
             _editDragStartTransform = pathShape.data.transform;
+
+            final nLocal = Offset(pathShape.nodes[nodeIdx].position.x, pathShape.nodes[nodeIdx].position.y);
+            _editDragStartNodeCanvas = SelectToolHandler.localToCanvas(pathShape.data.transform, nLocal);
           });
         }
       }
@@ -2084,7 +2095,9 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
             (s) => s.maybeMap(
               path: (pathS) {
                 final oldNode = pathS.nodes[_editNodeIndex];
-                final oldCanvas = SelectToolHandler.localToCanvas(t, Offset(oldNode.position.x, oldNode.position.y));
+                final oldCanvas =
+                    _editDragStartNodeCanvas ??
+                    SelectToolHandler.localToCanvas(t, Offset(oldNode.position.x, oldNode.position.y));
                 final newCanvas = oldCanvas + delta;
                 final newLocal = SelectToolHandler.canvasToLocal(t, newCanvas);
                 final updatedNodes = List<VecPathNode>.from(pathS.nodes);
@@ -2185,51 +2198,117 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
     if (displaySelectedShape == null) return;
     final canvasPoint = _toCanvasPoint(details.localPosition);
 
-    // ---- Path segments ----
-    final pathShape = displaySelectedShape.maybeMap(path: (p) => p, orElse: () => null);
-    if (pathShape != null) {
-      var segIdx = SegmentBendOverlayPainter.hitTestHandle(pathShape, zoom, canvasPoint);
-      if (segIdx == -1) segIdx = SegmentBendOverlayPainter.nearestSegmentToPoint(pathShape, zoom, canvasPoint);
-      if (segIdx == -1) return;
-      final int n = pathShape.nodes.length as int;
-      final i1 = (segIdx + 1) % n;
-      final tr = pathShape.data.transform;
+    final scene = ref.read(activeSceneProvider);
+    final layerId = ref.read(activeLayerIdProvider);
+
+    // Convert basic shapes to path on interaction
+    VecPathShape? convertedPath = displaySelectedShape.maybeMap(
+      path: (p) => p,
+      rectangle: (r) => _convertRectToPath(r),
+      ellipse: (e) => _convertEllipseToPath(e),
+      polygon: (p) => _convertPolygonToPath(p),
+      orElse: () => null,
+    );
+
+    if (convertedPath == null) return;
+
+    // Check if we need to commit the conversion
+    final bool wasNotPath = displaySelectedShape.maybeMap(path: (_) => false, orElse: () => true);
+    if (wasNotPath && scene != null && layerId != null && selectedShape != null) {
+      ref
+          .read(vecDocumentStateProvider.notifier)
+          .updateShapeNoHistory(scene.id, layerId, selectedShape.id, (_) => convertedPath);
+    }
+
+    // 1. Try hitting a node (Corner Transformation)
+    final int nodeIdx = PathEditOverlayPainter.hitTestNode(convertedPath, canvasPoint, zoom);
+    if (nodeIdx != -1) {
       setState(() {
-        _bendToolDragSegment = segIdx;
+        _bendToolDragNode = nodeIdx;
         _bendToolDragging = true;
-        _dragStartTransform = tr;
+        _dragStartTransform = convertedPath.data.transform;
         _bendDragStartCanvas = canvasPoint;
-        _bendStartLocalPos = Offset(pathShape.nodes[segIdx].position.x, pathShape.nodes[segIdx].position.y);
-        _bendEndLocalPos = Offset(pathShape.nodes[i1].position.x, pathShape.nodes[i1].position.y);
+        _bendStartLocalPos = Offset(convertedPath.nodes[nodeIdx].position.x, convertedPath.nodes[nodeIdx].position.y);
       });
       return;
     }
 
-    // ---- Rectangle sides ----
-    final rectShape = displaySelectedShape.maybeMap(rectangle: (r) => r, orElse: () => null);
-    if (rectShape != null) {
-      final sideIdx = _hitTestRectSideHandles(rectShape, zoom, canvasPoint);
-      if (sideIdx == -1) return;
-      final convertedPath = _convertRectToPath(rectShape);
-      final scene = ref.read(activeSceneProvider);
-      final layerId = ref.read(activeLayerIdProvider);
-      if (scene != null && layerId != null && selectedShape != null) {
-        ref
-            .read(vecDocumentStateProvider.notifier)
-            .updateShapeNoHistory(scene.id, layerId, selectedShape.id, (_) => convertedPath);
-      }
-      final tr = convertedPath.data.transform;
-      final int n = convertedPath.nodes.length;
-      final i1 = (sideIdx + 1) % n;
-      setState(() {
-        _bendToolDragSegment = sideIdx;
-        _bendToolDragging = true;
-        _dragStartTransform = tr;
-        _bendDragStartCanvas = canvasPoint;
-        _bendStartLocalPos = Offset(convertedPath.nodes[sideIdx].position.x, convertedPath.nodes[sideIdx].position.y);
-        _bendEndLocalPos = Offset(convertedPath.nodes[i1].position.x, convertedPath.nodes[i1].position.y);
-      });
+    // 2. Try hitting a segment
+    var segIdx = SegmentBendOverlayPainter.hitTestHandle(convertedPath, zoom, canvasPoint);
+    bool isInsertion = false;
+
+    if (segIdx == -1) {
+      segIdx = SegmentBendOverlayPainter.nearestSegmentToPoint(convertedPath, zoom, canvasPoint);
+      isInsertion = segIdx != -1;
     }
+
+    if (segIdx == -1) return;
+
+    // 3. Segment Point Insertion
+    if (isInsertion && scene != null && layerId != null && selectedShape != null) {
+      final tHit = SegmentBendOverlayPainter.nearestTOnSegment(
+        convertedPath,
+        segIdx,
+        SelectToolHandler.canvasToLocal(convertedPath.data.transform, canvasPoint),
+      );
+
+      final int n = convertedPath.nodes.length;
+      final i1 = (segIdx + 1) % n;
+      final nd0 = convertedPath.nodes[segIdx];
+      final nd1 = convertedPath.nodes[i1];
+
+      final p0 = Offset(nd0.position.x, nd0.position.y);
+      final p1 = Offset(nd1.position.x, nd1.position.y);
+      final c1 = nd0.handleOut != null ? Offset(nd0.handleOut!.x, nd0.handleOut!.y) : p0;
+      final c2 = nd1.handleIn != null ? Offset(nd1.handleIn!.x, nd1.handleIn!.y) : p1;
+
+      final (m0, n0, midPt, n1, m2) = SegmentBendOverlayPainter.subdivideSegment(p0, c1, c2, p1, tHit);
+
+      final mutNodes = List<VecPathNode>.from(convertedPath.nodes);
+      mutNodes[segIdx] = nd0.copyWith(
+        handleOut: nd0.handleOut != null ? VecPoint(x: m0.dx, y: m0.dy) : null,
+      );
+
+      final newNode = VecPathNode(
+        position: VecPoint(x: midPt.dx, y: midPt.dy),
+        handleIn: VecPoint(x: n0.dx, y: n0.dy),
+        handleOut: VecPoint(x: n1.dx, y: n1.dy),
+        type: VecNodeType.smooth,
+      );
+      mutNodes.insert(segIdx + 1, newNode);
+
+      if (nd1.handleIn != null) {
+        mutNodes[(segIdx + 2) % mutNodes.length] = nd1.copyWith(
+          handleIn: VecPoint(x: m2.dx, y: m2.dy),
+        );
+      }
+
+      final activePath = convertedPath.copyWith(nodes: mutNodes);
+      ref
+          .read(vecDocumentStateProvider.notifier)
+          .updateShapeNoHistory(scene.id, layerId, selectedShape.id, (_) => activePath);
+
+      setState(() {
+        _bendToolDragNode = segIdx + 1;
+        _bendToolDragging = true;
+        _dragStartTransform = activePath.data.transform;
+        _bendDragStartCanvas = canvasPoint;
+        _bendStartLocalPos = midPt;
+      });
+      return;
+    }
+
+    // 4. Bending segment curve
+    final int n = convertedPath.nodes.length;
+    final i1 = (segIdx + 1) % n;
+    setState(() {
+      _bendToolDragSegment = segIdx;
+      _bendToolDragging = true;
+      _dragStartTransform = convertedPath.data.transform;
+      _bendDragStartCanvas = canvasPoint;
+      _bendStartLocalPos = Offset(convertedPath.nodes[segIdx].position.x, convertedPath.nodes[segIdx].position.y);
+      _bendEndLocalPos = Offset(convertedPath.nodes[i1].position.x, convertedPath.nodes[i1].position.y);
+    });
   }
 
   void _handleBendToolPanUpdate(DragUpdateDetails details, dynamic selectedShape, double zoom) {
@@ -2237,10 +2316,59 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
     final scene = ref.read(activeSceneProvider);
     final layerId = ref.read(activeLayerIdProvider);
     if (scene == null || layerId == null) return;
-    if (_bendToolDragSegment < 0) return;
 
     final canvasPoint = _toCanvasPoint(details.localPosition);
     final tr = _dragStartTransform!;
+
+    // Transforming a corner node directly
+    if (_bendToolDragNode >= 0) {
+      final delta = canvasPoint - _bendDragStartCanvas;
+      final newCanvas = _bendDragStartCanvas + delta;
+
+      ref
+          .read(vecDocumentStateProvider.notifier)
+          .updateShapeNoHistory(
+            scene.id,
+            layerId,
+            selectedShape.id,
+            (s) => s.maybeMap(
+              path: (ps) {
+                final nodes = List<VecPathNode>.from(ps.nodes);
+                if (_bendToolDragNode >= nodes.length) return ps;
+
+                // IMPORTANT: Calculate local intersection relative to CURRENT transformed shape.
+                final currentTr = ps.data.transform;
+                final newLocal = SelectToolHandler.canvasToLocal(currentTr, newCanvas);
+
+                final oldPos = nodes[_bendToolDragNode].position;
+                final dx = newLocal.dx - oldPos.x;
+                final dy = newLocal.dy - oldPos.y;
+
+                nodes[_bendToolDragNode] = nodes[_bendToolDragNode].copyWith(
+                  position: VecPoint(x: newLocal.dx, y: newLocal.dy),
+                  handleIn: nodes[_bendToolDragNode].handleIn != null
+                      ? VecPoint(
+                          x: nodes[_bendToolDragNode].handleIn!.x + dx,
+                          y: nodes[_bendToolDragNode].handleIn!.y + dy,
+                        )
+                      : null,
+                  handleOut: nodes[_bendToolDragNode].handleOut != null
+                      ? VecPoint(
+                          x: nodes[_bendToolDragNode].handleOut!.x + dx,
+                          y: nodes[_bendToolDragNode].handleOut!.y + dy,
+                        )
+                      : null,
+                );
+                return _recalculatePathBounds(ps.copyWith(nodes: nodes));
+              },
+              orElse: () => s,
+            ),
+          );
+      return;
+    }
+
+    if (_bendToolDragSegment < 0) return;
+
     // Drag delta from start, applied to the canvas-space anchor.
     final delta = canvasPoint - _bendDragStartCanvas;
     final bendCanvas = _bendDragStartCanvas + delta; // == canvasPoint
@@ -2250,6 +2378,11 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
     final h4 = Offset(h.dx * 4, h.dy * 4);
     final c1 = (h4 - _bendEndLocalPos) / 3.0;
     final c2 = (h4 - _bendStartLocalPos) / 3.0;
+
+    // Project handles to absolute canvas space so we aren't bound to potentially shifted locals
+    final c1Canvas = SelectToolHandler.localToCanvas(tr, c1);
+    final c2Canvas = SelectToolHandler.localToCanvas(tr, c2);
+
     final si = _bendToolDragSegment;
     final isAlt = HardwareKeyboard.instance.isAltPressed;
 
@@ -2264,20 +2397,25 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
               final nodes = List<VecPathNode>.from(ps.nodes);
               if (si >= nodes.length) return ps;
               final i1 = (si + 1) % nodes.length;
+
+              final currentTr = ps.data.transform;
+              final c1Local = SelectToolHandler.canvasToLocal(currentTr, c1Canvas);
+              final c2Local = SelectToolHandler.canvasToLocal(currentTr, c2Canvas);
+
               if (isAlt) {
                 nodes[si] = nodes[si].copyWith(handleOut: null, type: VecNodeType.corner);
                 nodes[i1] = nodes[i1].copyWith(handleIn: null, type: VecNodeType.corner);
               } else {
                 nodes[si] = nodes[si].copyWith(
-                  handleOut: VecPoint(x: c1.dx, y: c1.dy),
+                  handleOut: VecPoint(x: c1Local.dx, y: c1Local.dy),
                   type: VecNodeType.smooth,
                 );
                 nodes[i1] = nodes[i1].copyWith(
-                  handleIn: VecPoint(x: c2.dx, y: c2.dy),
+                  handleIn: VecPoint(x: c2Local.dx, y: c2Local.dy),
                   type: VecNodeType.smooth,
                 );
               }
-              return ps.copyWith(nodes: nodes);
+              return _recalculatePathBounds(ps.copyWith(nodes: nodes));
             },
             orElse: () => s,
           ),
@@ -2326,6 +2464,157 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
       ],
       isClosed: true,
     );
+  }
+
+  /// Recalculates exact bounds of [shape] and shifts its transform/nodes so the content
+  /// is flush to (0,0) in local space, updating the global transform offset.
+  VecPathShape _recalculatePathBounds(VecPathShape shape) {
+    if (shape.nodes.isEmpty) return shape;
+
+    final path = ui.Path();
+    path.moveTo(shape.nodes.first.position.x, shape.nodes.first.position.y);
+    for (var i = 1; i < shape.nodes.length; i++) {
+      final from = shape.nodes[i - 1];
+      final to = shape.nodes[i];
+      if (from.handleOut != null || to.handleIn != null) {
+        path.cubicTo(
+          from.handleOut?.x ?? from.position.x,
+          from.handleOut?.y ?? from.position.y,
+          to.handleIn?.x ?? to.position.x,
+          to.handleIn?.y ?? to.position.y,
+          to.position.x,
+          to.position.y,
+        );
+      } else {
+        path.lineTo(to.position.x, to.position.y);
+      }
+    }
+    if (shape.isClosed && shape.nodes.length > 1) {
+      final from = shape.nodes.last;
+      final to = shape.nodes.first;
+      if (from.handleOut != null || to.handleIn != null) {
+        path.cubicTo(
+          from.handleOut?.x ?? from.position.x,
+          from.handleOut?.y ?? from.position.y,
+          to.handleIn?.x ?? to.position.x,
+          to.handleIn?.y ?? to.position.y,
+          to.position.x,
+          to.position.y,
+        );
+      } else {
+        path.lineTo(to.position.x, to.position.y);
+      }
+      path.close();
+    }
+
+    final bounds = path.getBounds();
+    final dx = bounds.left;
+    final dy = bounds.top;
+
+    final shiftedNodes = shape.nodes.map((n) {
+      return n.copyWith(
+        position: VecPoint(x: n.position.x - dx, y: n.position.y - dy),
+        handleIn: n.handleIn != null ? VecPoint(x: n.handleIn!.x - dx, y: n.handleIn!.y - dy) : null,
+        handleOut: n.handleOut != null ? VecPoint(x: n.handleOut!.x - dx, y: n.handleOut!.y - dy) : null,
+      );
+    }).toList();
+
+    final currentTr = shape.data.transform;
+    // We must project the local left/top shift into parent coordinates (canvas)
+    // taking into consideration ONLY scale and rotation! Wait, we use the `SelectToolHandler.localToCanvas`
+    // to map the (dx, dy) to global coords.
+    final canvasOrigin = SelectToolHandler.localToCanvas(currentTr, Offset(dx, dy));
+
+    final newTransform = currentTr.copyWith(
+      x: canvasOrigin.dx,
+      y: canvasOrigin.dy,
+      width: bounds.width,
+      height: bounds.height,
+    );
+
+    return shape.copyWith(
+      data: shape.data.copyWith(transform: newTransform),
+      nodes: shiftedNodes,
+    );
+  }
+
+  VecPathShape _convertEllipseToPath(VecEllipseShape ellipse) {
+    final w = ellipse.data.transform.width;
+    final h = ellipse.data.transform.height;
+    final rx = w / 2;
+    final ry = h / 2;
+    const kappa = 0.552284749831;
+    final cx = rx;
+    final cy = ry;
+    final ox = rx * kappa;
+    final oy = ry * kappa;
+
+    return VecPathShape(
+      data: ellipse.data,
+      nodes: [
+        VecPathNode(
+          position: VecPoint(x: cx, y: 0),
+          handleIn: VecPoint(x: cx - ox, y: 0),
+          handleOut: VecPoint(x: cx + ox, y: 0),
+          type: VecNodeType.smooth,
+        ),
+        VecPathNode(
+          position: VecPoint(x: w, y: cy),
+          handleIn: VecPoint(x: w, y: cy - oy),
+          handleOut: VecPoint(x: w, y: cy + oy),
+          type: VecNodeType.smooth,
+        ),
+        VecPathNode(
+          position: VecPoint(x: cx, y: h),
+          handleIn: VecPoint(x: cx + ox, y: h),
+          handleOut: VecPoint(x: cx - ox, y: h),
+          type: VecNodeType.smooth,
+        ),
+        VecPathNode(
+          position: VecPoint(x: 0, y: cy),
+          handleIn: VecPoint(x: 0, y: cy + oy),
+          handleOut: VecPoint(x: 0, y: cy - oy),
+          type: VecNodeType.smooth,
+        ),
+      ],
+      isClosed: true,
+    );
+  }
+
+  VecPathShape _convertPolygonToPath(VecPolygonShape poly) {
+    final w = poly.data.transform.width;
+    final h = poly.data.transform.height;
+    final cx = w / 2;
+    final cy = h / 2;
+    final r = math.min(cx, cy);
+    final count = poly.sideCount;
+    final nodes = <VecPathNode>[];
+
+    if (poly.starDepth != null) {
+      final innerR = r * poly.starDepth!;
+      for (var i = 0; i < count * 2; i++) {
+        final a = (i * math.pi) / count - math.pi / 2;
+        final radius = (i % 2 == 0) ? r : innerR;
+        nodes.add(
+          VecPathNode(
+            position: VecPoint(x: cx + math.cos(a) * radius, y: cy + math.sin(a) * radius),
+            type: VecNodeType.corner,
+          ),
+        );
+      }
+    } else {
+      for (var i = 0; i < count; i++) {
+        final a = (i * 2 * math.pi) / count - math.pi / 2;
+        nodes.add(
+          VecPathNode(
+            position: VecPoint(x: cx + math.cos(a) * r, y: cy + math.sin(a) * r),
+            type: VecNodeType.corner,
+          ),
+        );
+      }
+    }
+
+    return VecPathShape(data: poly.data, nodes: nodes, isClosed: true);
   }
 
   /// Returns (snappedX, snappedY, guides) for the proposed move position.

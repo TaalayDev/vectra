@@ -42,6 +42,10 @@ class VecGradient {
     this.centerX = 0.5,
     this.centerY = 0.5,
     this.radius = 0.7071,
+    this.boundX,
+    this.boundY,
+    this.boundW,
+    this.boundH,
   });
 
   final VecGradientType type;
@@ -61,6 +65,18 @@ class VecGradient {
   /// Radius as a fraction of the diagonal half-length for radial gradients.
   final double radius;
 
+  /// Optional override for the local bounding box X to support global seamless wrapping.
+  final double? boundX;
+  
+  /// Optional override for the local bounding box Y.
+  final double? boundY;
+
+  /// Optional override for the local bounding box Width.
+  final double? boundW;
+
+  /// Optional override for the local bounding box Height.
+  final double? boundH;
+
   VecGradient copyWith({
     VecGradientType? type,
     List<VecGradientStop>? stops,
@@ -68,6 +84,10 @@ class VecGradient {
     double? centerX,
     double? centerY,
     double? radius,
+    double? boundX,
+    double? boundY,
+    double? boundW,
+    double? boundH,
   }) =>
       VecGradient(
         type: type ?? this.type,
@@ -76,6 +96,10 @@ class VecGradient {
         centerX: centerX ?? this.centerX,
         centerY: centerY ?? this.centerY,
         radius: radius ?? this.radius,
+        boundX: boundX ?? this.boundX,
+        boundY: boundY ?? this.boundY,
+        boundW: boundW ?? this.boundW,
+        boundH: boundH ?? this.boundH,
       );
 
   Map<String, dynamic> toJson() => {
@@ -85,6 +109,10 @@ class VecGradient {
         'centerX': centerX,
         'centerY': centerY,
         'radius': radius,
+        if (boundX != null) 'boundX': boundX,
+        if (boundY != null) 'boundY': boundY,
+        if (boundW != null) 'boundW': boundW,
+        if (boundH != null) 'boundH': boundH,
       };
 
   factory VecGradient.fromJson(Map<String, dynamic> json) => VecGradient(
@@ -99,6 +127,10 @@ class VecGradient {
         centerX: (json['centerX'] as num?)?.toDouble() ?? 0.5,
         centerY: (json['centerY'] as num?)?.toDouble() ?? 0.5,
         radius: (json['radius'] as num?)?.toDouble() ?? 0.7071,
+        boundX: (json['boundX'] as num?)?.toDouble(),
+        boundY: (json['boundY'] as num?)?.toDouble(),
+        boundW: (json['boundW'] as num?)?.toDouble(),
+        boundH: (json['boundH'] as num?)?.toDouble(),
       );
 
   /// Default two-stop linear gradient (white → transparent).
@@ -118,8 +150,12 @@ class VecGradient {
           other.angle == angle &&
           other.centerX == centerX &&
           other.centerY == centerY &&
-          other.radius == radius);
+          other.radius == radius &&
+          other.boundX == boundX &&
+          other.boundY == boundY &&
+          other.boundW == boundW &&
+          other.boundH == boundH);
 
   @override
-  int get hashCode => Object.hash(type, stops, angle, centerX, centerY, radius);
+  int get hashCode => Object.hash(type, stops, angle, centerX, centerY, radius, boundX, boundY, boundW, boundH);
 }

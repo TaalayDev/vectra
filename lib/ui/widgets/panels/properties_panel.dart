@@ -274,6 +274,50 @@ class PropertiesPanel extends ConsumerWidget {
       }
     }
 
+    Rect? computeGlobalBounds() {
+      if (selectedShapes.isEmpty) return null;
+      var minX = double.infinity, minY = double.infinity;
+      var maxX = double.negativeInfinity, maxY = double.negativeInfinity;
+      for (final s in selectedShapes) {
+        final t = s.transform;
+        if (t.x < minX) minX = t.x;
+        if (t.y < minY) minY = t.y;
+        if (t.x + t.width > maxX) maxX = t.x + t.width;
+        if (t.y + t.height > maxY) maxY = t.y + t.height;
+      }
+      return Rect.fromLTRB(minX, minY, maxX, maxY);
+    }
+
+    void applySeamlessFills(VecShape Function(VecShape) updater, {required bool isCommit}) {
+      final globalBounds = computeGlobalBounds();
+      for (final id in selectedIds) {
+        docNotifier.updateShapeNoHistory(sceneId, layerId, id, (shape) {
+          final updated = updater(shape);
+          if (globalBounds == null || updated.fills.isEmpty) return updated;
+
+          final fills = updated.fills.map((f) {
+            if (f.gradient == null) return f;
+
+            final t = shape.transform;
+            final boundX = globalBounds.left - t.x;
+            final boundY = globalBounds.top - t.y;
+
+            return f.copyWith(
+              gradient: f.gradient!.copyWith(
+                boundX: boundX,
+                boundY: boundY,
+                boundW: globalBounds.width,
+                boundH: globalBounds.height,
+              ),
+            );
+          }).toList();
+
+          return updated.copyWith(data: updated.data.copyWith(fills: fills));
+        });
+      }
+      if (isCommit) docNotifier.commitCurrentState();
+    }
+
     return ListView(
       padding: const EdgeInsets.symmetric(vertical: 8),
       children: [
@@ -328,6 +372,18 @@ class PropertiesPanel extends ConsumerWidget {
         ),
 
         Divider(height: 1, color: theme.divider.withAlpha(60)),
+
+        if (selectedShapes.isNotEmpty) ...[
+          FillSection(
+            fills: selectedShapes.first.fills, // Show the first shape's fills as prototype
+            imageAssets: const [],
+            theme: theme,
+            onUpdate: (updater) => applySeamlessFills(updater, isCommit: true),
+            onLiveUpdate: (updater) => applySeamlessFills(updater, isCommit: false),
+            onCommit: () => docNotifier.commitCurrentState(),
+          ),
+          Divider(height: 1, color: theme.divider.withAlpha(60)),
+        ],
 
         // Nudge position
         Padding(

@@ -73,9 +73,7 @@ class AsyncResultEmpty<T> extends AsyncResult<T> {
 }
 
 class AsyncResultLoading<T> extends AsyncResult<T> {
-  const AsyncResultLoading({
-    T? previousValue,
-  }) : super._(previousValue);
+  const AsyncResultLoading({T? previousValue}) : super._(previousValue);
 
   AsyncResultLoading withPreviousValue(T value) {
     return AsyncResultLoading(previousValue: value);

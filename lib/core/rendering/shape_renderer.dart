@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 import 'dart:ui';
 
 import 'package:flutter/painting.dart';
@@ -13,6 +14,7 @@ import '../../data/models/vec_shape.dart';
 import '../../data/models/vec_stroke.dart';
 import '../../data/models/vec_symbol.dart';
 import '../../data/models/vec_transform.dart';
+import '../../data/models/vec_width_profile.dart';
 import 'blend_mode_mapper.dart';
 
 /// Converts a [VecShape] into a Flutter [Path] and applies fills/strokes
@@ -658,7 +660,12 @@ class ShapeRenderer {
     return ImageShader(image, TileMode.clamp, TileMode.clamp, matrix);
   }
 
-  Shader _buildGradientShader(VecGradient g, Rect bounds, double opacity) {
+  Shader _buildGradientShader(VecGradient g, Rect shapeBounds, double opacity) {
+    var bounds = shapeBounds;
+    if (g.boundX != null && g.boundY != null && g.boundW != null && g.boundH != null) {
+      bounds = Rect.fromLTWH(g.boundX!, g.boundY!, g.boundW!, g.boundH!);
+    }
+    
     final alphaFactor = opacity.clamp(0.0, 1.0);
     final colors = g.stops.map((s) => s.color.toFlutterColor().withAlpha((alphaFactor * 255).round())).toList();
     final positions = g.stops.map((s) => s.position.toDouble()).toList();
@@ -671,12 +678,12 @@ class ShapeRenderer {
       final halfDiag = math.sqrt(bounds.width * bounds.width + bounds.height * bounds.height) / 2;
       final bx = math.cos(rad) * halfDiag;
       final by = math.sin(rad) * halfDiag;
-      return LinearGradient(
-        begin: Alignment.centerLeft,
-        end: Alignment.centerRight,
-        colors: colors,
-        stops: positions,
-      ).createShader(Rect.fromLTWH(cx - bx, cy - by, bx * 2, by * 2));
+      return ui.Gradient.linear(
+        Offset(cx - bx, cy - by),
+        Offset(cx + bx, cy + by),
+        colors,
+        positions,
+      );
     } else {
       return RadialGradient(
         center: Alignment(g.centerX * 2 - 1, g.centerY * 2 - 1),
@@ -723,6 +730,19 @@ class ShapeRenderer {
       ..strokeCap = cap
       ..strokeJoin = join
       ..blendMode = mapBlendMode(stroke.blendMode);
+
+    final hasVariableWidth = stroke.widthProfile != null && stroke.widthProfile!.points.isNotEmpty;
+
+    if (hasVariableWidth) {
+      final variablePath = _createVariableWidthStroke(path, stroke.widthProfile!);
+      final vPaint = Paint()
+        ..color = color
+        ..style = PaintingStyle.fill
+        ..blendMode = mapBlendMode(stroke.blendMode);
+      
+      canvas.drawPath(variablePath, vPaint);
+      return;
+    }
 
     // Stroke alignment: inside/outside is approximated by scaling the path
     switch (stroke.align) {
@@ -795,6 +815,86 @@ class ShapeRenderer {
       sum += v;
     }
     return sum;
+  }
+
+  Path _createVariableWidthStroke(Path source, VecWidthProfile profile) {
+    if (profile.points.isEmpty) return source;
+
+    final result = Path();
+    for (final metric in source.computeMetrics()) {
+      if (metric.length <= 0) continue;
+      
+      final leftSide = <Offset>[];
+      final rightSide = <Offset>[];
+      
+      final step = math.max(1.0, metric.length / 100);
+      for (var d = 0.0; d <= metric.length; d += step) {
+        final tangent = metric.getTangentForOffset(d);
+        if (tangent == null) continue;
+        
+        final t = d / metric.length;
+        final widthPoint = _interpolateWidth(profile.points, t);
+        
+        final dir = tangent.vector;
+        final norm = Offset(-dir.dy, dir.dx); // left normal
+        
+        leftSide.add(tangent.position + norm * widthPoint.leftWidth);
+        rightSide.add(tangent.position - norm * widthPoint.rightWidth);
+        
+        // Ensure we explicitly sample the exact end of the path
+        if (d < metric.length && d + step > metric.length) {
+          d = metric.length - step; 
+        }
+      }
+      
+      if (leftSide.isEmpty) continue;
+      
+      result.moveTo(leftSide.first.dx, leftSide.first.dy);
+      for (var i = 1; i < leftSide.length; i++) {
+        result.lineTo(leftSide[i].dx, leftSide[i].dy);
+      }
+      
+      if (metric.isClosed) {
+        result.close();
+        result.moveTo(rightSide.last.dx, rightSide.last.dy);
+        for (var i = rightSide.length - 2; i >= 0; i--) {
+          result.lineTo(rightSide[i].dx, rightSide[i].dy);
+        }
+        result.close();
+      } else {
+        for (var i = rightSide.length - 1; i >= 0; i--) {
+          result.lineTo(rightSide[i].dx, rightSide[i].dy);
+        }
+        result.close();
+      }
+    }
+    
+    result.fillType = PathFillType.evenOdd;
+    return result;
+  }
+
+  VecWidthPoint _interpolateWidth(List<VecWidthPoint> points, double t) {
+    if (points.isEmpty) return const VecWidthPoint(position: 0, leftWidth: 0, rightWidth: 0);
+    if (points.length == 1) return points.first;
+    
+    final sorted = List<VecWidthPoint>.from(points)..sort((a, b) => a.position.compareTo(b.position));
+    
+    if (t <= sorted.first.position) return sorted.first;
+    if (t >= sorted.last.position) return sorted.last;
+    
+    for (var i = 0; i < sorted.length - 1; i++) {
+      final p1 = sorted[i];
+      final p2 = sorted[i + 1];
+      if (t >= p1.position && t <= p2.position) {
+        final ratio = (t - p1.position) / (p2.position - p1.position);
+        return VecWidthPoint(
+          position: t,
+          leftWidth: p1.leftWidth + (p2.leftWidth - p1.leftWidth) * ratio,
+          rightWidth: p1.rightWidth + (p2.rightWidth - p1.rightWidth) * ratio,
+        );
+      }
+    }
+    return sorted.last;
   }
 
   // ===========================================================================

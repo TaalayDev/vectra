@@ -1,5 +1,6 @@
 import '../../data/models/vec_color.dart';
 import '../../data/models/vec_easing.dart';
+import '../../data/models/vec_fill.dart';
 import '../../data/models/vec_gradient.dart';
 import '../../data/models/vec_keyframe.dart';
 import '../../data/models/vec_point.dart';
@@ -97,7 +98,7 @@ class KeyframeInterpolator {
         for (var i = 0; i < count; i++)
           fa[i].copyWith(
             color: _lerpColor(fa[i].color, fb[i].color, tFill),
-            gradient: _lerpGradient(fa[i].gradient, fb[i].gradient, tFill),
+            gradient: _lerpGradientCrossColor(fa[i], fb[i], tFill),
             imageAssetId: tFill < 0.5 ? fa[i].imageAssetId : fb[i].imageAssetId,
             imageFit: tFill < 0.5 ? fa[i].imageFit : fb[i].imageFit,
           ),
@@ -167,30 +168,37 @@ class KeyframeInterpolator {
     b: (a.b + (b.b - a.b) * t).round().clamp(0, 255),
   );
 
-  static VecGradient? _lerpGradient(VecGradient? a, VecGradient? b, double t) {
-    if (a == null && b == null) return null;
-    if (a == null) return t < 0.5 ? null : b;
-    if (b == null) return t < 0.5 ? a : null;
+  static VecGradient? _lerpGradientCrossColor(VecFill fa, VecFill fb, double t) {
+    if (fa.gradient == null && fb.gradient == null) return null;
 
-    final stopCount = a.stops.length < b.stops.length ? a.stops.length : b.stops.length;
+    final aGrad = fa.gradient ?? _solidToGradient(fa.color, fb.gradient!);
+    final bGrad = fb.gradient ?? _solidToGradient(fb.color, fa.gradient!);
+
+    final stopCount = aGrad.stops.length < bGrad.stops.length ? aGrad.stops.length : bGrad.stops.length;
     final stops = [
       for (var i = 0; i < stopCount; i++)
         VecGradientStop(
-          color: _lerpColor(a.stops[i].color, b.stops[i].color, t),
-          position: _ld(a.stops[i].position, b.stops[i].position, t),
+          color: _lerpColor(aGrad.stops[i].color, bGrad.stops[i].color, t),
+          position: _ld(aGrad.stops[i].position, bGrad.stops[i].position, t),
         ),
     ];
 
-    // Interpolate gradient geometry when types match. If types differ,
-    // cross-fade by switching type halfway while still interpolating shared fields.
-    final resolvedType = t < 0.5 ? a.type : b.type;
+    // Swap type midway; however, geometric properties (angle, radius) interpolate fully.
+    final resolvedType = t < 0.5 ? aGrad.type : bGrad.type;
+
     return VecGradient(
       type: resolvedType,
       stops: stops,
-      angle: _ld(a.angle, b.angle, t),
-      centerX: _ld(a.centerX, b.centerX, t),
-      centerY: _ld(a.centerY, b.centerY, t),
-      radius: _ld(a.radius, b.radius, t),
+      angle: _ld(aGrad.angle, bGrad.angle, t),
+      centerX: _ld(aGrad.centerX, bGrad.centerX, t),
+      centerY: _ld(aGrad.centerY, bGrad.centerY, t),
+      radius: _ld(aGrad.radius, bGrad.radius, t),
+    );
+  }
+
+  static VecGradient _solidToGradient(VecColor color, VecGradient template) {
+    return template.copyWith(
+      stops: template.stops.map((s) => s.copyWith(color: color)).toList(),
     );
   }
 
