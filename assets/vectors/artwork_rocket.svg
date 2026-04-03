@@ -1,123 +1,143 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="500" height="500">
+<svg viewBox="0 0 400 500" xmlns="http://www.w3.org/2000/svg">
+        
+        <!-- 1. Definitions (Gradients & Filters) -->
+        <defs>
+            <!-- Hull Gradient -->
+            <linearGradient id="hullGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="#cbd5e1" />
+                <stop offset="20%" stop-color="#f8fafc" />
+                <stop offset="80%" stop-color="#94a3b8" />
+                <stop offset="100%" stop-color="#475569" />
+            </linearGradient>
+
+            <!-- Red Paint/Fins Gradient -->
+            <linearGradient id="redGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="#ef4444" />
+                <stop offset="30%" stop-color="#f87171" />
+                <stop offset="80%" stop-color="#b91c1c" />
+                <stop offset="100%" stop-color="#7f1d1d" />
+            </linearGradient>
+
+            <!-- Window Glass Gradient -->
+            <linearGradient id="glassGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#38bdf8" />
+                <stop offset="50%" stop-color="#0284c7" />
+                <stop offset="100%" stop-color="#082f49" />
+            </linearGradient>
+
+            <!-- Exhaust Flame Gradients -->
+            <linearGradient id="flameOuter" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stop-color="#f97316" />
+                <stop offset="100%" stop-color="#ef4444" stop-opacity="0" />
+            </linearGradient>
+
+            <linearGradient id="flameInner" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stop-color="#fde047" />
+                <stop offset="100%" stop-color="#ea580c" stop-opacity="0" />
+            </linearGradient>
+
+            <!-- Thruster Glow Filter -->
+            <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+                <feGaussianBlur stdDeviation="6" result="blur" />
+                <feComposite in="SourceGraphic" in2="blur" operator="over" />
+            </filter>
+        </defs>
+
+        <!-- 2. Background Warp Speed Lines -->
+        <!-- Placed behind the rocket -->
+        <g opacity="0.8">
+            <line x1="50" y1="0" x2="50" y2="60" class="streak s1" />
+            <line x1="120" y1="-20" x2="120" y2="80" class="streak s2" />
+            <line x1="280" y1="-40" x2="280" y2="30" class="streak s3" />
+            <line x1="350" y1="-10" x2="350" y2="60" class="streak s4" />
+            <line x1="80" y1="-50" x2="80" y2="20" class="streak s5" />
+            <line x1="320" y1="10" x2="320" y2="100" class="streak s6" />
             
-            <!-- DEFINITIONS & GRADIENTS -->
-            <defs>
-                <!-- Sleek metallic rocket body -->
-                <linearGradient id="rocketBody" x1="0%" y1="0%" x2="100%" y2="0%">
-                    <stop offset="0%" stop-color="#F1F2F6" />
-                    <stop offset="40%" stop-color="#FFFFFF" />
-                    <stop offset="100%" stop-color="#DFE4EA" />
-                </linearGradient>
-                
-                <!-- Vibrant red for fins and nose cone -->
-                <linearGradient id="rocketRed" x1="0%" y1="0%" x2="100%" y2="0%">
-                    <stop offset="0%" stop-color="#FF6B81" />
-                    <stop offset="100%" stop-color="#FF4757" />
-                </linearGradient>
+            <line x1="30" y1="0" x2="30" y2="80" class="streak s2" style="animation-delay: 0.3s;" />
+            <line x1="380" y1="-30" x2="380" y2="50" class="streak s5" style="animation-delay: 0.7s;" />
+            <line x1="100" y1="-10" x2="100" y2="30" class="streak s1" style="animation-delay: 0.9s;" />
+            <line x1="290" y1="-60" x2="290" y2="10" class="streak s4" style="animation-delay: 0.2s;" />
+        </g>
 
-                <!-- Shiny cyan glass for the window -->
-                <linearGradient id="windowGlass" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stop-color="#81ECEC" />
-                    <stop offset="100%" stop-color="#0984E3" />
-                </linearGradient>
+        <!-- 3. Main Rocket Assembly -->
+        <g class="rocket-group">
 
-                <!-- Clip Paths to perfectly align the nose cone and stripes to the rocket body -->
-                <clipPath id="noseClip">
-                    <rect x="0" y="0" width="500" height="130" />
-                </clipPath>
-                <clipPath id="stripeClip">
-                    <rect x="0" y="310" width="500" height="15" />
-                </clipPath>
-            </defs>
-
-            <!-- BACKGROUND ACCENTS -->
-            <circle cx="100" cy="100" r="4" fill="#DFE4EA" opacity="0.6" />
-            <circle cx="420" cy="180" r="6" fill="#DFE4EA" opacity="0.6" />
-            <circle cx="80" cy="280" r="3" fill="#DFE4EA" opacity="0.6" />
-            <circle cx="390" cy="320" r="5" fill="#DFE4EA" opacity="0.6" />
-
-            <!-- ANIMATED ROCKET GROUP -->
-            <g class="rocket-float">
-                
-                <!-- FLAMES (Placed behind everything) -->
-                <g class="flame-flicker">
-                    <!-- Red Flame -->
-                    <path d="M 210 380 C 210 440, 240 510, 250 530 C 260 510, 290 440, 290 380 Z" fill="#FF4757" />
-                    <!-- Orange Flame -->
-                    <path d="M 225 380 C 225 430, 245 480, 250 500 C 255 480, 275 430, 275 380 Z" fill="#FFA502" />
-                    <!-- Yellow Flame -->
-                    <path d="M 235 380 C 235 410, 245 450, 250 470 C 255 450, 265 410, 265 380 Z" fill="#ECCC68" />
-                </g>
-
-                <!-- NOZZLE -->
-                <path d="M 215 350 L 205 385 Q 250 395 295 385 L 285 350 Z" fill="#2D3436" />
-                <!-- Metallic shine on nozzle -->
-                <path d="M 215 350 L 205 385 Q 250 395 295 385 L 285 350 Z" fill="#FFFFFF" opacity="0.15" />
-
-                <!-- SIDE FINS -->
-                <!-- Left Fin -->
-                <path d="M 180 250 Q 120 300 90 380 Q 140 380 185 345 Z" fill="url(#rocketRed)" />
-                <path d="M 140 340 L 90 380 Q 140 380 185 345 Z" fill="#C23616" opacity="0.3" /> <!-- Shadow Detail -->
-
-                <!-- Right Fin -->
-                <path d="M 320 250 Q 380 300 410 380 Q 360 380 315 345 Z" fill="url(#rocketRed)" />
-                <path d="M 360 340 L 410 380 Q 360 380 315 345 Z" fill="#C23616" opacity="0.3" /> <!-- Shadow Detail -->
-
-                <!-- MAIN ROCKET BODY -->
-                <!-- Defining it with an ID so we can reuse the exact shape for clipped elements -->
-                <path id="rocketShape" d="M 250 50 C 310 90, 330 220, 320 350 Q 250 370 180 350 C 170 220, 190 90, 250 50 Z" fill="url(#rocketBody)" />
-
-                <!-- NOSE CONE -->
-                <use href="#rocketShape" fill="url(#rocketRed)" clip-path="url(#noseClip)" />
-                
-                <!-- RED BOTTOM STRIPE -->
-                <use href="#rocketShape" fill="url(#rocketRed)" clip-path="url(#stripeClip)" />
-
-                <!-- WINDOW -->
-                <!-- Outer Frame -->
-                <circle cx="250" cy="200" r="35" fill="#747D8C" />
-                <circle cx="250" cy="200" r="30" fill="#F1F2F6" />
-                <!-- Cyan Glass -->
-                <circle cx="250" cy="200" r="25" fill="url(#windowGlass)" />
-                <!-- Glass Glare / Reflections -->
-                <path d="M 230 185 A 25 25 0 0 1 270 185 A 15 15 0 0 0 230 185 Z" fill="#FFFFFF" opacity="0.6" />
-                <circle cx="260" cy="210" r="3" fill="#FFFFFF" opacity="0.8" />
-
-                <!-- CENTER FIN -->
-                <path d="M 245 280 L 245 390 Q 250 395 255 390 L 255 280 Z" fill="url(#rocketRed)" />
-                <path d="M 245 280 L 245 390" stroke="#FF7675" stroke-width="2" opacity="0.8" /> <!-- Edge Highlight -->
-
-                <!-- 3D BODY HIGHLIGHT -->
-                <path d="M 250 50 C 310 90, 330 220, 320 350 Q 250 370 180 350 C 170 220, 190 90, 250 50 Z" fill="none" stroke="#FFFFFF" stroke-width="8" stroke-linecap="round" opacity="0.6" />
-                <!-- Inner body shadow -->
-                <path d="M 250 50 C 190 90, 170 220, 180 350" fill="none" stroke="#2F3542" stroke-width="15" opacity="0.05" />
-                
-                <!-- RIVETS -->
-                <circle cx="215" cy="140" r="2.5" fill="#A4B0BE" opacity="0.7" />
-                <circle cx="250" cy="140" r="2.5" fill="#A4B0BE" opacity="0.7" />
-                <circle cx="285" cy="140" r="2.5" fill="#A4B0BE" opacity="0.7" />
+            <!-- Exhaust Flames -->
+            <g filter="url(#glow)">
+                <!-- Outer Orange/Red Flame -->
+                <path class="flame-outer" d="M 160 360 C 160 420, 200 480, 200 480 C 200 480, 240 420, 240 360 Z" fill="url(#flameOuter)" />
+                <!-- Mid Yellow/Orange Flame -->
+                <path class="flame-inner" d="M 175 360 C 175 400, 200 450, 200 450 C 200 450, 225 400, 225 360 Z" fill="url(#flameInner)" />
+                <!-- Core White Flame -->
+                <path class="flame-core" d="M 190 360 C 190 380, 200 410, 200 410 C 200 410, 210 380, 210 360 Z" fill="#ffffff" />
             </g>
 
-            <!-- FOREGROUND LAUNCH CLOUDS (Static) -->
-            <!-- Cloud Drop Shadows -->
-            <g fill="#DFE4EA" transform="translate(0, 10)">
-                <circle cx="130" cy="450" r="45" />
-                <circle cx="90" cy="470" r="35" />
-                <circle cx="190" cy="465" r="30" />
-                <circle cx="360" cy="450" r="50" />
-                <circle cx="420" cy="460" r="40" />
-                <circle cx="300" cy="470" r="35" />
-                <rect x="80" y="450" width="350" height="50" rx="20" />
-            </g>
-            <!-- White Cloud Tops -->
-            <g fill="#FFFFFF">
-                <circle cx="130" cy="450" r="45" />
-                <circle cx="90" cy="470" r="35" />
-                <circle cx="190" cy="465" r="30" />
-                <circle cx="360" cy="450" r="50" />
-                <circle cx="420" cy="460" r="40" />
-                <circle cx="300" cy="470" r="35" />
-                <rect x="80" y="450" width="350" height="50" rx="20" />
-            </g>
+            <!-- Back Center Fin -->
+            <polygon points="195,300 205,300 205,365 195,365" fill="url(#redGrad)" />
+            <polygon points="195,300 200,300 200,365 195,365" fill="#f87171" opacity="0.6" />
 
-        </svg>
+            <!-- Left Wing/Fin -->
+            <path d="M 155 250 L 100 350 L 100 360 L 150 340 Z" fill="url(#redGrad)" />
+            <!-- Left Wing Shadow -->
+            <path d="M 150 255 L 105 350 L 115 352 L 150 330 Z" fill="#7f1d1d" opacity="0.5" />
+
+            <!-- Right Wing/Fin -->
+            <path d="M 245 250 L 300 350 L 300 360 L 250 340 Z" fill="url(#redGrad)" />
+            <!-- Right Wing Highlight -->
+            <path d="M 245 250 L 295 348 L 290 350 L 250 340 Z" fill="#fca5a5" opacity="0.4" />
+
+            <!-- Engine Nozzle -->
+            <path d="M 165 340 L 235 340 L 245 365 L 155 365 Z" fill="#334155" />
+            <path d="M 165 340 L 235 340 L 230 350 L 170 350 Z" fill="#1e293b" />
+            <line x1="160" y1="355" x2="240" y2="355" stroke="#0f172a" stroke-width="2" />
+
+            <!-- Main Fuselage (Body) -->
+            <path d="M 150 150 C 150 150, 150 250, 150 340 L 250 340 C 250 250, 250 150, 250 150 Z" fill="url(#hullGrad)" />
+
+            <!-- Nose Cone -->
+            <path d="M 150 150 C 150 70, 200 40, 200 40 C 200 40, 250 70, 250 150 Z" fill="url(#redGrad)" />
+            <!-- Nose Cone Highlight -->
+            <path d="M 150 150 C 150 70, 200 40, 200 40 C 200 40, 180 80, 180 150 Z" fill="#ffffff" opacity="0.3" />
+
+            <!-- Hull Details (Panel lines & Rivets) -->
+            <line x1="150" y1="150" x2="250" y2="150" stroke="#94a3b8" stroke-width="4" />
+            <line x1="150" y1="310" x2="250" y2="310" stroke="#64748b" stroke-width="3" />
+            <line x1="150" y1="320" x2="250" y2="320" stroke="#64748b" stroke-width="3" />
+            
+            <circle cx="160" cy="315" r="1.5" fill="#334155" />
+            <circle cx="180" cy="315" r="1.5" fill="#334155" />
+            <circle cx="200" cy="315" r="1.5" fill="#334155" />
+            <circle cx="220" cy="315" r="1.5" fill="#334155" />
+            <circle cx="240" cy="315" r="1.5" fill="#334155" />
+
+            <!-- Red Checkered Stripe Pattern on Body -->
+            <rect x="150" y="270" width="25" height="25" fill="#ef4444" />
+            <rect x="175" y="270" width="25" height="25" fill="#b91c1c" />
+            <rect x="200" y="270" width="25" height="25" fill="#ef4444" />
+            <rect x="225" y="270" width="25" height="25" fill="#b91c1c" />
+
+            <!-- Porthole Window -->
+            <circle cx="200" cy="200" r="32" fill="#94a3b8" /> <!-- Outer Frame -->
+            <circle cx="200" cy="200" r="28" fill="#e2e8f0" /> <!-- Inner Frame -->
+            <circle cx="200" cy="200" r="24" fill="#0f172a" /> <!-- Deep inner edge -->
+            <circle cx="200" cy="200" r="22" fill="url(#glassGrad)" class="window-glow" /> <!-- Glass -->
+            
+            <!-- Window Reflection -->
+            <path d="M 183 186 A 22 22 0 0 1 214 186 A 20 20 0 0 0 183 186 Z" fill="#ffffff" opacity="0.6" />
+            <!-- Star reflection inside window -->
+            <polygon points="190,192 192,196 196,198 192,200 190,204 188,200 184,198 188,196" fill="#ffffff" opacity="0.8" />
+
+        </g>
+
+        <!-- 4. Smoke / Atmospheric Entry Clouds -->
+        <g class="smoke-group" opacity="0.6" fill="#1e293b" filter="url(#glow)">
+            <circle cx="200" cy="460" r="40" />
+            <circle cx="150" cy="480" r="35" />
+            <circle cx="250" cy="480" r="35" />
+            <circle cx="100" cy="490" r="25" />
+            <circle cx="300" cy="490" r="25" />
+            <circle cx="180" cy="490" r="45" />
+            <circle cx="220" cy="490" r="45" />
+        </g>
+
+    </svg>

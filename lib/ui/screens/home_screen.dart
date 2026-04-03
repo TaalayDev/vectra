@@ -117,6 +117,42 @@ const _artworkTemplates = [
     assetPath: 'assets/vectors/artwork_rocket.svg',
     description: 'Playful rocket badge',
   ),
+  _ArtworkTemplate(
+    id: 'fox',
+    name: 'Fox',
+    assetPath: 'assets/vectors/artwork_fox.svg',
+    description: 'Clever fox with bushy tail',
+  ),
+  _ArtworkTemplate(
+    id: 'robot',
+    name: 'Robot',
+    assetPath: 'assets/vectors/artwork_robot.svg',
+    description: 'Retro robot with chest display',
+  ),
+  _ArtworkTemplate(
+    id: 'penguin',
+    name: 'Penguin',
+    assetPath: 'assets/vectors/artwork_penguin.svg',
+    description: 'Cozy penguin with winter hat',
+  ),
+  _ArtworkTemplate(
+    id: 'dragon',
+    name: 'Dragon',
+    assetPath: 'assets/vectors/artwork_dragon.svg',
+    description: 'Cute dragon breathing fire',
+  ),
+  _ArtworkTemplate(
+    id: 'astronaut',
+    name: 'Astronaut',
+    assetPath: 'assets/vectors/artwork_astronaut.svg',
+    description: 'Space explorer in full suit',
+  ),
+  _ArtworkTemplate(
+    id: 'bear',
+    name: 'Bear',
+    assetPath: 'assets/vectors/artwork_bear.svg',
+    description: 'Cozy bear with honey pot',
+  ),
 ];
 
 // =============================================================================

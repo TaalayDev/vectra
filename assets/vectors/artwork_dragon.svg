@@ -1,0 +1,129 @@
+<svg viewBox="0 0 400 500" xmlns="http://www.w3.org/2000/svg">
+        
+        <defs>
+            <!-- Dragon Body Gradients -->
+            <linearGradient id="rubyScales" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#ef4444" />
+                <stop offset="50%" stop-color="#b91c1c" />
+                <stop offset="100%" stop-color="#7f1d1d" />
+            </linearGradient>
+
+            <linearGradient id="rubyDark" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stop-color="#991b1b" />
+                <stop offset="100%" stop-color="#450a0a" />
+            </linearGradient>
+
+            <!-- Wing Membrane Gradient (Translucent Look) -->
+            <radialGradient id="wingMembrane" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stop-color="#9d174d" stop-opacity="0.8" />
+                <stop offset="100%" stop-color="#4a044e" stop-opacity="0.9" />
+            </radialGradient>
+
+            <!-- Fire Gradients -->
+            <linearGradient id="fireGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="#ea580c" stop-opacity="0" />
+                <stop offset="50%" stop-color="#f97316" />
+                <stop offset="100%" stop-color="#fef08a" />
+            </linearGradient>
+
+            <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+                <feGaussianBlur stdDeviation="5" result="blur" />
+                <feComposite in="SourceGraphic" in2="blur" operator="over" />
+            </filter>
+        </defs>
+
+        <!-- Background -->
+        <rect width="400" height="500" fill="#050101" />
+        <ellipse cx="200" cy="520" rx="200" ry="100" fill="#450a0a" filter="url(#glow)" opacity="0.6" />
+
+        <!-- Dragon Master Group -->
+        <g class="dragon-master">
+            
+            <!-- BACK WING -->
+            <g class="wing-b">
+                <path d="M 210 210 L 280 100 Q 350 110 380 230 Q 320 270 280 230 Z" fill="url(#wingMembrane)" />
+                <path d="M 210 210 L 280 100 Q 350 110 380 230" fill="none" stroke="#450a0a" stroke-width="5" stroke-linecap="round" />
+                <!-- Bone Spokes -->
+                <path d="M 280 100 Q 310 160 320 240" fill="none" stroke="#450a0a" stroke-width="2" opacity="0.5" />
+            </g>
+
+            <!-- TAIL -->
+            <g class="tail">
+                <!-- Serpentine Smooth Tail -->
+                <path d="M 240 320 Q 320 380 370 320 Q 400 280 380 250 L 360 270 Q 380 300 360 330 Q 320 370 240 335 Z" fill="url(#rubyScales)" />
+                <!-- Spikes -->
+                <g fill="#450a0a">
+                    <polygon points="300,355 315,375 320,355" />
+                    <polygon points="340,350 355,365 358,340" />
+                    <polygon points="375,320 395,325 385,310" />
+                </g>
+                <!-- Tail Tip (Spade) -->
+                <path d="M 380 250 L 405 220 L 395 255 L 415 260 L 380 275 Z" fill="#b91c1c" stroke="#450a0a" stroke-width="1" />
+            </g>
+
+            <!-- MAIN BODY -->
+            <!-- Torso -->
+            <path d="M 140 230 Q 200 180 270 280 Q 275 320 230 340 Q 150 340 140 230 Z" fill="url(#rubyScales)" />
+            <!-- Belly Plates -->
+            <path d="M 155 245 Q 200 310 255 315 Q 240 325 180 315 Q 150 275 155 245 Z" fill="#d97706" opacity="0.6" />
+
+            <!-- LEGS -->
+            <g fill="url(#rubyDark)">
+                <!-- Back Leg -->
+                <path d="M 250 310 Q 280 340 270 390 L 250 395 L 245 320 Z" />
+                <!-- Front Leg -->
+                <path d="M 180 300 Q 160 340 170 380 L 190 385 Q 200 340 190 300 Z" />
+            </g>
+
+            <!-- NECK -->
+            <path d="M 150 240 Q 110 200 120 120 C 135 150 160 200 180 220 Z" fill="url(#rubyScales)" />
+
+            <!-- HEAD -->
+            <g transform="translate(0, -5)">
+                <!-- Cranium -->
+                <path d="M 115 125 L 60 145 L 65 170 L 120 160 Z" fill="url(#rubyScales)" stroke="#450a0a" stroke-width="1" />
+                <!-- Jaw -->
+                <path d="M 70 165 L 65 185 L 110 185 L 115 165 Z" fill="#450a0a" />
+                <!-- Refined Eye -->
+                <g class="eye-pulse">
+                    <ellipse cx="98" cy="142" rx="6" ry="4" fill="#fde047" filter="url(#glow)" />
+                    <rect x="97" y="139" width="2" height="6" rx="1" fill="#000000" /> <!-- Slit Pupil -->
+                </g>
+                <!-- Horns -->
+                <path d="M 115 130 Q 160 90 180 110 Q 150 120 125 145 Z" fill="#d97706" stroke="#450a0a" />
+                <path d="M 105 130 Q 130 105 145 115 Q 125 125 115 140 Z" fill="#b45309" />
+            </g>
+
+            <!-- FIRE BREATH -->
+            <g class="fire-group" filter="url(#glow)">
+                <path d="M 70 170 Q 20 180 10 260 Q 40 220 75 180" fill="url(#fireGrad)" />
+            </g>
+
+            <!-- FRONT WING -->
+            <g class="wing-f">
+                <!-- Leather Membrane -->
+                <path d="M 180 220 L 100 80 Q 200 10 320 70 Q 360 150 340 240 Q 260 270 180 220 Z" fill="url(#wingMembrane)" />
+                <!-- Skeleton/Bones -->
+                <g fill="none" stroke="#450a0a" stroke-linecap="round">
+                    <path d="M 180 220 L 100 80" stroke-width="8" />
+                    <path d="M 100 80 Q 200 10 320 70" stroke-width="6" />
+                    <!-- Fingers -->
+                    <path d="M 100 80 Q 180 60 210 140" stroke-width="2" opacity="0.4" />
+                    <path d="M 200 40 Q 260 80 280 170" stroke-width="2" opacity="0.4" />
+                    <path d="M 320 70 Q 330 140 330 220" stroke-width="2" opacity="0.4" />
+                </g>
+                <!-- Spikes -->
+                <polygon points="100,80 85,55 110,75" fill="#d97706" />
+                <polygon points="200,40 195,10 215,35" fill="#d97706" />
+            </g>
+
+        </g>
+
+        <!-- Embers -->
+        <g filter="url(#glow)">
+            <circle cx="50" cy="450" r="2" class="ember e1" />
+            <circle cx="350" cy="420" r="3" class="ember e2" />
+            <circle cx="150" cy="480" r="2.5" class="ember e3" />
+        </g>
+
+    </svg>

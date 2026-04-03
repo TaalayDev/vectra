@@ -126,6 +126,8 @@ class _CategorySection extends StatelessWidget {
     AnimationPresetCategory.exit => 'Exit',
     AnimationPresetCategory.loop => 'Loop',
     AnimationPresetCategory.attention => 'Attention',
+    AnimationPresetCategory.transform => 'Transform',
+    AnimationPresetCategory.reveal => 'Reveal',
   };
 
   @override

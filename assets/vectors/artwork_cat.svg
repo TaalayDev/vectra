@@ -1,122 +1,125 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="500" height="500">
-            
-            <!-- DEFINITIONS -->
-            <defs>
-                <!-- Fur Gradients for subtle 3D depth -->
-                <linearGradient id="bodyFur" x1="0%" y1="0%" x2="0%" y2="100%">
-                    <stop offset="0%" stop-color="#FFA502" />
-                    <stop offset="100%" stop-color="#E15F41" />
-                </linearGradient>
-                <linearGradient id="bellyFur" x1="0%" y1="0%" x2="0%" y2="100%">
-                    <stop offset="0%" stop-color="#FFFFFF" />
-                    <stop offset="100%" stop-color="#FFF5E6" />
-                </linearGradient>
-            </defs>
-
-            <!-- FLOOR SHADOW -->
-            <ellipse cx="250" cy="460" rx="160" ry="18" fill="#D1D5DB" opacity="0.8" />
-            <!-- Inner darker shadow for more depth -->
-            <ellipse cx="250" cy="460" rx="90" ry="10" fill="#9CA3AF" opacity="0.5" />
-
-            <!-- TAIL (Animated) -->
-            <g class="cat-tail">
-                <!-- Wraps around from behind and swoops up -->
-                <path d="M 340 400 C 500 420 520 200 410 180 C 350 160 340 250 380 270 C 410 285 430 250 410 230" 
-                      fill="none" stroke="url(#bodyFur)" stroke-width="36" stroke-linecap="round" />
-            </g>
-            
-            <!-- MAIN BODY (Animated Breathing) -->
-            <g class="cat-breathe">
-                <!-- BACK LEGS (Haunches) -->
-                <!-- Left Haunch -->
-                <ellipse cx="140" cy="370" rx="55" ry="75" fill="#E15F41" transform="rotate(15 140 370)" />
-                <!-- Right Haunch -->
-                <ellipse cx="360" cy="370" rx="55" ry="75" fill="#E15F41" transform="rotate(-15 360 370)" />
-
-                <!-- BACK PAWS -->
-                <rect x="90" y="425" width="50" height="26" rx="13" fill="#FFF5E6" />
-                <rect x="360" y="425" width="50" height="26" rx="13" fill="#FFF5E6" />
-                <!-- Back Paw Toe Lines -->
-                <path d="M 105 430 L 105 448 M 120 430 L 120 448" stroke="#E15F41" stroke-width="3" stroke-linecap="round" opacity="0.5" />
-                <path d="M 380 430 L 380 448 M 395 430 L 395 448" stroke="#E15F41" stroke-width="3" stroke-linecap="round" opacity="0.5" />
-
-                <!-- BODY -->
-                <path d="M 250 180 C 110 180 95 380 145 440 L 355 440 C 405 380 390 180 250 180 Z" fill="url(#bodyFur)" />
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 350 300" class="w-[500px] max-w-[90vw] h-auto overflow-visible">
+            <g transform="translate(25, 0)">
                 
-                <!-- BELLY / CHEST -->
-                <path d="M 250 240 C 165 240 155 390 180 440 L 320 440 C 345 390 335 240 250 240 Z" fill="url(#bellyFur)" />
+                <!-- Floor shadow to ground the cat -->
+                <ellipse cx="150" cy="250" rx="90" ry="15" fill="rgba(0,0,0,0.1)" />
 
-                <!-- HEAD SHADOW (Dropped on the chest) -->
-                <ellipse cx="250" cy="235" rx="60" ry="20" fill="#E15F41" opacity="0.4" />
-
-                <!-- FRONT LEGS -->
-                <rect x="195" y="280" width="36" height="150" rx="18" fill="url(#bodyFur)" />
-                <rect x="269" y="280" width="36" height="150" rx="18" fill="url(#bodyFur)" />
-
-                <!-- FRONT PAWS -->
-                <rect x="190" y="420" width="46" height="26" rx="13" fill="#FFF5E6" />
-                <rect x="264" y="420" width="46" height="26" rx="13" fill="#FFF5E6" />
-                <!-- Front Paw Toe Lines -->
-                <path d="M 205 425 L 205 443 M 220 425 L 220 443" stroke="#E15F41" stroke-width="3" stroke-linecap="round" opacity="0.5" />
-                <path d="M 279 425 L 279 443 M 294 425 L 294 443" stroke="#E15F41" stroke-width="3" stroke-linecap="round" opacity="0.5" />
-
-                <!-- COLLAR -->
-                <path d="M 185 220 C 205 245 295 245 315 220" fill="none" stroke="#FF4757" stroke-width="12" stroke-linecap="round" />
-                <!-- Gold Bell -->
-                <circle cx="250" cy="245" r="16" fill="#F1C40F" />
-                <path d="M 235 245 L 265 245 M 250 245 L 250 258" stroke="#E67E22" stroke-width="3" />
-                <circle cx="250" cy="250" r="4" fill="#E67E22" />
-
-                <!-- HEAD GROUP -->
-                <g>
-                    <!-- Left Ear -->
-                    <polygon points="170,95 120,20 220,65" fill="#FFA502" />
-                    <!-- Left Ear Inner -->
-                    <polygon points="170,85 140,35 210,65" fill="#FF789F" />
-                    <!-- Right Ear -->
-                    <polygon points="330,95 380,20 280,65" fill="#FFA502" />
-                    <!-- Right Ear Inner -->
-                    <polygon points="330,85 360,35 290,65" fill="#FF789F" />
-
-                    <!-- Head Base -->
-                    <ellipse cx="250" cy="140" rx="110" ry="85" fill="#FFA502" />
-
-                    <!-- TABBY STRIPES -->
-                    <!-- Top Head -->
-                    <path d="M 250 55 L 250 95 M 225 60 L 232 90 M 275 60 L 268 90" stroke="#D35400" stroke-width="6" stroke-linecap="round" />
-                    <!-- Cheeks Left -->
-                    <path d="M 145 120 L 170 130 M 140 140 L 170 145 M 145 160 L 175 155" stroke="#D35400" stroke-width="6" stroke-linecap="round" />
-                    <!-- Cheeks Right -->
-                    <path d="M 355 120 L 330 130 M 360 140 L 330 145 M 355 160 L 325 155" stroke="#D35400" stroke-width="6" stroke-linecap="round" />
-
-                    <!-- FACE DETAILS -->
-                    <!-- Cream Snout -->
-                    <ellipse cx="250" cy="175" rx="45" ry="30" fill="#FFF5E6" />
-
-                    <!-- Cute Blush -->
-                    <ellipse cx="175" cy="165" rx="16" ry="10" fill="#FF789F" opacity="0.4" />
-                    <ellipse cx="325" cy="165" rx="16" ry="10" fill="#FF789F" opacity="0.4" />
-
-                    <!-- Animated Eyes (Blink) -->
-                    <g class="cat-blink">
-                        <circle cx="195" cy="140" r="14" fill="#2D3436" />
-                        <circle cx="305" cy="140" r="14" fill="#2D3436" />
-                        <!-- Eye Catchlights -->
-                        <circle cx="190" cy="134" r="5" fill="#FFFFFF" />
-                        <circle cx="202" cy="145" r="2" fill="#FFFFFF" />
-                        <circle cx="300" cy="134" r="5" fill="#FFFFFF" />
-                        <circle cx="312" cy="145" r="2" fill="#FFFFFF" />
+                <!-- ================= TAIL (Behind the body) ================= -->
+                    <path class="cat-tail" d="M 180,220 C 260,240 290,130 240,100 C 210,80 230,150 250,150" 
+                          fill="none" stroke="#FF9A00" stroke-width="20" stroke-linecap="round"/>
+                    
+                    <!-- Tail Stripes -->
+                    <g class="cat-tail">
+                        <path d="M 245,105 L 255,120" stroke="#D35400" stroke-width="4" stroke-linecap="round"/>
+                        <path d="M 265,135 L 275,150" stroke="#D35400" stroke-width="4" stroke-linecap="round"/>
+                        <path d="M 270,170 L 250,180" stroke="#D35400" stroke-width="4" stroke-linecap="round"/>
                     </g>
 
+                    <!-- ================= BACK PAWS / HAUNCHES ================= -->
+                    <!-- Left Haunch -->
+                    <ellipse cx="90" cy="220" rx="20" ry="30" fill="#E68A00" transform="rotate(-20 90 220)" />
+                    <!-- Right Haunch -->
+                    <ellipse cx="210" cy="220" rx="20" ry="30" fill="#E68A00" transform="rotate(20 210 220)" />
+
+
+                    <!-- ================= MAIN BODY ================= -->
+                    <!-- A smooth, slightly bell-shaped curve for a sitting cat -->
+                    <path d="M 95,245 C 95,150 130,130 150,130 C 170,130 205,150 205,245 Z" fill="#FF9A00" />
+                    
+                    <!-- Lighter Belly Patch -->
+                    <path d="M 115,245 C 115,180 135,160 150,160 C 165,160 185,180 185,245 Z" fill="#FFF3E0" />
+
+
+                    <!-- ================= HEAD & EARS ================= -->
+                    <!-- Left Ear -->
+                    <polygon points="110,85 85,30 135,65" fill="#FF9A00" stroke="#FF9A00" stroke-width="2" stroke-linejoin="round"/>
+                    <!-- Left Inner Ear -->
+                    <polygon points="108,80 93,42 128,66" fill="#FFB6C1" />
+                    
+                    <!-- Right Ear -->
+                    <polygon points="190,85 215,30 165,65" fill="#FF9A00" stroke="#FF9A00" stroke-width="2" stroke-linejoin="round"/>
+                    <!-- Right Inner Ear -->
+                    <polygon points="192,80 207,42 172,66" fill="#FFB6C1" />
+
+                    <!-- Main Head Shape -->
+                    <ellipse cx="150" cy="110" rx="50" ry="45" fill="#FF9A00" />
+
+                    <!-- Head Stripes (Classic Tabby 'M') -->
+                    <path d="M 135,65 L 142,80 L 150,65 L 158,80 L 165,65" fill="none" stroke="#D35400" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" />
+                    
+                    <!-- Cheek Stripes Left -->
+                    <line x1="105" y1="105" x2="115" y2="110" stroke="#D35400" stroke-width="3" stroke-linecap="round"/>
+                    <line x1="102" y1="115" x2="112" y2="118" stroke="#D35400" stroke-width="3" stroke-linecap="round"/>
+                    
+                    <!-- Cheek Stripes Right -->
+                    <line x1="195" y1="105" x2="185" y2="110" stroke="#D35400" stroke-width="3" stroke-linecap="round"/>
+                    <line x1="198" y1="115" x2="188" y2="118" stroke="#D35400" stroke-width="3" stroke-linecap="round"/>
+
+
+                    <!-- ================= FACE DETAILS ================= -->
+                    <!-- Left Eye Group -->
+                    <g class="eye-left">
+                        <!-- Eye Whites -->
+                        <circle cx="125" cy="100" r="12" fill="#FFFFFF" />
+                        <!-- Iris (Green) -->
+                        <circle cx="125" cy="100" r="10" fill="#81C784" />
+                        <!-- Pupil -->
+                        <circle cx="125" cy="100" r="6" fill="#1A252F" />
+                        <!-- Catchlight (Eye shine) -->
+                        <circle cx="128" cy="97" r="3" fill="#FFFFFF" />
+                    </g>
+
+                    <!-- Right Eye Group -->
+                    <g class="eye-right">
+                        <!-- Eye Whites -->
+                        <circle cx="175" cy="100" r="12" fill="#FFFFFF" />
+                        <!-- Iris (Green) -->
+                        <circle cx="175" cy="100" r="10" fill="#81C784" />
+                        <!-- Pupil -->
+                        <circle cx="175" cy="100" r="6" fill="#1A252F" />
+                        <!-- Catchlight (Eye shine) -->
+                        <circle cx="178" cy="97" r="3" fill="#FFFFFF" />
+                    </g>
+
+                    <!-- Muzzle (Cheeks) -->
+                    <ellipse cx="140" cy="122" rx="12" ry="9" fill="#FFF3E0" />
+                    <ellipse cx="160" cy="122" rx="12" ry="9" fill="#FFF3E0" />
+                    
                     <!-- Nose -->
-                    <path d="M 240 162 L 260 162 L 250 172 Z" fill="#FF789F" stroke="#FF789F" stroke-width="3" stroke-linejoin="round" />
+                    <polygon points="145,115 155,115 150,122" fill="#FF8A80" />
+                    
+                    <!-- Mouth line dropping from nose -->
+                    <line x1="150" y1="122" x2="150" y2="127" stroke="#2C3E50" stroke-width="2" stroke-linecap="round"/>
+                    <!-- Little chin -->
+                    <ellipse cx="150" cy="130" rx="5" ry="4" fill="#FFE4B5" />
 
-                    <!-- Smiling Mouth -->
-                    <path d="M 238 180 C 238 190 250 190 250 180 C 250 190 262 190 262 180" fill="none" stroke="#2D3436" stroke-width="3" stroke-linecap="round" />
+                    <!-- Whiskers Left -->
+                    <g stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" class="whisker">
+                        <line x1="130" y1="120" x2="70" y2="112" />
+                        <line x1="128" y1="124" x2="65" y2="124" />
+                        <line x1="130" y1="128" x2="70" y2="136" />
+                    </g>
 
-                    <!-- Whiskers -->
-                    <path d="M 205 170 L 110 160 M 200 180 L 105 180 M 205 190 L 115 200" stroke="#4A4A4A" stroke-width="3" stroke-linecap="round" opacity="0.6" />
-                    <path d="M 295 170 L 390 160 M 300 180 L 395 180 M 295 190 L 385 200" stroke="#4A4A4A" stroke-width="3" stroke-linecap="round" opacity="0.6" />
-                </g>
+                    <!-- Whiskers Right -->
+                    <g stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" class="whisker">
+                        <line x1="170" y1="120" x2="230" y2="112" />
+                        <line x1="172" y1="124" x2="235" y2="124" />
+                        <line x1="170" y1="128" x2="230" y2="136" />
+                    </g>
+
+
+                    <!-- ================= FRONT PAWS ================= -->
+                    <!-- Left Front Paw -->
+                    <ellipse cx="130" cy="245" rx="14" ry="10" fill="#FF9A00" />
+                    <!-- Toe lines -->
+                    <line x1="125" y1="252" x2="125" y2="242" stroke="#D35400" stroke-width="2" stroke-linecap="round"/>
+                    <line x1="135" y1="252" x2="135" y2="242" stroke="#D35400" stroke-width="2" stroke-linecap="round"/>
+
+                    <!-- Right Front Paw -->
+                <ellipse cx="170" cy="245" rx="14" ry="10" fill="#FF9A00" />
+                <!-- Toe lines -->
+                <line x1="165" y1="252" x2="165" y2="242" stroke="#D35400" stroke-width="2" stroke-linecap="round"/>
+                <line x1="175" y1="252" x2="175" y2="242" stroke="#D35400" stroke-width="2" stroke-linecap="round"/>
+
             </g>
         </svg>

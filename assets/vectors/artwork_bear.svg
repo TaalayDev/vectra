@@ -1,0 +1,156 @@
+<svg viewBox="0 0 400 500" xmlns="http://www.w3.org/2000/svg">
+        
+        <!-- Definitions -->
+        <defs>
+            <!-- Bear Fur Gradients -->
+            <linearGradient id="furDark" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#78350f" />
+                <stop offset="100%" stop-color="#451a03" />
+            </linearGradient>
+
+            <linearGradient id="furMid" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stop-color="#92400e" />
+                <stop offset="100%" stop-color="#78350f" />
+            </linearGradient>
+
+            <linearGradient id="furLight" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stop-color="#b45309" />
+                <stop offset="100%" stop-color="#92400e" />
+            </linearGradient>
+
+            <radialGradient id="snoutGrad" cx="50%" cy="40%" r="60%">
+                <stop offset="0%" stop-color="#fde68a" />
+                <stop offset="100%" stop-color="#d97706" />
+            </radialGradient>
+
+            <!-- Firefly Glow Filter -->
+            <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+                <feGaussianBlur stdDeviation="4" result="blur" />
+                <feComposite in="SourceGraphic" in2="blur" operator="over" />
+            </filter>
+            
+            <!-- Soft Moon Glow -->
+            <radialGradient id="moonGlow" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stop-color="#fef08a" stop-opacity="0.8" />
+                <stop offset="40%" stop-color="#fef08a" stop-opacity="0.4" />
+                <stop offset="100%" stop-color="#022c22" stop-opacity="0" />
+            </radialGradient>
+        </defs>
+
+        <!-- Background & Atmosphere -->
+        
+        <!-- Glowing Moon -->
+        <circle cx="200" cy="200" r="180" fill="url(#moonGlow)" />
+
+        <!-- Silhouetted Forest Pines -->
+        <g opacity="0.6" fill="#022c22">
+            <!-- Left Trees -->
+            <polygon points="-20,400 20,220 60,400" />
+            <polygon points="-40,420 20,260 80,420" />
+            <polygon points="20,400 60,180 100,400" />
+            <polygon points="0,420 60,240 120,420" />
+            
+            <!-- Right Trees -->
+            <polygon points="340,400 380,180 420,400" />
+            <polygon points="320,420 380,240 440,420" />
+            <polygon points="300,400 340,220 380,400" />
+            <polygon points="280,420 340,260 400,420" />
+        </g>
+
+        <!-- Curving Ground -->
+        <path d="M -50 380 Q 200 350 450 380 L 450 500 L -50 500 Z" fill="#064e3b" />
+        <path d="M -50 420 Q 200 390 450 420 L 450 500 L -50 500 Z" fill="#022c22" />
+        
+        <!-- Bear Drop Shadow -->
+        <ellipse cx="200" cy="420" rx="110" ry="15" fill="#020617" opacity="0.5" /> 
+
+        <!-- The Bear -->
+        
+        <!-- Back Legs (Darker fur) -->
+        <ellipse cx="110" cy="380" rx="35" ry="45" fill="url(#furDark)" transform="rotate(20 110 380)" />
+        <ellipse cx="290" cy="380" rx="35" ry="45" fill="url(#furDark)" transform="rotate(-20 290 380)" />
+        
+        <!-- Back Paws -->
+        <ellipse cx="90" cy="415" rx="20" ry="12" fill="#451a03" />
+        <ellipse cx="310" cy="415" rx="20" ry="12" fill="#451a03" />
+
+        <!-- Animated Body Group -->
+        <g class="bear-body">
+            <!-- Main Torso -->
+            <ellipse cx="200" cy="330" rx="95" ry="110" fill="url(#furMid)" />
+            
+            <!-- Fluffy Belly -->
+            <ellipse cx="200" cy="355" rx="65" ry="75" fill="#d97706" opacity="0.9"/>
+            
+            <!-- Front Arms / Paws resting on belly -->
+            <!-- Left Arm -->
+            <path d="M 120 280 C 110 340, 140 380, 170 380 C 180 380, 190 370, 185 350 C 170 310, 150 280, 120 280 Z" fill="url(#furLight)" />
+            <!-- Right Arm -->
+            <path d="M 280 280 C 290 340, 260 380, 230 380 C 220 380, 210 370, 215 350 C 230 310, 250 280, 280 280 Z" fill="url(#furLight)" />
+            
+            <!-- Front Paw Pads -->
+            <ellipse cx="165" cy="365" rx="12" ry="8" fill="#451a03" transform="rotate(15 165 365)" />
+            <ellipse cx="235" cy="365" rx="12" ry="8" fill="#451a03" transform="rotate(-15 235 365)" />
+        </g>
+
+        <!-- Animated Head Group -->
+        <g class="bear-head">
+            
+            <!-- Ears -->
+            <g class="ear-l">
+                <circle cx="135" cy="165" r="25" fill="url(#furMid)" />
+                <circle cx="135" cy="165" r="14" fill="#d97706" />
+            </g>
+            <g class="ear-r">
+                <circle cx="265" cy="165" r="25" fill="url(#furMid)" />
+                <circle cx="265" cy="165" r="14" fill="#d97706" />
+            </g>
+
+            <!-- Main Head Oval -->
+            <ellipse cx="200" cy="210" rx="75" ry="65" fill="url(#furLight)" />
+
+            <!-- Cute Cheeks -->
+            <ellipse cx="150" cy="225" rx="15" ry="8" fill="#ef4444" opacity="0.3" />
+            <ellipse cx="250" cy="225" rx="15" ry="8" fill="#ef4444" opacity="0.3" />
+
+            <!-- Snout -->
+            <ellipse cx="200" cy="245" rx="35" ry="25" fill="url(#snoutGrad)" />
+
+            <!-- Nose -->
+            <ellipse cx="200" cy="235" rx="14" ry="9" fill="#292524" />
+            <!-- Nose shine -->
+            <ellipse cx="196" cy="232" rx="4" ry="2" fill="#ffffff" opacity="0.6" transform="rotate(-15 196 232)" />
+
+            <!-- Mouth -->
+            <path d="M 185 255 Q 200 265 215 255" fill="none" stroke="#451a03" stroke-width="3" stroke-linecap="round" />
+            <line x1="200" y1="244" x2="200" y2="258" stroke="#451a03" stroke-width="3" stroke-linecap="round" />
+
+            <!-- Eyes (Looking slightly cross-eyed at the firefly) -->
+            <g class="eyes">
+                <circle cx="178" cy="210" r="5" fill="#292524" />
+                <circle cx="176" cy="208" r="1.5" fill="#ffffff" />
+                
+                <circle cx="222" cy="210" r="5" fill="#292524" />
+                <circle cx="220" cy="208" r="1.5" fill="#ffffff" />
+            </g>
+
+        </g>
+
+        <!-- The Firefly on the Nose -->
+        <g class="nose-firefly">
+            <!-- Glow effect -->
+            <circle cx="200" cy="212" r="6" fill="#bef264" class="glow-pulse" filter="url(#glow)" />
+            <circle cx="200" cy="212" r="3" fill="#ffffff" />
+            <!-- Little wings -->
+            <ellipse cx="194" cy="210" rx="4" ry="2" fill="#f0fdf4" opacity="0.8" transform="rotate(-30 194 210)" />
+            <ellipse cx="206" cy="210" rx="4" ry="2" fill="#f0fdf4" opacity="0.8" transform="rotate(30 206 210)" />
+        </g>
+
+        <!-- Ambient Background Fireflies -->
+        <circle cx="80"  cy="350" r="4" fill="#bef264" class="firefly f1" filter="url(#glow)" />
+        <circle cx="320" cy="380" r="3" fill="#a3e635" class="firefly f2" filter="url(#glow)" />
+        <circle cx="120" cy="280" r="5" fill="#d9f99d" class="firefly f3" filter="url(#glow)" />
+        <circle cx="300" cy="250" r="3" fill="#bef264" class="firefly f4" filter="url(#glow)" />
+        <circle cx="200" cy="400" r="4" fill="#a3e635" class="firefly f5" filter="url(#glow)" />
+
+    </svg>
