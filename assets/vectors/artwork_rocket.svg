@@ -1,0 +1,123 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="500" height="500">
+            
+            <!-- DEFINITIONS & GRADIENTS -->
+            <defs>
+                <!-- Sleek metallic rocket body -->
+                <linearGradient id="rocketBody" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stop-color="#F1F2F6" />
+                    <stop offset="40%" stop-color="#FFFFFF" />
+                    <stop offset="100%" stop-color="#DFE4EA" />
+                </linearGradient>
+                
+                <!-- Vibrant red for fins and nose cone -->
+                <linearGradient id="rocketRed" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stop-color="#FF6B81" />
+                    <stop offset="100%" stop-color="#FF4757" />
+                </linearGradient>
+
+                <!-- Shiny cyan glass for the window -->
+                <linearGradient id="windowGlass" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#81ECEC" />
+                    <stop offset="100%" stop-color="#0984E3" />
+                </linearGradient>
+
+                <!-- Clip Paths to perfectly align the nose cone and stripes to the rocket body -->
+                <clipPath id="noseClip">
+                    <rect x="0" y="0" width="500" height="130" />
+                </clipPath>
+                <clipPath id="stripeClip">
+                    <rect x="0" y="310" width="500" height="15" />
+                </clipPath>
+            </defs>
+
+            <!-- BACKGROUND ACCENTS -->
+            <circle cx="100" cy="100" r="4" fill="#DFE4EA" opacity="0.6" />
+            <circle cx="420" cy="180" r="6" fill="#DFE4EA" opacity="0.6" />
+            <circle cx="80" cy="280" r="3" fill="#DFE4EA" opacity="0.6" />
+            <circle cx="390" cy="320" r="5" fill="#DFE4EA" opacity="0.6" />
+
+            <!-- ANIMATED ROCKET GROUP -->
+            <g class="rocket-float">
+                
+                <!-- FLAMES (Placed behind everything) -->
+                <g class="flame-flicker">
+                    <!-- Red Flame -->
+                    <path d="M 210 380 C 210 440, 240 510, 250 530 C 260 510, 290 440, 290 380 Z" fill="#FF4757" />
+                    <!-- Orange Flame -->
+                    <path d="M 225 380 C 225 430, 245 480, 250 500 C 255 480, 275 430, 275 380 Z" fill="#FFA502" />
+                    <!-- Yellow Flame -->
+                    <path d="M 235 380 C 235 410, 245 450, 250 470 C 255 450, 265 410, 265 380 Z" fill="#ECCC68" />
+                </g>
+
+                <!-- NOZZLE -->
+                <path d="M 215 350 L 205 385 Q 250 395 295 385 L 285 350 Z" fill="#2D3436" />
+                <!-- Metallic shine on nozzle -->
+                <path d="M 215 350 L 205 385 Q 250 395 295 385 L 285 350 Z" fill="#FFFFFF" opacity="0.15" />
+
+                <!-- SIDE FINS -->
+                <!-- Left Fin -->
+                <path d="M 180 250 Q 120 300 90 380 Q 140 380 185 345 Z" fill="url(#rocketRed)" />
+                <path d="M 140 340 L 90 380 Q 140 380 185 345 Z" fill="#C23616" opacity="0.3" /> <!-- Shadow Detail -->
+
+                <!-- Right Fin -->
+                <path d="M 320 250 Q 380 300 410 380 Q 360 380 315 345 Z" fill="url(#rocketRed)" />
+                <path d="M 360 340 L 410 380 Q 360 380 315 345 Z" fill="#C23616" opacity="0.3" /> <!-- Shadow Detail -->
+
+                <!-- MAIN ROCKET BODY -->
+                <!-- Defining it with an ID so we can reuse the exact shape for clipped elements -->
+                <path id="rocketShape" d="M 250 50 C 310 90, 330 220, 320 350 Q 250 370 180 350 C 170 220, 190 90, 250 50 Z" fill="url(#rocketBody)" />
+
+                <!-- NOSE CONE -->
+                <use href="#rocketShape" fill="url(#rocketRed)" clip-path="url(#noseClip)" />
+                
+                <!-- RED BOTTOM STRIPE -->
+                <use href="#rocketShape" fill="url(#rocketRed)" clip-path="url(#stripeClip)" />
+
+                <!-- WINDOW -->
+                <!-- Outer Frame -->
+                <circle cx="250" cy="200" r="35" fill="#747D8C" />
+                <circle cx="250" cy="200" r="30" fill="#F1F2F6" />
+                <!-- Cyan Glass -->
+                <circle cx="250" cy="200" r="25" fill="url(#windowGlass)" />
+                <!-- Glass Glare / Reflections -->
+                <path d="M 230 185 A 25 25 0 0 1 270 185 A 15 15 0 0 0 230 185 Z" fill="#FFFFFF" opacity="0.6" />
+                <circle cx="260" cy="210" r="3" fill="#FFFFFF" opacity="0.8" />
+
+                <!-- CENTER FIN -->
+                <path d="M 245 280 L 245 390 Q 250 395 255 390 L 255 280 Z" fill="url(#rocketRed)" />
+                <path d="M 245 280 L 245 390" stroke="#FF7675" stroke-width="2" opacity="0.8" /> <!-- Edge Highlight -->
+
+                <!-- 3D BODY HIGHLIGHT -->
+                <path d="M 250 50 C 310 90, 330 220, 320 350 Q 250 370 180 350 C 170 220, 190 90, 250 50 Z" fill="none" stroke="#FFFFFF" stroke-width="8" stroke-linecap="round" opacity="0.6" />
+                <!-- Inner body shadow -->
+                <path d="M 250 50 C 190 90, 170 220, 180 350" fill="none" stroke="#2F3542" stroke-width="15" opacity="0.05" />
+                
+                <!-- RIVETS -->
+                <circle cx="215" cy="140" r="2.5" fill="#A4B0BE" opacity="0.7" />
+                <circle cx="250" cy="140" r="2.5" fill="#A4B0BE" opacity="0.7" />
+                <circle cx="285" cy="140" r="2.5" fill="#A4B0BE" opacity="0.7" />
+            </g>
+
+            <!-- FOREGROUND LAUNCH CLOUDS (Static) -->
+            <!-- Cloud Drop Shadows -->
+            <g fill="#DFE4EA" transform="translate(0, 10)">
+                <circle cx="130" cy="450" r="45" />
+                <circle cx="90" cy="470" r="35" />
+                <circle cx="190" cy="465" r="30" />
+                <circle cx="360" cy="450" r="50" />
+                <circle cx="420" cy="460" r="40" />
+                <circle cx="300" cy="470" r="35" />
+                <rect x="80" y="450" width="350" height="50" rx="20" />
+            </g>
+            <!-- White Cloud Tops -->
+            <g fill="#FFFFFF">
+                <circle cx="130" cy="450" r="45" />
+                <circle cx="90" cy="470" r="35" />
+                <circle cx="190" cy="465" r="30" />
+                <circle cx="360" cy="450" r="50" />
+                <circle cx="420" cy="460" r="40" />
+                <circle cx="300" cy="470" r="35" />
+                <rect x="80" y="450" width="350" height="50" rx="20" />
+            </g>
+
+        </svg>

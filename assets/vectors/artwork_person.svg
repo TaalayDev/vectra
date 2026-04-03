@@ -1,0 +1,123 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="400" height="400">
+            
+            <!-- DEFINITIONS (Gradients and Clip Paths) -->
+            <defs>
+                <!-- Vibrant Background Gradient -->
+                <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#84FAB0" />
+                    <stop offset="100%" stop-color="#8FD3F4" />
+                </linearGradient>
+
+                <!-- Skin Gradient for Depth -->
+                <linearGradient id="skinGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" stop-color="#FFD3B6" />
+                    <stop offset="100%" stop-color="#F2B896" />
+                </linearGradient>
+
+                <!-- Circular Clip Path to keep everything inside the avatar circle -->
+                <clipPath id="circleClip">
+                    <circle cx="200" cy="200" r="190" />
+                </clipPath>
+            </defs>
+
+            <!-- BACKGROUND BASE -->
+            <circle cx="200" cy="200" r="190" fill="url(#bgGradient)" />
+
+            <!-- ALL CONTENT CLIPPED TO CIRCLE -->
+            <g clip-path="url(#circleClip)">
+                
+                <!-- Floating Decorative Background Elements -->
+                <circle cx="80" cy="110" r="18" fill="#ffffff" opacity="0.25" />
+                <circle cx="320" cy="260" r="28" fill="#ffffff" opacity="0.2" />
+                <rect x="50" y="270" width="24" height="24" rx="6" transform="rotate(45 62 282)" fill="#ffffff" opacity="0.2" />
+                <polygon points="320,80 345,115 295,115" fill="#ffffff" opacity="0.2" />
+
+                <!-- BODY / HOODIE -->
+                <!-- Main shoulders/jacket -->
+                <path d="M 50 420 C 50 280 110 260 200 260 C 290 260 350 280 350 420" fill="#6C5CE7" />
+                <!-- Hoodie inner collar shading -->
+                <path d="M 150 260 L 200 310 L 250 260 Z" fill="#5A4BCC" />
+                <!-- Undershirt -->
+                <path d="M 165 260 L 200 295 L 235 260 Z" fill="#FFFFFF" />
+                
+                <!-- Hoodie Details (Drawstrings and Zipper line) -->
+                <path d="M 200 310 L 200 420" stroke="#4839A6" stroke-width="4" stroke-linecap="round" />
+                <path d="M 175 285 L 175 350" stroke="#FFFFFF" stroke-width="5" stroke-linecap="round" />
+                <path d="M 225 285 L 225 350" stroke="#FFFFFF" stroke-width="5" stroke-linecap="round" />
+                <!-- Drawstring tips -->
+                <circle cx="175" cy="355" r="4" fill="#FDCB6E" />
+                <circle cx="225" cy="355" r="4" fill="#FDCB6E" />
+
+                <!-- NECK -->
+                <rect x="175" y="190" width="50" height="90" rx="15" fill="url(#skinGradient)" />
+                <!-- Neck Shadow -->
+                <path d="M 175 235 Q 200 255 225 235 L 225 280 L 175 280 Z" fill="#DFA381" />
+
+                <!-- EARS -->
+                <circle cx="128" cy="165" r="18" fill="url(#skinGradient)" />
+                <circle cx="272" cy="165" r="18" fill="url(#skinGradient)" />
+                <!-- Ear inner details -->
+                <path d="M 125 155 C 115 165 125 175 130 170" stroke="#DFA381" stroke-width="4" stroke-linecap="round" fill="none" />
+                <path d="M 275 155 C 285 165 275 175 270 170" stroke="#DFA381" stroke-width="4" stroke-linecap="round" fill="none" />
+
+                <!-- BACK HAIR (Volume behind head) -->
+                <rect x="115" y="50" width="170" height="130" rx="65" fill="#2B2B2B" />
+
+                <!-- FACE BASE -->
+                <rect x="130" y="90" width="140" height="160" rx="65" fill="url(#skinGradient)" />
+
+                <!-- FRONT HAIR / BANGS -->
+                <path d="M 115 125 C 140 140 170 145 200 120 C 230 95 260 125 285 135 C 285 80 240 55 200 55 C 160 55 115 80 115 125 Z" fill="#353B3E" />
+                <!-- Hair highlights/texture strands -->
+                <path d="M 140 110 Q 160 125 180 100" stroke="#4A5559" stroke-width="4" stroke-linecap="round" fill="none" />
+                <path d="M 220 90 Q 240 110 260 105" stroke="#4A5559" stroke-width="4" stroke-linecap="round" fill="none" />
+
+                <!-- EYEBROWS -->
+                <path d="M 145 135 Q 160 128 175 135" stroke="#2B2B2B" stroke-width="6" stroke-linecap="round" fill="none" />
+                <path d="M 225 135 Q 240 128 255 135" stroke="#2B2B2B" stroke-width="6" stroke-linecap="round" fill="none" />
+
+                <!-- BLUSH -->
+                <circle cx="150" cy="180" r="14" fill="#FF9FF3" opacity="0.35" />
+                <circle cx="250" cy="180" r="14" fill="#FF9FF3" opacity="0.35" />
+
+                <!-- EYES -->
+                <circle cx="165" cy="155" r="9" fill="#2D3436" />
+                <circle cx="235" cy="155" r="9" fill="#2D3436" />
+                <!-- Eye Catchlights -->
+                <circle cx="162" cy="152" r="3" fill="#FFFFFF" />
+                <circle cx="232" cy="152" r="3" fill="#FFFFFF" />
+
+                <!-- GLASSES -->
+                <!-- Left Lens -->
+                <rect x="140" y="138" width="50" height="36" rx="10" fill="#FFFFFF" opacity="0.15" />
+                <rect x="140" y="138" width="50" height="36" rx="10" fill="none" stroke="#2D3436" stroke-width="5" />
+                <!-- Right Lens -->
+                <rect x="210" y="138" width="50" height="36" rx="10" fill="#FFFFFF" opacity="0.15" />
+                <rect x="210" y="138" width="50" height="36" rx="10" fill="none" stroke="#2D3436" stroke-width="5" />
+                <!-- Bridge -->
+                <path d="M 190 152 L 210 152" stroke="#2D3436" stroke-width="5" stroke-linecap="round" />
+                <!-- Side Arms -->
+                <path d="M 125 148 L 140 148" stroke="#2D3436" stroke-width="5" stroke-linecap="round" />
+                <path d="M 260 148 L 275 148" stroke="#2D3436" stroke-width="5" stroke-linecap="round" />
+                <!-- Glasses Glare -->
+                <polygon points="148,142 165,142 155,168 145,168" fill="#FFFFFF" opacity="0.4" />
+                <polygon points="218,142 235,142 225,168 215,168" fill="#FFFFFF" opacity="0.4" />
+
+                <!-- NOSE -->
+                <path d="M 200 160 C 200 180 200 185 190 185" stroke="#DFA381" stroke-width="5" stroke-linecap="round" fill="none" />
+
+                <!-- MOUTH (Happy Smile) -->
+                <g transform="translate(0, -2)">
+                    <!-- Mouth Base/Inside -->
+                    <path d="M 178 205 Q 200 235 222 205 Z" fill="#2D3436" />
+                    <!-- Teeth -->
+                    <path d="M 181 205 Q 200 216 219 205 Z" fill="#FFFFFF" />
+                    <!-- Tongue -->
+                    <path d="M 190 215 Q 200 230 210 215 Z" fill="#FF7675" />
+                    <!-- Smile creases -->
+                    <path d="M 170 200 Q 175 205 178 205" stroke="#DFA381" stroke-width="3" stroke-linecap="round" fill="none" />
+                    <path d="M 230 200 Q 225 205 222 205" stroke="#DFA381" stroke-width="3" stroke-linecap="round" fill="none" />
+                </g>
+
+            </g>
+        </svg>

@@ -1,10 +1,14 @@
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_vector_icons/flutter_vector_icons.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import '../../app/theme/theme.dart';
+import '../../core/import/svg_importer.dart';
 import '../../data/models/vec_color.dart';
+import '../../data/models/vec_shape.dart';
 import '../../providers/document_provider.dart';
 import '../../providers/recent_projects_provider.dart';
 import '../contents/animated_background.dart';
@@ -24,7 +28,6 @@ class _Template {
   final double width;
   final double height;
   final int fps;
-  final Color? accentOverride; // optional tint for the preview
 
   const _Template({
     required this.name,
@@ -33,7 +36,6 @@ class _Template {
     required this.width,
     required this.height,
     this.fps = 24,
-    this.accentOverride,
   });
 
   String get sizeLabel => '${width.toInt()} x ${height.toInt()}';
@@ -79,6 +81,42 @@ const _templates = [
     fps: 1,
   ),
   _Template(name: 'Presentation', category: 'Design', icon: Icons.slideshow_rounded, width: 1920, height: 1080),
+];
+
+class _ArtworkTemplate {
+  final String id;
+  final String name;
+  final String assetPath;
+  final String description;
+
+  const _ArtworkTemplate({required this.id, required this.name, required this.assetPath, required this.description});
+}
+
+const _artworkTemplates = [
+  _ArtworkTemplate(
+    id: 'person',
+    name: 'Person',
+    assetPath: 'assets/vectors/artwork_person.svg',
+    description: 'Simple character illustration',
+  ),
+  _ArtworkTemplate(
+    id: 'duck',
+    name: 'Duck',
+    assetPath: 'assets/vectors/artwork_duck.svg',
+    description: 'Cute duck icon/mascot',
+  ),
+  _ArtworkTemplate(
+    id: 'cat',
+    name: 'Cat',
+    assetPath: 'assets/vectors/artwork_cat.svg',
+    description: 'Rounded cat mascot drawing',
+  ),
+  _ArtworkTemplate(
+    id: 'rocket',
+    name: 'Rocket',
+    assetPath: 'assets/vectors/artwork_rocket.svg',
+    description: 'Playful rocket badge',
+  ),
 ];
 
 // =============================================================================
@@ -600,9 +638,12 @@ class _TemplatesArea extends ConsumerWidget {
             child: SingleChildScrollView(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: categories.entries.map((entry) {
-                  return _TemplateCategorySection(theme: theme, category: entry.key, templates: entry.value);
-                }).toList(),
+                children: [
+                  ...categories.entries.map((entry) {
+                    return _TemplateCategorySection(theme: theme, category: entry.key, templates: entry.value);
+                  }),
+                  _ArtworkTemplatesSection(theme: theme),
+                ],
               ),
             ),
           ),
@@ -640,6 +681,7 @@ class _TemplatesSection extends ConsumerWidget {
         ...categories.entries.map((entry) {
           return _TemplateCategorySection(theme: theme, category: entry.key, templates: entry.value);
         }),
+        _ArtworkTemplatesSection(theme: theme),
       ],
     );
   }
@@ -785,9 +827,302 @@ class _TemplateCardState extends ConsumerState<_TemplateCard> {
     final t = widget.template;
     ref
         .read(vecDocumentStateProvider.notifier)
-        .newDocument(name: 'Untitled', stageWidth: t.width, stageHeight: t.height, fps: t.fps);
+        .newDocument(name: t.name, stageWidth: t.width, stageHeight: t.height, fps: t.fps);
     Navigator.of(context).push(MaterialPageRoute(builder: (_) => const EditorScreen()));
   }
+}
+
+class _ArtworkTemplatesSection extends StatelessWidget {
+  const _ArtworkTemplatesSection({required this.theme});
+
+  final AppTheme theme;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              'ARTWORK TEMPLATES',
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                color: theme.textDisabled,
+                letterSpacing: 1.2,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(child: Divider(color: theme.divider.withOpacity(0.2), height: 1)),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: _artworkTemplates.map((t) => _ArtworkTemplateCard(theme: theme, template: t)).toList(),
+        ),
+        const SizedBox(height: 24),
+      ],
+    );
+  }
+}
+
+class _ArtworkTemplateCard extends ConsumerStatefulWidget {
+  const _ArtworkTemplateCard({required this.theme, required this.template});
+
+  final AppTheme theme;
+  final _ArtworkTemplate template;
+
+  @override
+  ConsumerState<_ArtworkTemplateCard> createState() => _ArtworkTemplateCardState();
+}
+
+class _ArtworkTemplateCardState extends ConsumerState<_ArtworkTemplateCard> {
+  bool _hovering = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = widget.theme;
+    final t = widget.template;
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovering = true),
+      onExit: (_) => setState(() => _hovering = false),
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: () => _createFromArtworkTemplate(context),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          width: 155,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: _hovering ? theme.surfaceVariant : theme.surface.withOpacity(0.45),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: _hovering ? theme.primaryColor.withOpacity(0.5) : theme.divider.withOpacity(0.2)),
+            boxShadow: _hovering
+                ? [BoxShadow(color: theme.primaryColor.withOpacity(0.08), blurRadius: 12, offset: const Offset(0, 3))]
+                : [],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  height: 50,
+                  width: 70,
+                  decoration: BoxDecoration(
+                    color: _hovering ? theme.primaryColor.withOpacity(0.12) : theme.surfaceVariant.withOpacity(0.8),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(
+                      color: _hovering ? theme.primaryColor.withOpacity(0.3) : theme.divider.withOpacity(0.3),
+                    ),
+                  ),
+                  padding: const EdgeInsets.all(6),
+                  child: SvgPicture.asset(
+                    t.assetPath,
+                    fit: BoxFit.contain,
+                    placeholderBuilder: (_) => Icon(
+                      Icons.image_outlined,
+                      size: 18,
+                      color: _hovering ? theme.primaryColor : theme.textDisabled,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                t.name,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: _hovering ? theme.primaryColor : theme.textPrimary,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 2),
+              Text(
+                t.description,
+                style: TextStyle(fontSize: 10, color: theme.textDisabled),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _createFromArtworkTemplate(BuildContext context) async {
+    final t = widget.template;
+    final notifier = ref.read(vecDocumentStateProvider.notifier);
+    const stageW = 1080.0;
+    const stageH = 1080.0;
+    notifier.newDocument(name: t.name, stageWidth: stageW, stageHeight: stageH, fps: 24);
+
+    try {
+      final svgContent = await rootBundle.loadString(t.assetPath);
+      const importer = SvgImporter();
+      final imported = importer.import(svgContent);
+      final shapes = _centerShapesOnStage(imported, stageW, stageH);
+
+      final doc = ref.read(vecDocumentStateProvider);
+      if (doc.scenes.isNotEmpty && doc.scenes.first.layers.isNotEmpty && shapes.isNotEmpty) {
+        final scene = doc.scenes.first;
+        final layer = scene.layers.first;
+        notifier.addShapes(scene.id, layer.id, shapes);
+      }
+    } catch (_) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not load artwork template.')));
+      return;
+    }
+
+    if (!context.mounted) return;
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const EditorScreen()));
+  }
+}
+
+List<VecShape> _centerShapesOnStage(List<VecShape> shapes, double stageW, double stageH) {
+  if (shapes.isEmpty) return const [];
+
+  final bounds = _shapesBounds(shapes);
+  if (bounds == null) return shapes;
+
+  final contentCx = bounds.$1 + bounds.$3 / 2;
+  final contentCy = bounds.$2 + bounds.$4 / 2;
+  final stageCx = stageW / 2;
+  final stageCy = stageH / 2;
+  final dx = stageCx - contentCx;
+  final dy = stageCy - contentCy;
+
+  if (dx == 0 && dy == 0) return shapes;
+  return shapes.map((s) => _translateShape(s, dx, dy)).toList();
+}
+
+/// Returns (minX, minY, width, height) for shape bounds in stage space.
+(double, double, double, double)? _shapesBounds(List<VecShape> shapes) {
+  double? minX;
+  double? minY;
+  double? maxX;
+  double? maxY;
+
+  void includeRect(double x, double y, double w, double h) {
+    final right = x + w;
+    final bottom = y + h;
+    minX = minX == null ? x : (x < minX! ? x : minX);
+    minY = minY == null ? y : (y < minY! ? y : minY);
+    maxX = maxX == null ? right : (right > maxX! ? right : maxX);
+    maxY = maxY == null ? bottom : (bottom > maxY! ? bottom : maxY);
+  }
+
+  void walk(VecShape shape, double parentX, double parentY) {
+    shape.map(
+      path: (s) {
+        includeRect(
+          parentX + s.data.transform.x,
+          parentY + s.data.transform.y,
+          s.data.transform.width,
+          s.data.transform.height,
+        );
+      },
+      rectangle: (s) {
+        includeRect(
+          parentX + s.data.transform.x,
+          parentY + s.data.transform.y,
+          s.data.transform.width,
+          s.data.transform.height,
+        );
+      },
+      ellipse: (s) {
+        includeRect(
+          parentX + s.data.transform.x,
+          parentY + s.data.transform.y,
+          s.data.transform.width,
+          s.data.transform.height,
+        );
+      },
+      polygon: (s) {
+        includeRect(
+          parentX + s.data.transform.x,
+          parentY + s.data.transform.y,
+          s.data.transform.width,
+          s.data.transform.height,
+        );
+      },
+      text: (s) {
+        includeRect(
+          parentX + s.data.transform.x,
+          parentY + s.data.transform.y,
+          s.data.transform.width,
+          s.data.transform.height,
+        );
+      },
+      symbolInstance: (s) {
+        includeRect(
+          parentX + s.data.transform.x,
+          parentY + s.data.transform.y,
+          s.data.transform.width,
+          s.data.transform.height,
+        );
+      },
+      compound: (s) {
+        includeRect(
+          parentX + s.data.transform.x,
+          parentY + s.data.transform.y,
+          s.data.transform.width,
+          s.data.transform.height,
+        );
+      },
+      image: (s) {
+        includeRect(
+          parentX + s.data.transform.x,
+          parentY + s.data.transform.y,
+          s.data.transform.width,
+          s.data.transform.height,
+        );
+      },
+      group: (s) {
+        final gx = parentX + s.data.transform.x;
+        final gy = parentY + s.data.transform.y;
+        if (s.children.isEmpty) {
+          includeRect(gx, gy, s.data.transform.width, s.data.transform.height);
+          return;
+        }
+        for (final child in s.children) {
+          walk(child, gx, gy);
+        }
+      },
+    );
+  }
+
+  for (final shape in shapes) {
+    walk(shape, 0, 0);
+  }
+
+  if (minX == null || minY == null || maxX == null || maxY == null) return null;
+  return (minX!, minY!, maxX! - minX!, maxY! - minY!);
+}
+
+VecShape _translateShape(VecShape shape, double dx, double dy) {
+  VecShapeData shift(VecShapeData d) => d.copyWith(
+    transform: d.transform.copyWith(x: d.transform.x + dx, y: d.transform.y + dy),
+  );
+
+  return shape.map(
+    path: (s) => s.copyWith(data: shift(s.data)),
+    rectangle: (s) => s.copyWith(data: shift(s.data)),
+    ellipse: (s) => s.copyWith(data: shift(s.data)),
+    polygon: (s) => s.copyWith(data: shift(s.data)),
+    text: (s) => s.copyWith(data: shift(s.data)),
+    symbolInstance: (s) => s.copyWith(data: shift(s.data)),
+    compound: (s) => s.copyWith(data: shift(s.data)),
+    image: (s) => s.copyWith(data: shift(s.data)),
+    group: (s) => s.copyWith(data: shift(s.data)),
+  );
 }
 
 // =============================================================================

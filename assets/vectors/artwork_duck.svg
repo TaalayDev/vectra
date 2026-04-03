@@ -1,0 +1,109 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="500" height="500">
+            
+            <!-- DEFINITIONS -->
+            <defs>
+                <!-- Vibrant Gradients for depth and shading -->
+                <linearGradient id="yellowBody" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" stop-color="#FFD32A" />
+                    <stop offset="100%" stop-color="#FFA801" />
+                </linearGradient>
+                <linearGradient id="orangeBeak" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#FFC312" />
+                    <stop offset="100%" stop-color="#F79F1F" />
+                </linearGradient>
+                <linearGradient id="orangeFeet" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" stop-color="#F79F1F" />
+                    <stop offset="100%" stop-color="#EE5A24" />
+                </linearGradient>
+                <linearGradient id="wingGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" stop-color="#F6B93B" />
+                    <stop offset="100%" stop-color="#E58E26" />
+                </linearGradient>
+            </defs>
+
+            <!-- FLOOR SHADOW -->
+            <ellipse cx="250" cy="460" rx="160" ry="18" fill="#D1D5DB" opacity="0.8" />
+            <!-- Inner darker shadow for more depth -->
+            <ellipse cx="250" cy="460" rx="90" ry="10" fill="#9CA3AF" opacity="0.5" />
+
+            <!-- ANIMATION GROUP -->
+            <g class="duck-float">
+                <!-- BACK LEG & FOOT (Left) -->
+                <!-- Slight shadow behind the leg -->
+                <rect x="210" y="360" width="14" height="60" rx="7" fill="#D35400" opacity="0.4" transform="translate(5, 5)" />
+                <rect x="210" y="360" width="14" height="60" rx="7" fill="url(#orangeFeet)" />
+                <!-- Webbed foot -->
+                <path d="M 217 410 L 180 435 Q 195 445 210 435 Q 225 445 240 435 Z" fill="url(#orangeFeet)" />
+
+                <!-- MAIN UNIFIED BODY STRUCTURE -->
+                <!-- The entire duck body is now drawn as one continuous, perfect silhouette to ensure no broken parts -->
+                <path d="M 120 220 
+                         C 100 250, 120 380, 250 380 
+                         C 330 380, 390 310, 360 210
+                         C 380 180, 360 110, 310 110
+                         C 260 110, 260 160, 280 200
+                         C 300 240, 200 260, 120 220 Z" 
+                      fill="url(#yellowBody)" />
+                
+                <!-- Body Highlight (3D edge rim) -->
+                <path d="M 140 235 C 180 260, 270 270, 290 210 C 280 170, 280 125, 310 125" 
+                      fill="none" stroke="#FFEAA7" stroke-width="6" stroke-linecap="round" opacity="0.7" />
+
+                <!-- FRONT LEG & FOOT (Right) -->
+                <!-- Leg Drop Shadow -->
+                <rect x="270" y="370" width="16" height="55" rx="8" fill="#D35400" opacity="0.3" transform="translate(5, 5)" />
+                <rect x="270" y="370" width="16" height="55" rx="8" fill="url(#orangeFeet)" />
+                <!-- Webbed foot -->
+                <path d="M 278 420 L 240 445 Q 255 455 270 445 Q 285 455 300 445 Z" fill="url(#orangeFeet)" />
+                <!-- Foot highlight -->
+                <path d="M 278 420 L 255 435 Q 260 440 270 435 L 285 425 Z" fill="#FFC312" opacity="0.5" />
+
+                <!-- WING -->
+                <!-- Wing drop shadow -->
+                <path d="M 200 270 C 270 260, 290 320, 240 340 C 180 350, 160 300, 200 270 Z" fill="#D35400" opacity="0.15" transform="translate(5, 10)" />
+                <!-- Folded wing -->
+                <path d="M 200 270 C 270 260, 290 320, 240 340 C 180 350, 160 300, 200 270 Z" fill="url(#wingGradient)" />
+                <!-- Wing feather details -->
+                <path d="M 215 285 Q 255 280 275 305" stroke="#D35400" stroke-width="4" stroke-linecap="round" fill="none" opacity="0.4" />
+                <path d="M 210 300 Q 250 300 265 315" stroke="#D35400" stroke-width="4" stroke-linecap="round" fill="none" opacity="0.4" />
+                <path d="M 205 315 Q 235 315 250 325" stroke="#D35400" stroke-width="4" stroke-linecap="round" fill="none" opacity="0.3" />
+
+                <!-- RED BOW TIE -->
+                <!-- Bow tie shadow -->
+                <path d="M 315 215 L 290 200 L 290 230 Z" fill="#C23616" transform="translate(0, 5)" opacity="0.3" />
+                <path d="M 315 215 L 340 200 L 340 230 Z" fill="#C23616" transform="translate(0, 5)" opacity="0.3" />
+                
+                <!-- Main Bow -->
+                <path d="M 315 215 L 290 200 L 290 230 Z" fill="#FF4757" />
+                <path d="M 315 215 L 340 200 L 340 230 Z" fill="#FF4757" />
+                <!-- Bow tie highlights -->
+                <path d="M 295 208 L 310 215 L 295 222 Z" fill="#FF6B81" opacity="0.5" />
+                <path d="M 335 208 L 320 215 L 335 222 Z" fill="#FF6B81" opacity="0.5" />
+                
+                <!-- Center knot -->
+                <circle cx="315" cy="215" r="9" fill="#FF6B81" />
+
+                <!-- FACE DETAILS -->
+                <!-- Cute Blush -->
+                <ellipse cx="330" cy="165" rx="14" ry="9" fill="#FF789F" opacity="0.6" />
+
+                <!-- Eye with Blink Animation -->
+                <g class="duck-blink">
+                    <circle cx="315" cy="140" r="12" fill="#2D3436" />
+                    <!-- Eye Catchlights -->
+                    <circle cx="310" cy="135" r="4" fill="#FFFFFF" />
+                    <circle cx="320" cy="144" r="2" fill="#FFFFFF" />
+                </g>
+
+                <!-- BEAK -->
+                <!-- Top Beak Curve (Flat Duck Bill) -->
+                <path d="M 345 150 Q 420 145 425 160 Q 425 170 345 170 Z" fill="url(#orangeBeak)" />
+                <!-- Beak highlight -->
+                <path d="M 350 153 Q 410 150 415 160" fill="none" stroke="#FFF200" stroke-width="3" stroke-linecap="round" opacity="0.5" />
+                
+                <!-- Bottom Beak / Open Smile -->
+                <path d="M 345 170 Q 400 170 405 180 Q 405 190 340 185 Z" fill="#E55039" />
+                <!-- Smile Crease -->
+                <path d="M 342 170 Q 380 170 415 160" stroke="#D35400" stroke-width="3" stroke-linecap="round" fill="none" opacity="0.6"/>
+            </g>
+        </svg>

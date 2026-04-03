@@ -1,11 +1,12 @@
 import 'dart:math' as math;
 
 import 'package:universal_html/parsing.dart' as html_parse;
-import 'package:universal_html/html.dart' show Element, Node;
+import 'package:universal_html/html.dart' show Element;
 import 'package:uuid/uuid.dart';
 
 import '../../data/models/vec_color.dart';
 import '../../data/models/vec_fill.dart';
+import '../../data/models/vec_gradient.dart';
 import '../../data/models/vec_path_node.dart';
 import '../../data/models/vec_point.dart';
 import '../../data/models/vec_shape.dart';
@@ -32,8 +33,9 @@ class SvgImporter {
       final doc = html_parse.parseXmlDocument(svgContent);
       final svgEl = doc.documentElement;
       if (svgEl == null) return const [];
+      final gradients = _parseGradientDefs(svgEl);
       final inheritedStyle = _ParsedStyle.none();
-      return _parseChildren(svgEl, inheritedStyle);
+      return _parseChildren(svgEl, inheritedStyle, gradients);
     } catch (_) {
       return const [];
     }
@@ -43,13 +45,13 @@ class SvgImporter {
   // Recursive children parser
   // ---------------------------------------------------------------------------
 
-  List<VecShape> _parseChildren(Element parent, _ParsedStyle inherited) {
+  List<VecShape> _parseChildren(Element parent, _ParsedStyle inherited, Map<String, VecGradient> gradients) {
     final shapes = <VecShape>[];
     for (final node in parent.childNodes) {
       if (node is! Element) continue;
       final child = node;
-      final tag = child.localName?.toLowerCase() ?? '';
-      final style = _ParsedStyle.from(child, inherited);
+      final tag = child.localName.toLowerCase();
+      final style = _ParsedStyle.from(child, inherited, gradients);
 
       switch (tag) {
         case 'rect':
@@ -71,7 +73,7 @@ class SvgImporter {
         case 'path':
           shapes.addAll(_parsePath(child, style));
         case 'g':
-          final children = _parseChildren(child, style);
+          final children = _parseChildren(child, style, gradients);
           if (children.isNotEmpty) {
             final groupT = _parseTransform(child.getAttribute('transform'));
             shapes.add(
@@ -87,12 +89,113 @@ class SvgImporter {
           }
         case 'svg':
           // Nested <svg>: treat like <g>
-          shapes.addAll(_parseChildren(child, style));
+          shapes.addAll(_parseChildren(child, style, gradients));
         default:
           break;
       }
     }
     return shapes;
+  }
+
+  Map<String, VecGradient> _parseGradientDefs(Element root) {
+    final defs = <String, VecGradient>{};
+
+    void visit(Element parent) {
+      for (final node in parent.childNodes) {
+        if (node is! Element) continue;
+        final el = node;
+        final tag = el.localName.toLowerCase();
+
+        if (tag == 'lineargradient') {
+          final id = el.getAttribute('id');
+          if (id != null && id.isNotEmpty) {
+            final gradient = _parseLinearGradient(el);
+            if (gradient != null) defs[id] = gradient;
+          }
+        } else if (tag == 'radialgradient') {
+          final id = el.getAttribute('id');
+          if (id != null && id.isNotEmpty) {
+            final gradient = _parseRadialGradient(el);
+            if (gradient != null) defs[id] = gradient;
+          }
+        }
+
+        visit(el);
+      }
+    }
+
+    visit(root);
+    return defs;
+  }
+
+  VecGradient? _parseLinearGradient(Element el) {
+    final stops = _parseGradientStops(el);
+    if (stops.isEmpty) return null;
+
+    final x1 = _parseUnit(el.getAttribute('x1'), fallback: 0.0);
+    final y1 = _parseUnit(el.getAttribute('y1'), fallback: 0.0);
+    final x2 = _parseUnit(el.getAttribute('x2'), fallback: 1.0);
+    final y2 = _parseUnit(el.getAttribute('y2'), fallback: 0.0);
+    final angle = math.atan2(y2 - y1, x2 - x1) * 180 / math.pi;
+
+    return VecGradient(type: VecGradientType.linear, stops: stops, angle: angle);
+  }
+
+  VecGradient? _parseRadialGradient(Element el) {
+    final stops = _parseGradientStops(el);
+    if (stops.isEmpty) return null;
+
+    return VecGradient(
+      type: VecGradientType.radial,
+      stops: stops,
+      centerX: _parseUnit(el.getAttribute('cx'), fallback: 0.5).clamp(0.0, 1.0),
+      centerY: _parseUnit(el.getAttribute('cy'), fallback: 0.5).clamp(0.0, 1.0),
+      radius: _parseUnit(el.getAttribute('r'), fallback: 0.5).clamp(0.0, 1.5),
+    );
+  }
+
+  List<VecGradientStop> _parseGradientStops(Element gradientEl) {
+    final stops = <VecGradientStop>[];
+    for (final node in gradientEl.childNodes) {
+      if (node is! Element) continue;
+      final stopEl = node;
+      if (stopEl.localName.toLowerCase() != 'stop') continue;
+
+      final styleMap = _ParsedStyle.parseInlineStyle(stopEl.getAttribute('style') ?? '');
+      String? attr(String name) => styleMap[name] ?? stopEl.getAttribute(name);
+
+      final color = _ParsedStyle.parseColor(attr('stop-color') ?? '');
+      if (color == null) continue;
+
+      final offset = _parseUnit(attr('offset'), fallback: 0.0).clamp(0.0, 1.0);
+      final stopOpacity = (double.tryParse(attr('stop-opacity') ?? '') ?? 1.0).clamp(0.0, 1.0);
+      final alpha = (255 * stopOpacity).round().clamp(0, 255);
+
+      stops.add(
+        VecGradientStop(
+          color: color.copyWith(a: alpha),
+          position: offset,
+        ),
+      );
+    }
+
+    if (stops.isEmpty) return const [];
+    if (stops.length == 1) {
+      return [stops.first, stops.first.copyWith(position: 1.0)];
+    }
+    stops.sort((a, b) => a.position.compareTo(b.position));
+    return stops;
+  }
+
+  double _parseUnit(String? raw, {required double fallback}) {
+    if (raw == null) return fallback;
+    final s = raw.trim();
+    if (s.isEmpty) return fallback;
+    if (s.endsWith('%')) {
+      final v = double.tryParse(s.substring(0, s.length - 1));
+      return v == null ? fallback : v / 100.0;
+    }
+    return double.tryParse(s) ?? fallback;
   }
 
   // ---------------------------------------------------------------------------
@@ -478,9 +581,9 @@ class _ParsedStyle {
 
   factory _ParsedStyle.none() => const _ParsedStyle(fill: null, stroke: null, opacity: 1.0);
 
-  factory _ParsedStyle.from(Element el, _ParsedStyle parent) {
+  factory _ParsedStyle.from(Element el, _ParsedStyle parent, Map<String, VecGradient> gradients) {
     // Parse style="" inline first, then individual attributes
-    final styleMap = _parseInlineStyle(el.getAttribute('style') ?? '');
+    final styleMap = parseInlineStyle(el.getAttribute('style') ?? '');
     String? attr(String name) => styleMap[name] ?? el.getAttribute(name);
 
     final fillStr = attr('fill');
@@ -488,8 +591,17 @@ class _ParsedStyle {
     if (fillStr != null) {
       if (fillStr == 'none') {
         fill = null;
+      } else if (_isUrlRef(fillStr)) {
+        final id = _extractUrlRefId(fillStr);
+        final gradient = id == null ? null : gradients[id];
+        if (gradient != null) {
+          final fo = double.tryParse(attr('fill-opacity') ?? '') ?? 1.0;
+          fill = VecFill(color: gradient.stops.first.color, opacity: fo, gradient: gradient);
+        } else {
+          fill = null;
+        }
       } else {
-        final c = _parseColor(fillStr);
+        final c = parseColor(fillStr);
         if (c != null) {
           final fo = double.tryParse(attr('fill-opacity') ?? '') ?? 1.0;
           fill = VecFill(color: c, opacity: fo);
@@ -503,7 +615,7 @@ class _ParsedStyle {
       if (strokeStr == 'none') {
         stroke = null;
       } else {
-        final c = _parseColor(strokeStr);
+        final c = parseColor(strokeStr);
         if (c != null) {
           final sw = double.tryParse(attr('stroke-width') ?? '') ?? 1.0;
           final so = double.tryParse(attr('stroke-opacity') ?? '') ?? 1.0;
@@ -522,7 +634,7 @@ class _ParsedStyle {
   final VecStroke? stroke;
   final double opacity;
 
-  static Map<String, String> _parseInlineStyle(String style) {
+  static Map<String, String> parseInlineStyle(String style) {
     final map = <String, String>{};
     for (final part in style.split(';')) {
       final kv = part.split(':');
@@ -531,7 +643,14 @@ class _ParsedStyle {
     return map;
   }
 
-  static VecColor? _parseColor(String s) {
+  static bool _isUrlRef(String value) => value.trim().startsWith('url(');
+
+  static String? _extractUrlRefId(String value) {
+    final m = RegExp(r'url\(\s*#([^)\s]+)\s*\)').firstMatch(value.trim());
+    return m?.group(1);
+  }
+
+  static VecColor? parseColor(String s) {
     s = s.trim().toLowerCase();
     if (s.startsWith('#')) {
       final hex = s.substring(1);
