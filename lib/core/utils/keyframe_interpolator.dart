@@ -3,6 +3,7 @@ import '../../data/models/vec_easing.dart';
 import '../../data/models/vec_fill.dart';
 import '../../data/models/vec_gradient.dart';
 import '../../data/models/vec_keyframe.dart';
+import '../../data/models/vec_path_node.dart';
 import '../../data/models/vec_point.dart';
 import '../../data/models/vec_shape.dart';
 import '../../data/models/vec_transform.dart';
@@ -63,7 +64,15 @@ class KeyframeInterpolator {
     if (kf.opacity != null) data = data.copyWith(opacity: kf.opacity!);
     if (kf.fills != null) data = data.copyWith(fills: kf.fills!);
     if (kf.strokes != null) data = data.copyWith(strokes: kf.strokes!);
-    return shape.copyWith(data: data);
+    var result = shape.copyWith(data: data);
+    // Apply keyed path nodes to path shapes
+    if (kf.pathNodes != null) {
+      result = result.maybeMap(
+        path: (ps) => ps.copyWith(nodes: kf.pathNodes!),
+        orElse: () => result,
+      );
+    }
+    return result;
   }
 
   static VecShape _lerp(VecShape shape, VecKeyframe a, VecKeyframe b, double rawT) {
@@ -125,7 +134,33 @@ class KeyframeInterpolator {
       data = data.copyWith(strokes: sa);
     }
 
-    return shape.copyWith(data: data);
+    var result = shape.copyWith(data: data);
+
+    // Interpolate path nodes if both keyframes carry them
+    final pna = a.pathNodes, pnb = b.pathNodes;
+    if (pna != null && pnb != null && pna.length == pnb.length) {
+      final tPath = t(a.pathEasing);
+      final lerpedNodes = List.generate(pna.length, (i) {
+        final na = pna[i], nb = pnb[i];
+        return VecPathNode(
+          position: _lerpPoint(na.position, nb.position, tPath),
+          handleIn: _lerpHandle(na.handleIn, na.position, nb.handleIn, nb.position, tPath),
+          handleOut: _lerpHandle(na.handleOut, na.position, nb.handleOut, nb.position, tPath),
+          type: tPath < 0.5 ? na.type : nb.type,
+        );
+      });
+      result = result.maybeMap(
+        path: (ps) => ps.copyWith(nodes: lerpedNodes),
+        orElse: () => result,
+      );
+    } else if (pna != null) {
+      result = result.maybeMap(
+        path: (ps) => ps.copyWith(nodes: pna),
+        orElse: () => result,
+      );
+    }
+
+    return result;
   }
 
   /// Lerps a transform using per-property easings for position, scale, and rotation.
@@ -203,6 +238,26 @@ class KeyframeInterpolator {
   }
 
   static double _ld(double a, double b, double t) => a + (b - a) * t;
+
+  static VecPoint _lerpPoint(VecPoint a, VecPoint b, double t) =>
+      VecPoint(x: _ld(a.x, b.x, t), y: _ld(a.y, b.y, t));
+
+  /// Interpolates a Bézier handle between two keyframes.
+  /// A null handle means a straight segment — equivalent to a control point
+  /// sitting at the node position.  Instead of snapping at t=0.5, we lerp
+  /// from/to the node position so the curve bends smoothly.
+  static VecPoint? _lerpHandle(
+    VecPoint? ha, VecPoint posA,
+    VecPoint? hb, VecPoint posB,
+    double t,
+  ) {
+    if (ha != null && hb != null) return _lerpPoint(ha, hb, t);
+    if (ha == null && hb == null) return null;
+    // One side is straight (null) → treat as handle at node position.
+    final effA = ha ?? posA;
+    final effB = hb ?? posB;
+    return _lerpPoint(effA, effB, t);
+  }
 
   static double _lerpAngle(double a, double b, double t) {
     var diff = (b - a) % 360;

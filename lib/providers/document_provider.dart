@@ -313,6 +313,7 @@ class VecDocumentState extends _$VecDocumentState {
       opacity: shape.data.opacity,
       fills: List.unmodifiable(shape.data.fills),
       strokes: List.unmodifiable(shape.data.strokes),
+      pathNodes: shape is VecPathShape ? List.unmodifiable(shape.nodes) : null,
     );
     _commit(
       _withScene(sceneId, (scene) {
@@ -359,6 +360,7 @@ class VecDocumentState extends _$VecDocumentState {
                       opacity: shape.data.opacity,
                       fills: List.unmodifiable(shape.data.fills),
                       strokes: List.unmodifiable(shape.data.strokes),
+                      pathNodes: shape is VecPathShape ? List.unmodifiable(shape.nodes) : null,
                     ),
                   ],
                 ),
@@ -431,6 +433,7 @@ class VecDocumentState extends _$VecDocumentState {
                   opacity: shape.data.opacity,
                   fills: List.unmodifiable(shape.data.fills),
                   strokes: List.unmodifiable(shape.data.strokes),
+                  pathNodes: shape is VecPathShape ? List.unmodifiable(shape.nodes) : null,
                 ),
               ],
             ),
@@ -600,6 +603,8 @@ class VecDocumentState extends _$VecDocumentState {
 
   void updateShape(String sceneId, String layerId, String shapeId, VecShape Function(VecShape) updater) {
     final selectedFrame = ref.read(playheadFrameProvider);
+    // Capture the current (pre-edit) path nodes for use as backfill base.
+    final preEditNodes = _getShapeNodes(state, sceneId, layerId, shapeId);
     var newDoc = _withLayer(sceneId, layerId, (layer) {
       return layer.copyWith(
         shapes: [
@@ -608,7 +613,8 @@ class VecDocumentState extends _$VecDocumentState {
         ],
       );
     });
-    newDoc = _recordShapeToKeyframe(newDoc, sceneId, layerId, shapeId, selectedFrame);
+    newDoc = _recordShapeToKeyframe(newDoc, sceneId, layerId, shapeId, selectedFrame,
+        preEditNodes: preEditNodes);
     _commit(newDoc);
   }
 
@@ -622,6 +628,8 @@ class VecDocumentState extends _$VecDocumentState {
   /// at the last committed keyframe value.
   void updateShapeNoHistory(String sceneId, String layerId, String shapeId, VecShape Function(VecShape) updater) {
     final selectedFrame = ref.read(playheadFrameProvider);
+    // Capture the current (pre-edit) path nodes for use as backfill base.
+    final preEditNodes = _getShapeNodes(state, sceneId, layerId, shapeId);
     var newDoc = _withLayer(sceneId, layerId, (layer) {
       return layer.copyWith(
         shapes: [
@@ -630,9 +638,24 @@ class VecDocumentState extends _$VecDocumentState {
         ],
       );
     });
-    newDoc = _recordShapeToKeyframe(newDoc, sceneId, layerId, shapeId, selectedFrame);
+    newDoc = _recordShapeToKeyframe(newDoc, sceneId, layerId, shapeId, selectedFrame,
+        preEditNodes: preEditNodes);
     state = newDoc;
     _service.markDirty();
+  }
+
+  /// Returns the current path nodes of [shapeId] in the given layer, or null
+  /// if the shape is not a path or doesn't exist.
+  List<VecPathNode>? _getShapeNodes(
+      VecDocument doc, String sceneId, String layerId, String shapeId) {
+    final scene = doc.scenes.where((s) => s.id == sceneId).firstOrNull;
+    if (scene == null) return null;
+    for (final layer in scene.layers) {
+      if (layer.id != layerId) continue;
+      final shape = layer.shapes.where((s) => s.id == shapeId).firstOrNull;
+      return shape?.maybeMap(path: (ps) => ps.nodes, orElse: () => null);
+    }
+    return null;
   }
 
   /// Commits the current in-memory state to undo history.
@@ -677,6 +700,7 @@ class VecDocumentState extends _$VecDocumentState {
         opacity: shape.data.opacity,
         fills: List.unmodifiable(shape.data.fills),
         strokes: List.unmodifiable(shape.data.strokes),
+        pathNodes: shape is VecPathShape ? List.unmodifiable(shape.nodes) : null,
       ),
     ],
   );
@@ -689,14 +713,20 @@ class VecDocumentState extends _$VecDocumentState {
   ///   new keyframe at [frame] (the "auto-keyframe" feature — any edit while
   ///   the playhead sits between existing keyframes creates one automatically).
   /// - If a keyframe already exists at [frame]: updates it in-place.
-  VecDocument _recordShapeToKeyframe(VecDocument doc, String sceneId, String layerId, String shapeId, int frame) {
+  VecDocument _recordShapeToKeyframe(
+    VecDocument doc,
+    String sceneId,
+    String layerId,
+    String shapeId,
+    int frame, {
+    List<VecPathNode>? preEditNodes,
+  }) {
     final scene = doc.scenes.where((s) => s.id == sceneId).firstOrNull;
     if (scene == null) return doc;
 
     final track = scene.timeline.tracks.where((t) => t.layerId == layerId && t.shapeId == shapeId).firstOrNull;
     // Shape has no animation track — don't auto-create one.
     if (track == null) return doc;
-    // Track exists but no keyframe here yet → will be auto-inserted below.
 
     VecShape? shape;
     for (final layer in scene.layers) {
@@ -715,6 +745,10 @@ class VecDocumentState extends _$VecDocumentState {
     }
     final inheritedTween = preceding?.tweenType ?? VecTweenType.classic;
 
+    // Capture path nodes for path shapes.
+    final List<VecPathNode>? capturedNodes =
+        shape is VecPathShape ? List.unmodifiable(shape.nodes) : null;
+
     final kf = VecKeyframe(
       frame: frame,
       tweenType: inheritedTween,
@@ -722,7 +756,26 @@ class VecDocumentState extends _$VecDocumentState {
       opacity: shape.data.opacity,
       fills: List.unmodifiable(shape.data.fills),
       strokes: List.unmodifiable(shape.data.strokes),
+      pathNodes: capturedNodes,
     );
+
+    // Backfill pathNodes into any existing keyframes that are missing them.
+    // Use the PRE-EDIT nodes (captured before the updater ran) as the base,
+    // so the "before" keyframe holds the original unmodified shape, giving
+    // the interpolator a proper start→end pair to lerp between.
+    // Fall back to the current nodes only if no pre-edit snapshot was provided.
+    final backfillNodes = preEditNodes != null
+        ? List<VecPathNode>.unmodifiable(preEditNodes)
+        : capturedNodes;
+    final updatedExistingKfs = backfillNodes != null
+        ? [
+            for (final k in track.keyframes)
+              if (k.frame != frame && k.pathNodes == null)
+                k.copyWith(pathNodes: backfillNodes)
+              else
+                k,
+          ]
+        : track.keyframes;
 
     return doc.copyWith(
       scenes: [
@@ -735,7 +788,7 @@ class VecDocumentState extends _$VecDocumentState {
                     if (t.id == track.id)
                       t.copyWith(
                         keyframes: [
-                          for (final k in t.keyframes)
+                          for (final k in updatedExistingKfs)
                             if (k.frame != frame) k,
                           kf,
                         ]..sort((a, b) => a.frame.compareTo(b.frame)),

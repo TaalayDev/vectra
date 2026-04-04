@@ -85,22 +85,26 @@ class _DesktopWorkspaceLayout extends ConsumerWidget {
               ),
             ),
             SceneTabsBar(theme: theme),
-            if (panels.timeline)
-              SizedBox(
-                height: timelineHeight,
-                child: TimelinePanel(
-                  theme: theme,
-                  onResizeDrag: (delta) {
-                    ref.read(timelineHeightProvider.notifier).set(timelineHeight - delta);
-                  },
-                ),
-              )
-            else
-              _HorizontalCollapseStrip(
-                label: 'Timeline',
-                theme: theme,
-                onTap: () => ref.read(panelVisibilityProvider.notifier).toggleTimeline(),
-              ),
+            AnimatedSize(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeOut,
+              alignment: Alignment.topCenter,
+              child: panels.timeline
+                  ? SizedBox(
+                      height: timelineHeight,
+                      child: TimelinePanel(
+                        theme: theme,
+                        onResizeDrag: (delta) {
+                          ref.read(timelineHeightProvider.notifier).set(timelineHeight - delta);
+                        },
+                      ),
+                    )
+                  : _HorizontalCollapseStrip(
+                      label: 'Timeline',
+                      theme: theme,
+                      onTap: () => ref.read(panelVisibilityProvider.notifier).toggleTimeline(),
+                    ),
+            ),
             StatusBar(theme: theme),
           ],
         ),
@@ -216,22 +220,26 @@ class _TabletWorkspaceLayout extends ConsumerWidget {
               ),
             ),
             SceneTabsBar(theme: theme),
-            if (panels.timeline)
-              SizedBox(
-                height: timelineHeight,
-                child: TimelinePanel(
-                  theme: theme,
-                  onResizeDrag: (delta) {
-                    ref.read(timelineHeightProvider.notifier).set(timelineHeight - delta);
-                  },
-                ),
-              )
-            else
-              _HorizontalCollapseStrip(
-                label: 'Timeline',
-                theme: theme,
-                onTap: () => ref.read(panelVisibilityProvider.notifier).toggleTimeline(),
-              ),
+            AnimatedSize(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeOut,
+              alignment: Alignment.topCenter,
+              child: panels.timeline
+                  ? SizedBox(
+                      height: timelineHeight,
+                      child: TimelinePanel(
+                        theme: theme,
+                        onResizeDrag: (delta) {
+                          ref.read(timelineHeightProvider.notifier).set(timelineHeight - delta);
+                        },
+                      ),
+                    )
+                  : _HorizontalCollapseStrip(
+                      label: 'Timeline',
+                      theme: theme,
+                      onTap: () => ref.read(panelVisibilityProvider.notifier).toggleTimeline(),
+                    ),
+            ),
             StatusBar(theme: theme),
           ],
         ),

@@ -2212,9 +2212,12 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
 
     if (convertedPath == null) return;
 
-    // Check if we need to commit the conversion
-    final bool wasNotPath = displaySelectedShape.maybeMap(path: (_) => false, orElse: () => true);
-    if (wasNotPath && scene != null && layerId != null && selectedShape != null) {
+    // Sync the raw shape to the animated (display) state before any drag.
+    // This is necessary when the playhead sits between two keyframes: without
+    // this, _handleBendToolPanUpdate would read stale raw nodes instead of the
+    // interpolated ones, causing a jump at the start of the drag and saving
+    // wrong node positions into the new keyframe.
+    if (scene != null && layerId != null && selectedShape != null) {
       ref
           .read(vecDocumentStateProvider.notifier)
           .updateShapeNoHistory(scene.id, layerId, selectedShape.id, (_) => convertedPath);
@@ -2336,9 +2339,7 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
                 final nodes = List<VecPathNode>.from(ps.nodes);
                 if (_bendToolDragNode >= nodes.length) return ps;
 
-                // IMPORTANT: Calculate local intersection relative to CURRENT transformed shape.
-                final currentTr = ps.data.transform;
-                final newLocal = SelectToolHandler.canvasToLocal(currentTr, newCanvas);
+                final newLocal = SelectToolHandler.canvasToLocal(tr, newCanvas);
 
                 final oldPos = nodes[_bendToolDragNode].position;
                 final dx = newLocal.dx - oldPos.x;
@@ -2359,7 +2360,7 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
                         )
                       : null,
                 );
-                return _recalculatePathBounds(ps.copyWith(nodes: nodes));
+                return ps.copyWith(nodes: nodes);
               },
               orElse: () => s,
             ),
@@ -2379,10 +2380,6 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
     final c1 = (h4 - _bendEndLocalPos) / 3.0;
     final c2 = (h4 - _bendStartLocalPos) / 3.0;
 
-    // Project handles to absolute canvas space so we aren't bound to potentially shifted locals
-    final c1Canvas = SelectToolHandler.localToCanvas(tr, c1);
-    final c2Canvas = SelectToolHandler.localToCanvas(tr, c2);
-
     final si = _bendToolDragSegment;
     final isAlt = HardwareKeyboard.instance.isAltPressed;
 
@@ -2398,24 +2395,20 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
               if (si >= nodes.length) return ps;
               final i1 = (si + 1) % nodes.length;
 
-              final currentTr = ps.data.transform;
-              final c1Local = SelectToolHandler.canvasToLocal(currentTr, c1Canvas);
-              final c2Local = SelectToolHandler.canvasToLocal(currentTr, c2Canvas);
-
               if (isAlt) {
                 nodes[si] = nodes[si].copyWith(handleOut: null, type: VecNodeType.corner);
                 nodes[i1] = nodes[i1].copyWith(handleIn: null, type: VecNodeType.corner);
               } else {
                 nodes[si] = nodes[si].copyWith(
-                  handleOut: VecPoint(x: c1Local.dx, y: c1Local.dy),
+                  handleOut: VecPoint(x: c1.dx, y: c1.dy),
                   type: VecNodeType.smooth,
                 );
                 nodes[i1] = nodes[i1].copyWith(
-                  handleIn: VecPoint(x: c2Local.dx, y: c2Local.dy),
+                  handleIn: VecPoint(x: c2.dx, y: c2.dy),
                   type: VecNodeType.smooth,
                 );
               }
-              return _recalculatePathBounds(ps.copyWith(nodes: nodes));
+              return ps.copyWith(nodes: nodes);
             },
             orElse: () => s,
           ),
@@ -2463,78 +2456,6 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
         VecPathNode(position: VecPoint(x: 0, y: h)),
       ],
       isClosed: true,
-    );
-  }
-
-  /// Recalculates exact bounds of [shape] and shifts its transform/nodes so the content
-  /// is flush to (0,0) in local space, updating the global transform offset.
-  VecPathShape _recalculatePathBounds(VecPathShape shape) {
-    if (shape.nodes.isEmpty) return shape;
-
-    final path = ui.Path();
-    path.moveTo(shape.nodes.first.position.x, shape.nodes.first.position.y);
-    for (var i = 1; i < shape.nodes.length; i++) {
-      final from = shape.nodes[i - 1];
-      final to = shape.nodes[i];
-      if (from.handleOut != null || to.handleIn != null) {
-        path.cubicTo(
-          from.handleOut?.x ?? from.position.x,
-          from.handleOut?.y ?? from.position.y,
-          to.handleIn?.x ?? to.position.x,
-          to.handleIn?.y ?? to.position.y,
-          to.position.x,
-          to.position.y,
-        );
-      } else {
-        path.lineTo(to.position.x, to.position.y);
-      }
-    }
-    if (shape.isClosed && shape.nodes.length > 1) {
-      final from = shape.nodes.last;
-      final to = shape.nodes.first;
-      if (from.handleOut != null || to.handleIn != null) {
-        path.cubicTo(
-          from.handleOut?.x ?? from.position.x,
-          from.handleOut?.y ?? from.position.y,
-          to.handleIn?.x ?? to.position.x,
-          to.handleIn?.y ?? to.position.y,
-          to.position.x,
-          to.position.y,
-        );
-      } else {
-        path.lineTo(to.position.x, to.position.y);
-      }
-      path.close();
-    }
-
-    final bounds = path.getBounds();
-    final dx = bounds.left;
-    final dy = bounds.top;
-
-    final shiftedNodes = shape.nodes.map((n) {
-      return n.copyWith(
-        position: VecPoint(x: n.position.x - dx, y: n.position.y - dy),
-        handleIn: n.handleIn != null ? VecPoint(x: n.handleIn!.x - dx, y: n.handleIn!.y - dy) : null,
-        handleOut: n.handleOut != null ? VecPoint(x: n.handleOut!.x - dx, y: n.handleOut!.y - dy) : null,
-      );
-    }).toList();
-
-    final currentTr = shape.data.transform;
-    // We must project the local left/top shift into parent coordinates (canvas)
-    // taking into consideration ONLY scale and rotation! Wait, we use the `SelectToolHandler.localToCanvas`
-    // to map the (dx, dy) to global coords.
-    final canvasOrigin = SelectToolHandler.localToCanvas(currentTr, Offset(dx, dy));
-
-    final newTransform = currentTr.copyWith(
-      x: canvasOrigin.dx,
-      y: canvasOrigin.dy,
-      width: bounds.width,
-      height: bounds.height,
-    );
-
-    return shape.copyWith(
-      data: shape.data.copyWith(transform: newTransform),
-      nodes: shiftedNodes,
     );
   }
 

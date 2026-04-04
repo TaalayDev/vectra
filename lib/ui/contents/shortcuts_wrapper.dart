@@ -150,6 +150,22 @@ class _ShortcutsWrapperState extends State<ShortcutsWrapper> {
     super.dispose();
   }
 
+  /// Returns true when a text-editing widget (TextField, TextFormField, etc.)
+  /// currently owns keyboard focus.
+  bool get _isTextFieldFocused {
+    final primary = FocusManager.instance.primaryFocus;
+    if (primary == null || primary.context == null) return false;
+    bool found = false;
+    primary.context!.visitAncestorElements((element) {
+      if (element.widget is EditableText) {
+        found = true;
+        return false; // stop visiting
+      }
+      return true;
+    });
+    return found;
+  }
+
   bool get isDesktopOrWeb {
     return kIsWeb ||
         defaultTargetPlatform == TargetPlatform.windows ||
@@ -169,9 +185,16 @@ class _ShortcutsWrapperState extends State<ShortcutsWrapper> {
 
     return GestureDetector(
       onTap: () {
-        if (!_focusNode.hasFocus && _focusNode.canRequestFocus) {
-          _focusNode.requestFocus();
-        }
+        // Delay focus reclaim so child widgets (TextFields) that also
+        // process this tap can request focus first.  If a text-editing
+        // widget ends up focused, don't steal it.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          if (_isTextFieldFocused) return;
+          if (!_focusNode.hasFocus && _focusNode.canRequestFocus) {
+            _focusNode.requestFocus();
+          }
+        });
       },
       child: Shortcuts(
         shortcuts: _buildShortcuts(),
@@ -183,6 +206,9 @@ class _ShortcutsWrapperState extends State<ShortcutsWrapper> {
             canRequestFocus: true,
             skipTraversal: false,
             onKeyEvent: (_, event) {
+              // Don't handle shortcuts while a text field is focused —
+              // key events only arrive here via focus-tree bubbling.
+              if (_isTextFieldFocused) return KeyEventResult.ignored;
               _handleKeyEvent(event);
               return KeyEventResult.ignored;
             },
@@ -194,7 +220,8 @@ class _ShortcutsWrapperState extends State<ShortcutsWrapper> {
   }
 
   void _handleKeyEvent(KeyEvent event) {
-    // Handle spacebar for temporary pan mode
+    // Always handle space (pan) and alt (pipette) — they need key-up tracking
+    // and don't conflict with text input.
     if (event.logicalKey == LogicalKeyboardKey.space) {
       if (event is KeyDownEvent && !_isSpacePressed) {
         _isSpacePressed = true;
@@ -204,13 +231,26 @@ class _ShortcutsWrapperState extends State<ShortcutsWrapper> {
         widget.onPanEnd?.call();
       }
     }
+    if (event.logicalKey == LogicalKeyboardKey.altLeft || event.logicalKey == LogicalKeyboardKey.altRight) {
+      if (event is KeyDownEvent && !_isAltPressed) {
+        _isAltPressed = true;
+        widget.onPipetteStart?.call();
+      } else if (event is KeyUpEvent && _isAltPressed) {
+        _isAltPressed = false;
+        widget.onPipetteEnd?.call();
+      }
+    }
 
-    // Handle Escape key
+    // Skip all remaining shortcuts while a text field is focused — they would
+    // steal characters / trigger actions instead of typing.
+    if (_isTextFieldFocused) return;
+
+    // Escape
     if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.escape) {
       widget.onEscape?.call();
     }
 
-    // Handle '?' key — open keyboard shortcut help sheet
+    // '?' — help sheet
     if (event is KeyDownEvent &&
         event.logicalKey == LogicalKeyboardKey.slash &&
         HardwareKeyboard.instance.isShiftPressed &&
@@ -220,18 +260,24 @@ class _ShortcutsWrapperState extends State<ShortcutsWrapper> {
       return;
     }
 
-    // Handle Enter key (without modifiers — Ctrl+Enter is in shortcuts map)
+    // Enter (without modifiers)
     if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.enter) {
       if (!HardwareKeyboard.instance.isControlPressed && !HardwareKeyboard.instance.isMetaPressed) {
         widget.onEnter?.call();
       }
     }
 
-    // Handle tool switch keys (V, P, R, E, T) — only when no modifier is held
+    // -----------------------------------------------------------------------
+    // Bare-key shortcuts (no modifier).
+    // These MUST live here (not in _buildShortcuts) because the Shortcuts
+    // widget returns KeyEventResult.handled which tells the platform the
+    // key was consumed — blocking character insertion in TextFields.
+    // -----------------------------------------------------------------------
     if (event is KeyDownEvent &&
         !HardwareKeyboard.instance.isControlPressed &&
         !HardwareKeyboard.instance.isMetaPressed &&
         !HardwareKeyboard.instance.isShiftPressed) {
+      // Tool switch keys
       final toolKeys = {
         LogicalKeyboardKey.keyV,
         LogicalKeyboardKey.keyP,
@@ -243,42 +289,63 @@ class _ShortcutsWrapperState extends State<ShortcutsWrapper> {
       };
       if (toolKeys.contains(event.logicalKey)) {
         widget.onToolSwitch?.call(event.logicalKey.keyLabel);
+        return;
+      }
+
+      // Color shortcuts
+      if (event.logicalKey == LogicalKeyboardKey.keyX) { widget.onSwapColors?.call(); return; }
+      if (event.logicalKey == LogicalKeyboardKey.keyD) { widget.onDefaultColors?.call(); return; }
+      if (event.logicalKey == LogicalKeyboardKey.keyC) { widget.onColorPicker?.call(); return; }
+
+      // Zoom
+      if (event.logicalKey == LogicalKeyboardKey.equal) { widget.onZoomIn?.call(); return; }
+      if (event.logicalKey == LogicalKeyboardKey.minus) { widget.onZoomOut?.call(); return; }
+
+      // Tab — toggle UI
+      if (event.logicalKey == LogicalKeyboardKey.tab) { widget.onToggleUI?.call(); return; }
+
+      // Delete — delete layer / selection
+      if (event.logicalKey == LogicalKeyboardKey.delete ||
+          event.logicalKey == LogicalKeyboardKey.backspace) {
+        widget.onDeleteLayer?.call();
+        return;
+      }
+
+      // Digit keys: 0 = zoom fit, 1 = zoom 100% / layer 0, 2-9 = layers
+      if (event.logicalKey == LogicalKeyboardKey.digit0) { widget.onZoomFit?.call(); return; }
+      if (event.logicalKey == LogicalKeyboardKey.digit1) { widget.onZoom100?.call(); return; }
+      final digitKeys = {
+        LogicalKeyboardKey.digit1: 0, LogicalKeyboardKey.digit2: 1,
+        LogicalKeyboardKey.digit3: 2, LogicalKeyboardKey.digit4: 3,
+        LogicalKeyboardKey.digit5: 4, LogicalKeyboardKey.digit6: 5,
+        LogicalKeyboardKey.digit7: 6, LogicalKeyboardKey.digit8: 7,
+        LogicalKeyboardKey.digit9: 8,
+      };
+      final layerIdx = digitKeys[event.logicalKey];
+      if (layerIdx != null && layerIdx < widget.maxLayers) {
+        widget.onLayerChanged?.call(layerIdx);
+        return;
       }
     }
 
-    // Handle Arrow keys for nudging selected shapes
+    // Arrow keys — nudge (no Ctrl/Meta required, Shift = 10px step)
     if ((event is KeyDownEvent || event is KeyRepeatEvent) &&
         !HardwareKeyboard.instance.isControlPressed &&
         !HardwareKeyboard.instance.isMetaPressed) {
       final shift = HardwareKeyboard.instance.isShiftPressed;
       final step = shift ? 10.0 : 1.0;
-      if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
-        widget.onNudge?.call(-step, 0);
-        return;
-      } else if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
-        widget.onNudge?.call(step, 0);
-        return;
-      } else if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
-        widget.onNudge?.call(0, -step);
-        return;
-      } else if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
-        widget.onNudge?.call(0, step);
-        return;
-      }
-    }
-
-    // Handle Alt key for temporary pipette/eyedropper mode
-    if (event.logicalKey == LogicalKeyboardKey.altLeft || event.logicalKey == LogicalKeyboardKey.altRight) {
-      if (event is KeyDownEvent && !_isAltPressed) {
-        _isAltPressed = true;
-        widget.onPipetteStart?.call();
-      } else if (event is KeyUpEvent && _isAltPressed) {
-        _isAltPressed = false;
-        widget.onPipetteEnd?.call();
-      }
+      if (event.logicalKey == LogicalKeyboardKey.arrowLeft) { widget.onNudge?.call(-step, 0); return; }
+      if (event.logicalKey == LogicalKeyboardKey.arrowRight) { widget.onNudge?.call(step, 0); return; }
+      if (event.logicalKey == LogicalKeyboardKey.arrowUp) { widget.onNudge?.call(0, -step); return; }
+      if (event.logicalKey == LogicalKeyboardKey.arrowDown) { widget.onNudge?.call(0, step); return; }
     }
   }
 
+  /// Only modifier-based shortcuts belong here. The Shortcuts widget returns
+  /// `KeyEventResult.handled` for matches, which tells the platform the key
+  /// was consumed — this blocks character insertion in TextFields. All
+  /// bare-key shortcuts (no modifier) are handled in `_handleKeyEvent`
+  /// instead, which always returns `KeyEventResult.ignored`.
   Map<LogicalKeySet, Intent> _buildShortcuts() {
     return {
       // Basic editing
@@ -293,35 +360,10 @@ class _ShortcutsWrapperState extends State<ShortcutsWrapper> {
       LogicalKeySet(controlKey, LogicalKeyboardKey.keyO): const ImportIntent(),
 
       // Zoom
-      LogicalKeySet(LogicalKeyboardKey.equal): const ZoomInIntent(),
-      LogicalKeySet(LogicalKeyboardKey.minus): const ZoomOutIntent(),
-      LogicalKeySet(LogicalKeyboardKey.digit0): const ZoomFitIntent(),
       LogicalKeySet(controlKey, LogicalKeyboardKey.shift, LogicalKeyboardKey.keyF): const ZoomSelectionIntent(),
-      LogicalKeySet(LogicalKeyboardKey.digit1): const Zoom100Intent(),
-
-      // Colors
-      LogicalKeySet(LogicalKeyboardKey.keyX): const SwapColorsIntent(),
-      LogicalKeySet(LogicalKeyboardKey.keyD): const DefaultColorsIntent(),
-      LogicalKeySet(LogicalKeyboardKey.keyC): const ColorPickerIntent(),
-
-      // UI
-      LogicalKeySet(LogicalKeyboardKey.tab): const ToggleUIIntent(),
-      // Note: Space is handled directly in _handleKeyEvent for key up support
-
-      // Layers (1-9)
-      LogicalKeySet(LogicalKeyboardKey.digit1): const LayerIntent(0),
-      LogicalKeySet(LogicalKeyboardKey.digit2): const LayerIntent(1),
-      LogicalKeySet(LogicalKeyboardKey.digit3): const LayerIntent(2),
-      LogicalKeySet(LogicalKeyboardKey.digit4): const LayerIntent(3),
-      LogicalKeySet(LogicalKeyboardKey.digit5): const LayerIntent(4),
-      LogicalKeySet(LogicalKeyboardKey.digit6): const LayerIntent(5),
-      LogicalKeySet(LogicalKeyboardKey.digit7): const LayerIntent(6),
-      LogicalKeySet(LogicalKeyboardKey.digit8): const LayerIntent(7),
-      LogicalKeySet(LogicalKeyboardKey.digit9): const LayerIntent(8),
 
       // Layer management
       LogicalKeySet(controlKey, LogicalKeyboardKey.keyN): const NewLayerIntent(),
-      LogicalKeySet(LogicalKeyboardKey.delete): const DeleteLayerIntent(),
 
       // Selection
       LogicalKeySet(controlKey, LogicalKeyboardKey.keyA): const SelectAllIntent(),
@@ -344,40 +386,16 @@ class _ShortcutsWrapperState extends State<ShortcutsWrapper> {
 
   Map<Type, Action<Intent>> _buildActions() {
     return {
+      // Only actions triggered by modifier-key Shortcuts belong here.
+      // Bare-key actions are dispatched directly from _handleKeyEvent.
       UndoIntent: CallbackAction<UndoIntent>(onInvoke: (intent) => widget.onUndo()),
       RedoIntent: CallbackAction<RedoIntent>(onInvoke: (intent) => widget.onRedo()),
       SaveIntent: CallbackAction<SaveIntent>(onInvoke: (intent) => widget.onSave()),
       SaveAsIntent: CallbackAction<SaveAsIntent>(onInvoke: (intent) => widget.onSaveAs?.call()),
       ExportIntent: CallbackAction<ExportIntent>(onInvoke: (intent) => widget.onExport?.call()),
       ImportIntent: CallbackAction<ImportIntent>(onInvoke: (intent) => widget.onImport?.call()),
-      ZoomInIntent: CallbackAction<ZoomInIntent>(onInvoke: (intent) => widget.onZoomIn?.call()),
-      ZoomOutIntent: CallbackAction<ZoomOutIntent>(onInvoke: (intent) => widget.onZoomOut?.call()),
-      ZoomFitIntent: CallbackAction<ZoomFitIntent>(onInvoke: (intent) => widget.onZoomFit?.call()),
       ZoomSelectionIntent: CallbackAction<ZoomSelectionIntent>(onInvoke: (intent) => widget.onZoomSelection?.call()),
-      Zoom100Intent: CallbackAction<Zoom100Intent>(onInvoke: (intent) => widget.onZoom100?.call()),
-      SwapColorsIntent: CallbackAction<SwapColorsIntent>(onInvoke: (intent) => widget.onSwapColors?.call()),
-      DefaultColorsIntent: CallbackAction<DefaultColorsIntent>(onInvoke: (intent) => widget.onDefaultColors?.call()),
-      ColorPickerIntent: CallbackAction<ColorPickerIntent>(onInvoke: (intent) => widget.onColorPicker?.call()),
-      ToggleUIIntent: CallbackAction<ToggleUIIntent>(onInvoke: (intent) => widget.onToggleUI?.call()),
-      PanStartIntent: CallbackAction<PanStartIntent>(
-        onInvoke: (intent) {
-          if (!_isSpacePressed) {
-            _isSpacePressed = true;
-            widget.onPanStart?.call();
-          }
-          return null;
-        },
-      ),
-      LayerIntent: CallbackAction<LayerIntent>(
-        onInvoke: (intent) {
-          if (intent.layerIndex < widget.maxLayers) {
-            widget.onLayerChanged?.call(intent.layerIndex);
-          }
-          return null;
-        },
-      ),
       NewLayerIntent: CallbackAction<NewLayerIntent>(onInvoke: (intent) => widget.onNewLayer?.call()),
-      DeleteLayerIntent: CallbackAction<DeleteLayerIntent>(onInvoke: (intent) => widget.onDeleteLayer?.call()),
       SelectAllIntent: CallbackAction<SelectAllIntent>(onInvoke: (intent) => widget.onSelectAll?.call()),
       DeselectAllIntent: CallbackAction<DeselectAllIntent>(onInvoke: (intent) => widget.onDeselectAll?.call()),
       CopyIntent: CallbackAction<CopyIntent>(onInvoke: (intent) => widget.onCopy?.call()),

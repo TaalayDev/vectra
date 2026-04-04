@@ -124,6 +124,20 @@ class _TimelinePanelState extends ConsumerState<TimelinePanel> {
                   ),
                 ),
               ),
+              const SizedBox(width: 2),
+              // Collapse timeline
+              Tooltip(
+                message: 'Hide Timeline',
+                child: InkWell(
+                  onTap: () => ref.read(panelVisibilityProvider.notifier).toggleTimeline(),
+                  child: Container(
+                    width: 28,
+                    height: 28,
+                    alignment: Alignment.center,
+                    child: Icon(Icons.keyboard_arrow_down, size: 16, color: theme.textDisabled),
+                  ),
+                ),
+              ),
               const SizedBox(width: 4),
             ],
           ),
