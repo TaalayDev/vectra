@@ -16,6 +16,9 @@ _$VecFillImpl _$$VecFillImplFromJson(Map<String, dynamic> json) =>
       gradient: json['gradient'] == null
           ? null
           : VecGradient.fromJson(json['gradient'] as Map<String, dynamic>),
+      pattern: json['pattern'] == null
+          ? null
+          : VecPattern.fromJson(json['pattern'] as Map<String, dynamic>),
       imageAssetId: json['imageAssetId'] as String?,
       imageFit:
           $enumDecodeNullable(_$VecFillImageFitEnumMap, json['imageFit']) ??
@@ -28,6 +31,7 @@ Map<String, dynamic> _$$VecFillImplToJson(_$VecFillImpl instance) =>
       'opacity': instance.opacity,
       'blendMode': _$VecBlendModeEnumMap[instance.blendMode]!,
       'gradient': instance.gradient,
+      'pattern': instance.pattern,
       'imageAssetId': instance.imageAssetId,
       'imageFit': _$VecFillImageFitEnumMap[instance.imageFit]!,
     };

@@ -6,10 +6,13 @@ import 'dart:ui';
 import 'package:flutter/painting.dart';
 
 import '../../core/pathfinder/pathfinder.dart';
+import '../../data/models/vec_color.dart';
+import '../../data/models/vec_effect.dart';
 import '../../data/models/vec_fill.dart';
 import '../../data/models/vec_gradient.dart';
 import '../../data/models/vec_layer.dart';
 import '../../data/models/vec_path_node.dart';
+import '../../data/models/vec_pattern.dart';
 import '../../data/models/vec_shape.dart';
 import '../../data/models/vec_stroke.dart';
 import '../../data/models/vec_symbol.dart';
@@ -20,7 +23,7 @@ import 'blend_mode_mapper.dart';
 /// Converts a [VecShape] into a Flutter [Path] and applies fills/strokes
 /// onto a [Canvas].
 class ShapeRenderer {
-  const ShapeRenderer({this.symbols = const [], this.imageCache = const {}});
+  const ShapeRenderer({this.symbols = const [], this.imageCache = const {}, this.allShapes = const []});
 
   /// The symbol library — used to resolve [VecSymbolInstanceShape] references.
   final List<VecSymbol> symbols;
@@ -28,11 +31,18 @@ class ShapeRenderer {
   /// Cache of assetId → decoded [Image] for [VecImageShape] rendering.
   final Map<String, Image> imageCache;
 
+  /// All shapes in the current scene — used to resolve [clipMaskId] references.
+  final List<VecShape> allShapes;
+
   /// Renders a single shape (with transform, fills, strokes, opacity, blend).
   void render(Canvas canvas, VecShape shape) {
     final transform = shape.transform;
     final shapeOpacity = shape.opacity.clamp(0.0, 1.0);
     if (shapeOpacity <= 0) return;
+
+    // Skip rendering shapes that are used as clip masks — they are invisible
+    // and only define clipping regions for other shapes.
+    if (_isClipMask(shape.id)) return;
 
     canvas.save();
 
@@ -47,12 +57,55 @@ class ShapeRenderer {
       );
     }
 
+    // Apply clip mask BEFORE the shape's own transform (in world space).
+    final clipId = shape.clipMaskId;
+    final hasClipMask = clipId != null && clipId.isNotEmpty;
+    if (hasClipMask) {
+      final maskShape = allShapes.cast<VecShape?>().firstWhere(
+        (s) => s!.id == clipId,
+        orElse: () => null,
+      );
+      if (maskShape != null) {
+        _applyClipMask(canvas, maskShape);
+      }
+    }
+
     // Apply affine transform: translate to position, rotate around pivot, scale, skew.
     // Compounds also go through this now — _renderCompound normalises the path
     // to local-origin coordinates so it can be positioned/rotated like any shape.
     _applyTransform(canvas, transform);
 
-    // Build path and paint
+    // Collect enabled effects.
+    final effects = shape.data.effects.where((e) => e.enabled).toList();
+
+    // 1. Draw shadow / glow effects BEHIND the shape.
+    if (effects.isNotEmpty) {
+      final behindPath = _buildShapePath(shape);
+      if (behindPath != null) {
+        for (final fx in effects) {
+          if (fx.type == VecEffectType.shadow || fx.type == VecEffectType.glow) {
+            _renderBehindEffect(canvas, behindPath, fx);
+          }
+        }
+      }
+    }
+
+    // 2. Blur effect wraps the main shape rendering in a filtered layer.
+    final blurFx = effects.where((e) => e.type == VecEffectType.blur).firstOrNull;
+    if (blurFx != null && blurFx.blur > 0) {
+      canvas.saveLayer(
+        null,
+        Paint()
+          ..imageFilter = ui.ImageFilter.blur(
+            sigmaX: blurFx.blur,
+            sigmaY: blurFx.blur,
+            tileMode: TileMode.decal,
+          )
+          ..color = Color.fromARGB((blurFx.opacity * 255).round(), 255, 255, 255),
+      );
+    }
+
+    // 3. Build path and paint the shape itself.
     shape.map(
       path: (s) => _renderPath(canvas, s),
       rectangle: (s) => _renderRectangle(canvas, s),
@@ -65,6 +118,7 @@ class ShapeRenderer {
       image: (s) => _renderImage(canvas, s),
     );
 
+    if (blurFx != null && blurFx.blur > 0) canvas.restore();
     if (needsLayer) canvas.restore();
     canvas.restore();
   }
@@ -589,6 +643,11 @@ class ShapeRenderer {
           // Fallback color while image is loading or missing.
           paint.color = fill.color.toFlutterColor().withAlpha((fill.opacity * 255).round());
         }
+      } else if (fill.pattern != null) {
+        final bounds = path.getBounds();
+        if (!bounds.isEmpty) {
+          paint.shader = _buildPatternShader(fill.pattern!, fill.color, fill.opacity, bounds);
+        }
       } else if (fill.gradient != null) {
         final bounds = path.getBounds();
         if (!bounds.isEmpty) {
@@ -684,14 +743,124 @@ class ShapeRenderer {
         colors,
         positions,
       );
-    } else {
+    } else if (g.type == VecGradientType.radial) {
       return RadialGradient(
         center: Alignment(g.centerX * 2 - 1, g.centerY * 2 - 1),
         radius: g.radius,
         colors: colors,
         stops: positions,
       ).createShader(bounds);
+    } else {
+      // angular (sweep)
+      final radStart = 0.0;
+      final radEnd = math.pi * 2;
+      // You can adjust this to also take rotation into account if needed,
+      // using an angle offset. We'll interpret g.angle as the start angle.
+      final transform = Float64List(16);
+      _identity(transform);
+      if (g.angle != 0) {
+        final cx = bounds.left + bounds.width * g.centerX;
+        final cy = bounds.top + bounds.height * g.centerY;
+        final rad = g.angle * math.pi / 180.0;
+        final cosT = math.cos(rad);
+        final sinT = math.sin(rad);
+
+        transform[0] = cosT;
+        transform[1] = sinT;
+        transform[4] = -sinT;
+        transform[5] = cosT;
+        transform[12] = cx - cx * cosT + cy * sinT;
+        transform[13] = cy - cx * sinT - cy * cosT;
+      }
+      return ui.Gradient.sweep(
+        Offset(bounds.left + bounds.width * g.centerX, bounds.top + bounds.height * g.centerY),
+        colors,
+        positions,
+        TileMode.clamp,
+        radStart,
+        radEnd,
+        transform,
+      );
     }
+  }
+
+  Shader _buildPatternShader(VecPattern pattern, VecColor fillColor, double opacity, Rect bounds) {
+    final scale = pattern.scale.clamp(4.0, 1000.0);
+    final tileSize = scale.toInt();
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    final rect = Rect.fromLTWH(0, 0, tileSize.toDouble(), tileSize.toDouble());
+
+    if (pattern.backgroundColor != null) {
+      final bg = Paint()..color = pattern.backgroundColor!.toFlutterColor();
+      canvas.drawRect(rect, bg);
+    }
+
+    final fp = Paint()
+      ..color = fillColor.toFlutterColor().withAlpha((opacity * 255).round())
+      ..style = PaintingStyle.fill;
+    
+    final strokePaint = Paint()
+      ..color = fillColor.toFlutterColor().withAlpha((opacity * 255).round())
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.square
+      ..strokeWidth = pattern.thickness;
+
+    final halfSize = tileSize / 2.0;
+
+    switch (pattern.type) {
+      case VecPatternType.dots:
+        canvas.drawCircle(Offset(halfSize, halfSize), pattern.thickness, fp);
+        break;
+      case VecPatternType.stripes:
+        canvas.drawLine(Offset(0, halfSize), Offset(tileSize.toDouble(), halfSize), strokePaint);
+        break;
+      case VecPatternType.crosshatch:
+        canvas.drawLine(Offset(0, halfSize), Offset(tileSize.toDouble(), halfSize), strokePaint);
+        canvas.drawLine(Offset(halfSize, 0), Offset(halfSize, tileSize.toDouble()), strokePaint);
+        break;
+      case VecPatternType.checkerboard:
+        canvas.drawRect(Rect.fromLTWH(0, 0, halfSize, halfSize), fp);
+        canvas.drawRect(Rect.fromLTWH(halfSize, halfSize, halfSize, halfSize), fp);
+        break;
+      case VecPatternType.customTile:
+        if (pattern.tileAssetId != null) {
+          final image = imageCache[pattern.tileAssetId!];
+          if (image != null) {
+            canvas.drawImageRect(
+              image,
+              Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()),
+              rect,
+              Paint()..color = const Color(0xFFFFFFFF).withAlpha((opacity * 255).round()),
+            );
+          }
+        }
+        break;
+    }
+
+    final picture = recorder.endRecording();
+    final image = picture.toImageSync(tileSize, tileSize);
+
+    final matrix = Float64List(16);
+    _identity(matrix);
+    
+    if (pattern.rotation != 0) {
+      final rad = pattern.rotation * math.pi / 180.0;
+      final cosT = math.cos(rad);
+      final sinT = math.sin(rad);
+
+      matrix[0] = cosT;
+      matrix[1] = sinT;
+      matrix[4] = -sinT;
+      matrix[5] = cosT;
+    }
+
+    return ImageShader(
+      image,
+      TileMode.repeated,
+      TileMode.repeated,
+      matrix,
+    );
   }
 
   void _applyStroke(Canvas canvas, Path path, VecStroke stroke) {
@@ -895,6 +1064,216 @@ class ShapeRenderer {
       }
     }
     return sorted.last;
+  }
+
+  // ===========================================================================
+  // Clip mask
+  // ===========================================================================
+
+  /// Returns true if [shapeId] is referenced as a clipMaskId by any shape.
+  bool _isClipMask(String shapeId) {
+    return allShapes.any((s) => s.clipMaskId == shapeId);
+  }
+
+  /// Applies a clip mask from another shape. Called before the clipped shape's
+  /// own transform, so the canvas is in world/stage coordinates. The mask
+  /// path is built in local coords then transformed to world space.
+  void _applyClipMask(Canvas canvas, VecShape maskShape) {
+    final maskPath = _buildShapePath(maskShape);
+    if (maskPath == null) return;
+
+    // Transform the mask path from local to world space.
+    final worldPath = maskPath.transform(_buildTransformMatrix(maskShape.transform));
+    canvas.clipPath(worldPath);
+  }
+
+  /// Builds a 4x4 affine transform matrix from a [VecTransform].
+  Float64List _buildTransformMatrix(VecTransform t) {
+    final m = Float64List(16);
+    _identity(m);
+
+    final px = t.pivot?.x ?? (t.width / 2);
+    final py = t.pivot?.y ?? (t.height / 2);
+
+    final cosR = t.rotation != 0 ? math.cos(t.rotation * math.pi / 180) : 1.0;
+    final sinR = t.rotation != 0 ? math.sin(t.rotation * math.pi / 180) : 0.0;
+
+    m[0] = cosR * t.scaleX;
+    m[1] = sinR * t.scaleX;
+    m[4] = -sinR * t.scaleY;
+    m[5] = cosR * t.scaleY;
+    m[12] = t.x + px - px * cosR * t.scaleX + py * sinR * t.scaleY;
+    m[13] = t.y + py - px * sinR * t.scaleX - py * cosR * t.scaleY;
+
+    return m;
+  }
+
+  // ===========================================================================
+  // Effects helpers
+  // ===========================================================================
+
+  /// Builds a Flutter [Path] for [shape] without rendering it.
+  /// Returns `null` for shapes that don't have a simple geometric path
+  /// (groups, symbol instances).
+  Path? _buildShapePath(VecShape shape) {
+    return shape.map(
+      path: (s) => _buildPathFromNodes(s.nodes, s.isClosed),
+      rectangle: (s) {
+        final w = s.transform.width;
+        final h = s.transform.height;
+        final radii = s.cornerRadii;
+        final r = Rect.fromLTWH(0, 0, w, h);
+
+        if (radii.every((v) => v == 0)) {
+          return Path()..addRect(r);
+        }
+        final tl = radii.isNotEmpty ? radii[0] : 0.0;
+        final tr = radii.length > 1 ? radii[1] : tl;
+        final br = radii.length > 2 ? radii[2] : tl;
+        final bl = radii.length > 3 ? radii[3] : tr;
+
+        switch (s.cornerStyle) {
+          case VecCornerStyle.round:
+            return Path()
+              ..addRRect(RRect.fromRectAndCorners(
+                r,
+                topLeft: Radius.circular(tl),
+                topRight: Radius.circular(tr),
+                bottomRight: Radius.circular(br),
+                bottomLeft: Radius.circular(bl),
+              ));
+          case VecCornerStyle.chamfer:
+            return _chamferRect(r, tl, tr, br, bl);
+          case VecCornerStyle.inverted:
+            return _invertedRoundRect(r, tl, tr, br, bl);
+        }
+      },
+      ellipse: (s) {
+        final w = s.transform.width;
+        final h = s.transform.height;
+        final isFullCircle = (s.endAngle - s.startAngle).abs() >= 360;
+        final hasInner = s.innerRadius > 0 && s.innerRadius < 1;
+        if (isFullCircle && !hasInner) {
+          return Path()..addOval(Rect.fromLTWH(0, 0, w, h));
+        }
+        final path = Path();
+        final cx = w / 2;
+        final cy = h / 2;
+        final startRad = s.startAngle * math.pi / 180;
+        final endRad = s.endAngle * math.pi / 180;
+        final sweepRad = endRad - startRad;
+        path.arcTo(Rect.fromLTWH(0, 0, w, h), startRad - math.pi / 2, sweepRad, true);
+        if (hasInner) {
+          final iw = w * s.innerRadius;
+          final ih = h * s.innerRadius;
+          final innerRect = Rect.fromCenter(center: Offset(cx, cy), width: iw, height: ih);
+          path.arcTo(innerRect, endRad - math.pi / 2, -sweepRad, false);
+          path.close();
+        } else if (!isFullCircle) {
+          path.lineTo(cx, cy);
+          path.close();
+        }
+        return path;
+      },
+      polygon: (s) {
+        final w = s.transform.width;
+        final h = s.transform.height;
+        final cx = w / 2;
+        final cy = h / 2;
+        final rx = w / 2;
+        final ry = h / 2;
+        final sides = s.sideCount.clamp(3, 128);
+        final hasStar = s.starDepth != null && s.starDepth! > 0;
+        final path = Path();
+        final angleStep = (2 * math.pi) / sides;
+        const startAngle = -math.pi / 2;
+        for (var i = 0; i < sides; i++) {
+          final angle = startAngle + angleStep * i;
+          final x = cx + rx * math.cos(angle);
+          final y = cy + ry * math.sin(angle);
+          if (i == 0) {
+            path.moveTo(x, y);
+          } else {
+            path.lineTo(x, y);
+          }
+          if (hasStar) {
+            final depth = s.starDepth!.clamp(0.01, 0.99);
+            final irx = rx * (1 - depth);
+            final iry = ry * (1 - depth);
+            final midAngle = angle + angleStep / 2;
+            path.lineTo(cx + irx * math.cos(midAngle), cy + iry * math.sin(midAngle));
+          }
+        }
+        path.close();
+        return path;
+      },
+      text: (s) {
+        // Text doesn't have a simple geometric path — use bounding rect.
+        return Path()..addRect(Rect.fromLTWH(0, 0, s.transform.width, s.transform.height));
+      },
+      compound: (s) {
+        var path = _shapeToPath.computeCompoundPath(s);
+        final naturalBounds = path.getBounds();
+        if (!naturalBounds.isEmpty) {
+          path = path.shift(Offset(-naturalBounds.left, -naturalBounds.top));
+        }
+        return path;
+      },
+      group: (_) => null,
+      symbolInstance: (_) => null,
+      image: (s) => Path()..addRect(Rect.fromLTWH(0, 0, s.transform.width, s.transform.height)),
+    );
+  }
+
+  /// Renders a single shadow or glow effect behind the shape.
+  void _renderBehindEffect(Canvas canvas, Path shapePath, VecEffect fx) {
+    canvas.save();
+
+    // Offset for shadow (glow has 0,0 offset).
+    if (fx.offsetX != 0 || fx.offsetY != 0) {
+      canvas.translate(fx.offsetX, fx.offsetY);
+    }
+
+    // Expand the path for spread.
+    Path effectPath;
+    if (fx.spread != 0) {
+      final bounds = shapePath.getBounds();
+      final sx = bounds.width > 0 ? (bounds.width + fx.spread * 2) / bounds.width : 1.0;
+      final sy = bounds.height > 0 ? (bounds.height + fx.spread * 2) / bounds.height : 1.0;
+      final cx = bounds.center.dx;
+      final cy = bounds.center.dy;
+      final matrix = Float64List(16);
+      _identity(matrix);
+      matrix[0] = sx;
+      matrix[5] = sy;
+      matrix[12] = cx * (1 - sx);
+      matrix[13] = cy * (1 - sy);
+      effectPath = shapePath.transform(matrix);
+    } else {
+      effectPath = shapePath;
+    }
+
+    // Draw the effect: color fill + blur filter via saveLayer.
+    final effectColor = fx.color.toFlutterColor().withAlpha(
+      (fx.opacity.clamp(0.0, 1.0) * (fx.color.a / 255.0) * 255).round(),
+    );
+
+    if (fx.blur > 0) {
+      canvas.saveLayer(
+        null,
+        Paint()
+          ..imageFilter = ui.ImageFilter.blur(
+            sigmaX: fx.blur,
+            sigmaY: fx.blur,
+            tileMode: TileMode.decal,
+          ),
+      );
+    }
+
+    canvas.drawPath(effectPath, Paint()..color = effectColor);
+
+    if (fx.blur > 0) canvas.restore();
+    canvas.restore();
   }
 
   // ===========================================================================

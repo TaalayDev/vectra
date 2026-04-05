@@ -5,9 +5,11 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import '../../../app/theme/theme.dart';
 import '../../../data/models/vec_asset.dart';
 import '../../../data/models/vec_color.dart';
+import '../../../data/models/vec_effect.dart';
 import '../../../data/models/vec_fill.dart';
 import '../../../data/models/vec_gradient.dart';
 import '../../../data/models/vec_motion_path.dart';
+import '../../../data/models/vec_pattern.dart';
 import '../../../data/models/vec_shape.dart';
 import '../../../data/models/vec_stroke.dart';
 import '../../../data/models/vec_transform.dart';
@@ -283,6 +285,7 @@ class _FillRow extends HookConsumerWidget {
     final i = index;
     final isGradient = fill.gradient != null;
     final isTexture = fill.imageAssetId != null;
+    final isPattern = fill.pattern != null;
     final gradType = fill.gradient?.type ?? VecGradientType.linear;
     final selectedAssetId = fill.imageAssetId;
     final hasSelectedAsset = selectedAssetId != null && imageAssets.any((a) => a.id == selectedAssetId);
@@ -291,13 +294,15 @@ class _FillRow extends HookConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Type toggle: Solid | Linear | Radial | Texture
-        Row(
+        Wrap(
           children: [
             _FillTypeButton(
               label: 'Solid',
-              active: !isGradient && !isTexture,
+              active: !isGradient && !isTexture && !isPattern,
               theme: theme,
-              onTap: () => onUpdate((s) => _updateFill(s, i, s.fills[i].copyWith(gradient: null, imageAssetId: null))),
+              onTap: () => onUpdate(
+                (s) => _updateFill(s, i, s.fills[i].copyWith(gradient: null, imageAssetId: null, pattern: null)),
+              ),
             ),
             const SizedBox(width: 4),
             _FillTypeButton(
@@ -306,7 +311,7 @@ class _FillRow extends HookConsumerWidget {
               theme: theme,
               onTap: () {
                 final g = fill.gradient?.copyWith(type: VecGradientType.linear) ?? VecGradient.defaultLinear;
-                onUpdate((s) => _updateFill(s, i, s.fills[i].copyWith(gradient: g, imageAssetId: null)));
+                onUpdate((s) => _updateFill(s, i, s.fills[i].copyWith(gradient: g, imageAssetId: null, pattern: null)));
               },
             ),
             const SizedBox(width: 4),
@@ -318,7 +323,19 @@ class _FillRow extends HookConsumerWidget {
                 final g =
                     (fill.gradient?.copyWith(type: VecGradientType.radial)) ??
                     VecGradient.defaultLinear.copyWith(type: VecGradientType.radial);
-                onUpdate((s) => _updateFill(s, i, s.fills[i].copyWith(gradient: g, imageAssetId: null)));
+                onUpdate((s) => _updateFill(s, i, s.fills[i].copyWith(gradient: g, imageAssetId: null, pattern: null)));
+              },
+            ),
+            const SizedBox(width: 4),
+            _FillTypeButton(
+              label: 'Angular',
+              active: isGradient && gradType == VecGradientType.angular,
+              theme: theme,
+              onTap: () {
+                final g =
+                    (fill.gradient?.copyWith(type: VecGradientType.angular)) ??
+                    VecGradient.defaultLinear.copyWith(type: VecGradientType.angular);
+                onUpdate((s) => _updateFill(s, i, s.fills[i].copyWith(gradient: g, imageAssetId: null, pattern: null)));
               },
             ),
             const SizedBox(width: 4),
@@ -332,8 +349,25 @@ class _FillRow extends HookConsumerWidget {
                   (s) => _updateFill(
                     s,
                     i,
-                    s.fills[i].copyWith(gradient: null, imageAssetId: firstImageId, imageFit: s.fills[i].imageFit),
+                    s.fills[i].copyWith(
+                      gradient: null,
+                      pattern: null,
+                      imageAssetId: firstImageId,
+                      imageFit: s.fills[i].imageFit,
+                    ),
                   ),
+                );
+              },
+            ),
+            const SizedBox(width: 4),
+            _FillTypeButton(
+              label: 'Pattern',
+              active: isPattern,
+              theme: theme,
+              onTap: () {
+                final pat = fill.pattern ?? const VecPattern();
+                onUpdate(
+                  (s) => _updateFill(s, i, s.fills[i].copyWith(gradient: null, imageAssetId: null, pattern: pat)),
                 );
               },
             ),
@@ -450,6 +484,156 @@ class _FillRow extends HookConsumerWidget {
               ],
             ),
           ],
+        ] else if (isPattern) ...[
+          Row(
+            children: [
+              Expanded(
+                child: Container(
+                  height: 26,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  decoration: BoxDecoration(
+                    color: theme.surfaceVariant,
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: theme.divider, width: 0.5),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<VecPatternType>(
+                      isExpanded: true,
+                      value: fill.pattern?.type ?? VecPatternType.dots,
+                      dropdownColor: theme.surface,
+                      style: TextStyle(fontSize: 11, color: theme.textPrimary),
+                      items: const [
+                        DropdownMenuItem(value: VecPatternType.dots, child: Text('Dots')),
+                        DropdownMenuItem(value: VecPatternType.stripes, child: Text('Stripes')),
+                        DropdownMenuItem(value: VecPatternType.crosshatch, child: Text('Crosshatch')),
+                        DropdownMenuItem(value: VecPatternType.checkerboard, child: Text('Checkerboard')),
+                      ],
+                      onChanged: (val) {
+                        if (val == null) return;
+                        final pat = (fill.pattern ?? const VecPattern()).copyWith(type: val);
+                        onUpdate((s) => _updateFill(s, i, s.fills[i].copyWith(pattern: pat)));
+                      },
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (fill.pattern?.type == VecPatternType.customTile) ...[
+            const SizedBox(height: 6),
+            if (imageAssets.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: Text('No imported images yet.', style: TextStyle(fontSize: 10, color: theme.textDisabled)),
+              )
+            else
+              Row(
+                children: [
+                  Expanded(
+                    child: Container(
+                      height: 26,
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      decoration: BoxDecoration(
+                        color: theme.surfaceVariant,
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: theme.divider, width: 0.5),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          isExpanded: true,
+                          value: imageAssets.any((a) => a.id == fill.pattern?.tileAssetId)
+                              ? fill.pattern?.tileAssetId
+                              : imageAssets.first.id,
+                          dropdownColor: theme.surface,
+                          style: TextStyle(fontSize: 11, color: theme.textPrimary),
+                          items: [
+                            for (final a in imageAssets)
+                              DropdownMenuItem<String>(
+                                value: a.id,
+                                child: Text(a.name, overflow: TextOverflow.ellipsis),
+                              ),
+                          ],
+                          onChanged: (id) {
+                            if (id == null) return;
+                            final pat = (fill.pattern ?? const VecPattern()).copyWith(tileAssetId: id);
+                            onUpdate((s) => _updateFill(s, i, s.fills[i].copyWith(pattern: pat)));
+                          },
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+          ],
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Text('Scale', style: TextStyle(fontSize: 10, color: theme.textDisabled)),
+              const SizedBox(width: 4),
+              Expanded(
+                child: PanelSlider(
+                  value: (fill.pattern?.scale ?? 10.0) / 100.0,
+                  theme: theme,
+                  onChanged: (v) {
+                    final pat = (fill.pattern ?? const VecPattern()).copyWith(scale: (v * 100.0).clamp(4.0, 100.0));
+                    onLiveUpdate((s) => _updateFill(s, i, s.fills[i].copyWith(pattern: pat)));
+                  },
+                  onChangeEnd: (_) => onCommit(),
+                ),
+              ),
+              const SizedBox(width: 4),
+              Text('Thick', style: TextStyle(fontSize: 10, color: theme.textDisabled)),
+              const SizedBox(width: 4),
+              Expanded(
+                child: PanelSlider(
+                  value: (fill.pattern?.thickness ?? 2.0) / 20.0,
+                  theme: theme,
+                  onChanged: (v) {
+                    final pat = (fill.pattern ?? const VecPattern()).copyWith(thickness: (v * 20.0).clamp(1.0, 20.0));
+                    onLiveUpdate((s) => _updateFill(s, i, s.fills[i].copyWith(pattern: pat)));
+                  },
+                  onChangeEnd: (_) => onCommit(),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              ColorSwatchButton(
+                color: fill.color.toFlutterColor(),
+                theme: theme,
+                onTap: () async {
+                  final picked = await showColorPicker(
+                    context: context,
+                    initialColor: fill.color.toFlutterColor(),
+                    theme: theme,
+                  );
+                  if (picked != null) {
+                    onUpdate((s) => _updateFill(s, i, s.fills[i].copyWith(color: VecColor.fromFlutterColor(picked))));
+                  }
+                },
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: PanelSlider(
+                  value: fill.opacity,
+                  theme: theme,
+                  onChanged: (v) => onLiveUpdate((s) => _updateFill(s, i, s.fills[i].copyWith(opacity: v))),
+                  onChangeEnd: (_) => onCommit(),
+                ),
+              ),
+              const SizedBox(width: 4),
+              SizedBox(
+                width: 30,
+                child: Text(
+                  '${(fill.opacity * 100).round()}%',
+                  style: TextStyle(fontSize: 10, color: theme.textDisabled),
+                  textAlign: TextAlign.right,
+                ),
+              ),
+            ],
+          ),
         ] else if (!isGradient) ...[
           // Solid fill: color + opacity
           Row(
@@ -698,7 +882,7 @@ class _GradientEditor extends HookWidget {
               Text('${(opacity * 100).round()}%', style: TextStyle(fontSize: 10, color: theme.textDisabled)),
             ],
           )
-        else
+        else if (gradient.type == VecGradientType.radial)
           Row(
             children: [
               Text('CX', style: TextStyle(fontSize: 10, color: theme.textDisabled)),
@@ -721,6 +905,46 @@ class _GradientEditor extends HookWidget {
                 width: 48,
                 child: NumericInput(
                   label: '',
+                  value: gradient.centerY,
+                  theme: theme,
+                  min: 0,
+                  max: 1,
+                  onChanged: (v) => onUpdateGradient(gradient.copyWith(centerY: v)),
+                ),
+              ),
+            ],
+          )
+        else if (gradient.type == VecGradientType.angular)
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            children: [
+              SizedBox(
+                width: 64,
+                child: NumericInput(
+                  label: '°',
+                  value: gradient.angle,
+                  theme: theme,
+                  min: -360,
+                  max: 360,
+                  onChanged: (v) => onUpdateGradient(gradient.copyWith(angle: v)),
+                ),
+              ),
+              SizedBox(
+                width: 48,
+                child: NumericInput(
+                  label: 'CX',
+                  value: gradient.centerX,
+                  theme: theme,
+                  min: 0,
+                  max: 1,
+                  onChanged: (v) => onUpdateGradient(gradient.copyWith(centerX: v)),
+                ),
+              ),
+              SizedBox(
+                width: 48,
+                child: NumericInput(
+                  label: 'CY',
                   value: gradient.centerY,
                   theme: theme,
                   min: 0,
@@ -2027,6 +2251,291 @@ class _EnumToggle<T extends Enum> extends StatelessWidget {
 }
 
 /// Small "+" icon button shown in section headers.
+// ---------------------------------------------------------------------------
+// Effects Section (Blur, Shadow, Glow)
+// ---------------------------------------------------------------------------
+
+class EffectsSection extends StatelessWidget {
+  const EffectsSection({
+    super.key,
+    required this.effects,
+    required this.theme,
+    required this.onUpdate,
+    required this.onLiveUpdate,
+    required this.onCommit,
+  });
+
+  final List<VecEffect> effects;
+  final AppTheme theme;
+  final ShapeCommit onUpdate;
+  final ShapeLiveUpdate onLiveUpdate;
+  final VoidCallback onCommit;
+
+  void _addEffect(VecEffectType type) {
+    final fx = switch (type) {
+      VecEffectType.blur => VecEffect.defaultBlur,
+      VecEffectType.shadow => VecEffect.defaultShadow,
+      VecEffectType.glow => VecEffect.defaultGlow,
+    };
+    onUpdate((s) => s.copyWith(data: s.data.copyWith(effects: [...s.data.effects, fx])));
+  }
+
+  void _removeEffect(int index) {
+    onUpdate((s) {
+      final list = List<VecEffect>.from(s.data.effects);
+      list.removeAt(index);
+      return s.copyWith(data: s.data.copyWith(effects: list));
+    });
+  }
+
+  void _updateEffect(int index, VecEffect updated) {
+    onUpdate((s) {
+      final list = List<VecEffect>.from(s.data.effects);
+      list[index] = updated;
+      return s.copyWith(data: s.data.copyWith(effects: list));
+    });
+  }
+
+  void _liveUpdateEffect(int index, VecEffect updated) {
+    onLiveUpdate((s) {
+      final list = List<VecEffect>.from(s.data.effects);
+      list[index] = updated;
+      return s.copyWith(data: s.data.copyWith(effects: list));
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return CollapsibleSection(
+      title: 'Effects',
+      theme: theme,
+      action: PopupMenuButton<VecEffectType>(
+        onSelected: _addEffect,
+        itemBuilder: (_) => [
+          PopupMenuItem(
+            value: VecEffectType.blur,
+            child: Text('Blur', style: TextStyle(fontSize: 12, color: theme.textPrimary)),
+          ),
+          PopupMenuItem(
+            value: VecEffectType.shadow,
+            child: Text('Shadow', style: TextStyle(fontSize: 12, color: theme.textPrimary)),
+          ),
+          PopupMenuItem(
+            value: VecEffectType.glow,
+            child: Text('Glow', style: TextStyle(fontSize: 12, color: theme.textPrimary)),
+          ),
+        ],
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints(),
+        position: PopupMenuPosition.under,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6),
+          child: Icon(Icons.add, size: 14, color: theme.textDisabled),
+        ),
+      ),
+      content: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (effects.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Text('No effects', style: TextStyle(fontSize: 11, color: theme.textDisabled)),
+            )
+          else
+            for (var i = 0; i < effects.length; i++)
+              _EffectRow(
+                effect: effects[i],
+                index: i,
+                theme: theme,
+                onUpdate: (fx) => _updateEffect(i, fx),
+                onLiveUpdate: (fx) => _liveUpdateEffect(i, fx),
+                onCommit: onCommit,
+                onRemove: () => _removeEffect(i),
+              ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EffectRow extends StatefulWidget {
+  const _EffectRow({
+    required this.effect,
+    required this.index,
+    required this.theme,
+    required this.onUpdate,
+    required this.onLiveUpdate,
+    required this.onCommit,
+    required this.onRemove,
+  });
+
+  final VecEffect effect;
+  final int index;
+  final AppTheme theme;
+  final ValueChanged<VecEffect> onUpdate;
+  final ValueChanged<VecEffect> onLiveUpdate;
+  final VoidCallback onCommit;
+  final VoidCallback onRemove;
+
+  @override
+  State<_EffectRow> createState() => _EffectRowState();
+}
+
+class _EffectRowState extends State<_EffectRow> {
+  bool _expanded = false;
+
+  String get _typeName => switch (widget.effect.type) {
+    VecEffectType.blur => 'Blur',
+    VecEffectType.shadow => 'Shadow',
+    VecEffectType.glow => 'Glow',
+  };
+
+  IconData get _typeIcon => switch (widget.effect.type) {
+    VecEffectType.blur => Icons.blur_on,
+    VecEffectType.shadow => Icons.flip_to_back,
+    VecEffectType.glow => Icons.flare,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final t = widget.theme;
+    final fx = widget.effect;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header row: icon, name, enabled toggle, expand, delete
+          GestureDetector(
+            onTap: () => setState(() => _expanded = !_expanded),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+              decoration: BoxDecoration(color: t.surfaceVariant.withAlpha(120), borderRadius: BorderRadius.circular(4)),
+              child: Row(
+                children: [
+                  Icon(_typeIcon, size: 12, color: fx.enabled ? t.textSecondary : t.textDisabled),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      _typeName,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: fx.enabled ? t.textPrimary : t.textDisabled,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  // Enabled toggle
+                  GestureDetector(
+                    onTap: () => widget.onUpdate(fx.copyWith(enabled: !fx.enabled)),
+                    child: Icon(
+                      fx.enabled ? Icons.visibility : Icons.visibility_off,
+                      size: 13,
+                      color: fx.enabled ? t.primaryColor : t.textDisabled,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  // Delete
+                  GestureDetector(
+                    onTap: widget.onRemove,
+                    child: Icon(Icons.close, size: 12, color: t.textDisabled),
+                  ),
+                  const SizedBox(width: 2),
+                  Icon(_expanded ? Icons.expand_less : Icons.expand_more, size: 14, color: t.textDisabled),
+                ],
+              ),
+            ),
+          ),
+
+          // Expanded controls
+          if (_expanded) ...[
+            const SizedBox(height: 6),
+            // Blur radius
+            Row(
+              children: [
+                NumericInput(
+                  label: 'Blur',
+                  value: fx.blur,
+                  min: 0,
+                  max: 100,
+                  theme: t,
+                  width: 70,
+                  onChanged: (v) => widget.onUpdate(fx.copyWith(blur: v)),
+                ),
+                const SizedBox(width: 8),
+                NumericInput(
+                  label: 'Opacity',
+                  value: (fx.opacity * 100).roundToDouble(),
+                  min: 0,
+                  max: 100,
+                  theme: t,
+                  width: 70,
+                  onChanged: (v) => widget.onUpdate(fx.copyWith(opacity: v / 100)),
+                ),
+              ],
+            ),
+            // Shadow/glow specific: offset, spread, color
+            if (fx.type == VecEffectType.shadow || fx.type == VecEffectType.glow) ...[
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  NumericInput(
+                    label: 'X',
+                    value: fx.offsetX,
+                    theme: t,
+                    width: 60,
+                    onChanged: (v) => widget.onUpdate(fx.copyWith(offsetX: v)),
+                  ),
+                  const SizedBox(width: 6),
+                  NumericInput(
+                    label: 'Y',
+                    value: fx.offsetY,
+                    theme: t,
+                    width: 60,
+                    onChanged: (v) => widget.onUpdate(fx.copyWith(offsetY: v)),
+                  ),
+                  const SizedBox(width: 6),
+                  NumericInput(
+                    label: 'Spread',
+                    value: fx.spread,
+                    min: 0,
+                    max: 50,
+                    theme: t,
+                    width: 70,
+                    onChanged: (v) => widget.onUpdate(fx.copyWith(spread: v)),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  Text('Color', style: TextStyle(fontSize: 10, color: t.textDisabled)),
+                  const SizedBox(width: 6),
+                  ColorSwatchButton(
+                    color: fx.color.toFlutterColor(),
+                    theme: t,
+                    onTap: () async {
+                      final picked = await showColorPicker(
+                        context: context,
+                        initialColor: fx.color.toFlutterColor(),
+                        theme: t,
+                      );
+                      if (picked != null) {
+                        widget.onUpdate(fx.copyWith(color: VecColor.fromFlutterColor(picked)));
+                      }
+                    },
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 class _AddRemoveButton extends StatelessWidget {
   const _AddRemoveButton({required this.onAdd, required this.theme});
 

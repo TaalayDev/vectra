@@ -26,6 +26,11 @@ _$VecShapeDataImpl _$$VecShapeDataImplFromJson(Map<String, dynamic> json) =>
       blendMode:
           $enumDecodeNullable(_$VecBlendModeEnumMap, json['blendMode']) ??
           VecBlendMode.normal,
+      effects:
+          (json['effects'] as List<dynamic>?)
+              ?.map((e) => VecEffect.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          const [],
       clipMaskId: json['clipMaskId'] as String?,
       name: json['name'] as String?,
     );
@@ -38,6 +43,7 @@ Map<String, dynamic> _$$VecShapeDataImplToJson(_$VecShapeDataImpl instance) =>
       'strokes': instance.strokes,
       'opacity': instance.opacity,
       'blendMode': _$VecBlendModeEnumMap[instance.blendMode]!,
+      'effects': instance.effects,
       'clipMaskId': instance.clipMaskId,
       'name': instance.name,
     };

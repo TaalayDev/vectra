@@ -27,6 +27,7 @@ mixin _$VecShapeData {
   List<VecStroke> get strokes => throw _privateConstructorUsedError;
   double get opacity => throw _privateConstructorUsedError;
   VecBlendMode get blendMode => throw _privateConstructorUsedError;
+  List<VecEffect> get effects => throw _privateConstructorUsedError;
   String? get clipMaskId => throw _privateConstructorUsedError;
   String? get name => throw _privateConstructorUsedError;
 
@@ -54,6 +55,7 @@ abstract class $VecShapeDataCopyWith<$Res> {
     List<VecStroke> strokes,
     double opacity,
     VecBlendMode blendMode,
+    List<VecEffect> effects,
     String? clipMaskId,
     String? name,
   });
@@ -82,6 +84,7 @@ class _$VecShapeDataCopyWithImpl<$Res, $Val extends VecShapeData>
     Object? strokes = null,
     Object? opacity = null,
     Object? blendMode = null,
+    Object? effects = null,
     Object? clipMaskId = freezed,
     Object? name = freezed,
   }) {
@@ -111,6 +114,10 @@ class _$VecShapeDataCopyWithImpl<$Res, $Val extends VecShapeData>
                 ? _value.blendMode
                 : blendMode // ignore: cast_nullable_to_non_nullable
                       as VecBlendMode,
+            effects: null == effects
+                ? _value.effects
+                : effects // ignore: cast_nullable_to_non_nullable
+                      as List<VecEffect>,
             clipMaskId: freezed == clipMaskId
                 ? _value.clipMaskId
                 : clipMaskId // ignore: cast_nullable_to_non_nullable
@@ -151,6 +158,7 @@ abstract class _$$VecShapeDataImplCopyWith<$Res>
     List<VecStroke> strokes,
     double opacity,
     VecBlendMode blendMode,
+    List<VecEffect> effects,
     String? clipMaskId,
     String? name,
   });
@@ -179,6 +187,7 @@ class __$$VecShapeDataImplCopyWithImpl<$Res>
     Object? strokes = null,
     Object? opacity = null,
     Object? blendMode = null,
+    Object? effects = null,
     Object? clipMaskId = freezed,
     Object? name = freezed,
   }) {
@@ -208,6 +217,10 @@ class __$$VecShapeDataImplCopyWithImpl<$Res>
             ? _value.blendMode
             : blendMode // ignore: cast_nullable_to_non_nullable
                   as VecBlendMode,
+        effects: null == effects
+            ? _value._effects
+            : effects // ignore: cast_nullable_to_non_nullable
+                  as List<VecEffect>,
         clipMaskId: freezed == clipMaskId
             ? _value.clipMaskId
             : clipMaskId // ignore: cast_nullable_to_non_nullable
@@ -231,10 +244,12 @@ class _$VecShapeDataImpl implements _VecShapeData {
     final List<VecStroke> strokes = const [],
     this.opacity = 1.0,
     this.blendMode = VecBlendMode.normal,
+    final List<VecEffect> effects = const [],
     this.clipMaskId,
     this.name,
   }) : _fills = fills,
-       _strokes = strokes;
+       _strokes = strokes,
+       _effects = effects;
 
   factory _$VecShapeDataImpl.fromJson(Map<String, dynamic> json) =>
       _$$VecShapeDataImplFromJson(json);
@@ -267,6 +282,15 @@ class _$VecShapeDataImpl implements _VecShapeData {
   @override
   @JsonKey()
   final VecBlendMode blendMode;
+  final List<VecEffect> _effects;
+  @override
+  @JsonKey()
+  List<VecEffect> get effects {
+    if (_effects is EqualUnmodifiableListView) return _effects;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_effects);
+  }
+
   @override
   final String? clipMaskId;
   @override
@@ -274,7 +298,7 @@ class _$VecShapeDataImpl implements _VecShapeData {
 
   @override
   String toString() {
-    return 'VecShapeData(id: $id, transform: $transform, fills: $fills, strokes: $strokes, opacity: $opacity, blendMode: $blendMode, clipMaskId: $clipMaskId, name: $name)';
+    return 'VecShapeData(id: $id, transform: $transform, fills: $fills, strokes: $strokes, opacity: $opacity, blendMode: $blendMode, effects: $effects, clipMaskId: $clipMaskId, name: $name)';
   }
 
   @override
@@ -290,6 +314,7 @@ class _$VecShapeDataImpl implements _VecShapeData {
             (identical(other.opacity, opacity) || other.opacity == opacity) &&
             (identical(other.blendMode, blendMode) ||
                 other.blendMode == blendMode) &&
+            const DeepCollectionEquality().equals(other._effects, _effects) &&
             (identical(other.clipMaskId, clipMaskId) ||
                 other.clipMaskId == clipMaskId) &&
             (identical(other.name, name) || other.name == name));
@@ -305,6 +330,7 @@ class _$VecShapeDataImpl implements _VecShapeData {
     const DeepCollectionEquality().hash(_strokes),
     opacity,
     blendMode,
+    const DeepCollectionEquality().hash(_effects),
     clipMaskId,
     name,
   );
@@ -331,6 +357,7 @@ abstract class _VecShapeData implements VecShapeData {
     final List<VecStroke> strokes,
     final double opacity,
     final VecBlendMode blendMode,
+    final List<VecEffect> effects,
     final String? clipMaskId,
     final String? name,
   }) = _$VecShapeDataImpl;
@@ -350,6 +377,8 @@ abstract class _VecShapeData implements VecShapeData {
   double get opacity;
   @override
   VecBlendMode get blendMode;
+  @override
+  List<VecEffect> get effects;
   @override
   String? get clipMaskId;
   @override

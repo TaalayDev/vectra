@@ -386,6 +386,15 @@ class _ShapeRow extends ConsumerWidget {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
+            // Clip mask indicator
+            if (shape.clipMaskId != null && shape.clipMaskId!.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(right: 2),
+                child: Tooltip(
+                  message: 'Has clip mask',
+                  child: Icon(Icons.content_cut, size: 11, color: theme.accentColor.withAlpha(180)),
+                ),
+              ),
             const SizedBox(width: 8),
           ],
         ),
@@ -396,6 +405,9 @@ class _ShapeRow extends ConsumerWidget {
   void _showContextMenu(
       BuildContext context, WidgetRef ref, Offset globalPos) {
     final notifier = ref.read(vecDocumentStateProvider.notifier);
+    final selectedIds = ref.read(selectedShapeIdsProvider);
+    final hasClipMask = shape.clipMaskId != null && shape.clipMaskId!.isNotEmpty;
+
     showMenu<String>(
       context: context,
       position: RelativeRect.fromLTRB(
@@ -405,6 +417,17 @@ class _ShapeRow extends ConsumerWidget {
         const PopupMenuItem(value: 'forward', child: Text('Bring Forward')),
         const PopupMenuItem(value: 'backward', child: Text('Send Backward')),
         const PopupMenuItem(value: 'back', child: Text('Send to Back')),
+        const PopupMenuDivider(),
+        PopupMenuItem(
+          enabled: selectedIds.length == 2,
+          value: 'clipMask',
+          child: const Text('Use as Clip Mask'),
+        ),
+        PopupMenuItem(
+          enabled: hasClipMask,
+          value: 'releaseClip',
+          child: const Text('Release Clip Mask'),
+        ),
       ],
     ).then((value) {
       switch (value) {
@@ -416,8 +439,34 @@ class _ShapeRow extends ConsumerWidget {
           notifier.sendBackward(sceneId, layerId, shape.id);
         case 'back':
           notifier.sendToBack(sceneId, layerId, shape.id);
+        case 'clipMask':
+          _applyClipMask(ref, selectedIds);
+        case 'releaseClip':
+          notifier.updateShape(sceneId, layerId, shape.id,
+            (s) => s.copyWith(data: s.data.copyWith(clipMaskId: null)),
+          );
       }
     });
+  }
+
+  void _applyClipMask(WidgetRef ref, List<String> selectedIds) {
+    if (selectedIds.length != 2) return;
+    final notifier = ref.read(vecDocumentStateProvider.notifier);
+    final scene = ref.read(activeSceneProvider);
+    if (scene == null) return;
+
+    final layer = scene.layers.firstWhere((l) => l.id == layerId);
+    final indices = selectedIds.map((id) => layer.shapes.indexWhere((s) => s.id == id)).toList();
+    final topIdx = indices[0] > indices[1] ? 0 : 1;
+    final botIdx = 1 - topIdx;
+    final maskId = selectedIds[topIdx];
+    final targetId = selectedIds[botIdx];
+
+    notifier.updateShape(sceneId, layerId, targetId,
+      (s) => s.copyWith(data: s.data.copyWith(clipMaskId: maskId)),
+    );
+    ref.read(selectedShapeIdsProvider.notifier).setSingle(targetId);
+    ref.read(selectedShapeIdProvider.notifier).set(targetId);
   }
 
   String _shapeName() => shape.map(

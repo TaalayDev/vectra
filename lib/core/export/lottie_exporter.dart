@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import '../../data/models/vec_document.dart';
+import '../../data/models/vec_effect.dart';
 import '../../data/models/vec_fill.dart';
 import '../../data/models/vec_keyframe.dart';
 import '../../data/models/vec_layer.dart';
@@ -30,18 +31,56 @@ class LottieExporter {
       if (t.shapeId != null) trackMap[t.shapeId!] = t;
     }
 
-    final layers = <Map<String, dynamic>>[];
-
-    // Sort layers bottom to top; in Lottie, index 0 = topmost
+    // Collect all shapes for clip mask tracking.
+    final allShapes = <VecShape>[];
     final sortedLayers = List<VecLayer>.from(scene.layers)..sort((a, b) => b.order.compareTo(a.order));
+    for (final layer in sortedLayers) {
+      if (!layer.visible) continue;
+      if (layer.type == VecLayerType.guide) continue;
+      allShapes.addAll(layer.shapes);
+    }
 
+    // Track which shapes are used as clip masks.
+    final maskShapeIds = <String>{};
+    for (final s in allShapes) {
+      if (s.clipMaskId != null && s.clipMaskId!.isNotEmpty) {
+        maskShapeIds.add(s.clipMaskId!);
+      }
+    }
+
+    final layers = <Map<String, dynamic>>[];
     var layerIndex = 0;
+
     for (final layer in sortedLayers) {
       if (!layer.visible) continue;
       if (layer.type == VecLayerType.guide) continue;
       for (final shape in layer.shapes) {
+        // Skip shapes that are used as clip masks — they'll be emitted
+        // inline as track matte layers just before the clipped shape.
+        if (maskShapeIds.contains(shape.id)) continue;
+
+        // If this shape has a clip mask, emit the mask as a track matte layer first.
+        if (shape.clipMaskId != null && shape.clipMaskId!.isNotEmpty) {
+          final maskShape = allShapes.cast<VecShape?>().firstWhere(
+            (s) => s!.id == shape.clipMaskId,
+            orElse: () => null,
+          );
+          if (maskShape != null) {
+            final matteLayer = _shapeToLayer(maskShape, layerIndex, totalFrames, fps, track: trackMap[maskShape.id]);
+            if (matteLayer != null) {
+              matteLayer['td'] = 1; // This layer is a track matte
+              layers.add(matteLayer);
+              layerIndex++;
+            }
+          }
+        }
+
         final lottieLayer = _shapeToLayer(shape, layerIndex, totalFrames, fps, track: trackMap[shape.id]);
         if (lottieLayer != null) {
+          // If clipped, reference the track matte above
+          if (shape.clipMaskId != null && shape.clipMaskId!.isNotEmpty && layers.isNotEmpty) {
+            lottieLayer['tt'] = 1; // Alpha matte
+          }
           layers.add(lottieLayer);
           layerIndex++;
         }
@@ -120,7 +159,7 @@ class LottieExporter {
       };
     }
 
-    return {
+    final layer = <String, dynamic>{
       'ty': 4, // shape layer
       'nm': name,
       'ind': index,
@@ -137,6 +176,58 @@ class LottieExporter {
         },
       ],
     };
+
+    // Add Lottie effects for blur/shadow/glow
+    final effects = shape.data.effects.where((e) => e.enabled).toList();
+    if (effects.isNotEmpty) {
+      layer['ef'] = effects.map(_lottieEffect).toList();
+    }
+
+    return layer;
+  }
+
+  Map<String, dynamic> _lottieEffect(VecEffect fx) {
+    switch (fx.type) {
+      case VecEffectType.blur:
+        // Lottie Gaussian Blur effect (ty: 29)
+        return {
+          'ty': 29,
+          'nm': 'Gaussian Blur',
+          'ef': [
+            {'ty': 0, 'nm': 'Blurriness', 'v': _staticValue(fx.blur)},
+            {'ty': 0, 'nm': 'Blur Dimensions', 'v': _staticValue(1)}, // 1 = H+V
+            {'ty': 0, 'nm': 'Repeat Edge Pixels', 'v': _staticValue(0)},
+          ],
+        };
+      case VecEffectType.shadow:
+        // Lottie Drop Shadow effect (ty: 25)
+        final c = fx.color;
+        return {
+          'ty': 25,
+          'nm': 'Drop Shadow',
+          'ef': [
+            {'ty': 2, 'nm': 'Shadow Color', 'v': _staticValueColor(c.r / 255.0, c.g / 255.0, c.b / 255.0)},
+            {'ty': 0, 'nm': 'Opacity', 'v': _staticValue(fx.opacity * (c.a / 255.0) * 255)},
+            {'ty': 1, 'nm': 'Direction', 'v': _staticValue(0)},
+            {'ty': 0, 'nm': 'Distance', 'v': _staticValue(fx.offsetX.abs() + fx.offsetY.abs())},
+            {'ty': 0, 'nm': 'Softness', 'v': _staticValue(fx.blur)},
+          ],
+        };
+      case VecEffectType.glow:
+        // Approximate glow as a drop shadow with 0 offset
+        final c = fx.color;
+        return {
+          'ty': 25,
+          'nm': 'Glow',
+          'ef': [
+            {'ty': 2, 'nm': 'Shadow Color', 'v': _staticValueColor(c.r / 255.0, c.g / 255.0, c.b / 255.0)},
+            {'ty': 0, 'nm': 'Opacity', 'v': _staticValue(fx.opacity * (c.a / 255.0) * 255)},
+            {'ty': 1, 'nm': 'Direction', 'v': _staticValue(0)},
+            {'ty': 0, 'nm': 'Distance', 'v': _staticValue(0)},
+            {'ty': 0, 'nm': 'Softness', 'v': _staticValue(fx.blur + fx.spread)},
+          ],
+        };
+    }
   }
 
   // ---------------------------------------------------------------------------

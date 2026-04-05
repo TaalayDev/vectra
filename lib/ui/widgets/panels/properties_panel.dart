@@ -190,6 +190,20 @@ class PropertiesPanel extends ConsumerWidget {
           Divider(height: 1, color: theme.divider.withAlpha(60)),
           BlendSection(blendMode: shape.blendMode, theme: theme, onUpdate: onUpdate),
           Divider(height: 1, color: theme.divider.withAlpha(60)),
+          EffectsSection(
+            effects: shape.data.effects,
+            theme: theme,
+            onUpdate: onUpdate,
+            onLiveUpdate: onLiveUpdate,
+            onCommit: onCommit,
+          ),
+          Divider(height: 1, color: theme.divider.withAlpha(60)),
+          _ClipMaskInfo(
+            clipMaskId: shape.clipMaskId,
+            theme: theme,
+            onRelease: () => onUpdate((s) => s.copyWith(data: s.data.copyWith(clipMaskId: null))),
+          ),
+          Divider(height: 1, color: theme.divider.withAlpha(60)),
           MotionPathSection(
             shapeId: shape.id,
             motionPath: motionPath,
@@ -702,6 +716,52 @@ class _ConvertToSymbolButton extends ConsumerWidget {
             ref.read(vecDocumentStateProvider.notifier).convertToSymbol(sceneId, layerId, idsToConvert, result.name);
           },
         ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Clip mask info row
+// ---------------------------------------------------------------------------
+
+class _ClipMaskInfo extends StatelessWidget {
+  const _ClipMaskInfo({required this.clipMaskId, required this.theme, required this.onRelease});
+
+  final String? clipMaskId;
+  final AppTheme theme;
+  final VoidCallback onRelease;
+
+  @override
+  Widget build(BuildContext context) {
+    if (clipMaskId == null || clipMaskId!.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
+      child: Row(
+        children: [
+          Icon(Icons.content_cut, size: 12, color: theme.accentColor),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              'Clip Mask',
+              style: TextStyle(fontSize: 11, color: theme.textSecondary, fontWeight: FontWeight.w500),
+            ),
+          ),
+          GestureDetector(
+            onTap: onRelease,
+            child: MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(3),
+                  border: Border.all(color: theme.divider),
+                ),
+                child: Text('Release', style: TextStyle(fontSize: 10, color: theme.textDisabled)),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

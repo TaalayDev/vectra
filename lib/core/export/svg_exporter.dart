@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import '../../data/models/vec_color.dart';
 import '../../data/models/vec_document.dart';
+import '../../data/models/vec_effect.dart';
 import '../../data/models/vec_fill.dart';
 import '../../data/models/vec_keyframe.dart';
 import '../../data/models/vec_layer.dart';
@@ -28,12 +29,74 @@ class SvgExporter {
     final nl = minify ? '' : '\n';
     final ind = minify ? '' : '  ';
 
+    // Collect all shapes for clip mask resolution.
+    final allShapes = <VecShape>[];
+    for (final layer in scene.layers) {
+      allShapes.addAll(layer.shapes);
+    }
+
+    // Track which shapes are used as clip masks (should not be rendered).
+    final maskShapeIds = <String>{};
+    for (final s in allShapes) {
+      if (s.clipMaskId != null && s.clipMaskId!.isNotEmpty) {
+        maskShapeIds.add(s.clipMaskId!);
+      }
+    }
+
+    // Collect all filter definitions from shapes with effects.
+    final defs = StringBuffer();
+    var filterId = 0;
+    final filterMap = <String, String>{}; // shapeId → filter id
+    final clipPathMap = <String, String>{}; // maskShapeId → clipPath id
+
+    void collectDefs(List<VecShape> shapes) {
+      for (final shape in shapes) {
+        final effects = shape.data.effects.where((e) => e.enabled).toList();
+        if (effects.isNotEmpty) {
+          final fid = 'fx$filterId';
+          filterId++;
+          filterMap[shape.id] = fid;
+          defs.write(_buildSvgFilter(fid, effects, ind, nl));
+        }
+        shape.maybeMap(
+          group: (g) => collectDefs(g.children),
+          orElse: () {},
+        );
+      }
+    }
+
+    for (final layer in scene.layers) {
+      collectDefs(layer.shapes);
+    }
+
+    // Build <clipPath> definitions for mask shapes.
+    for (final maskId in maskShapeIds) {
+      final maskShape = allShapes.cast<VecShape?>().firstWhere(
+        (s) => s!.id == maskId,
+        orElse: () => null,
+      );
+      if (maskShape != null) {
+        final cpId = 'cp-${maskId.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '')}';
+        clipPathMap[maskId] = cpId;
+        defs.write('$ind$ind<clipPath id="$cpId">$nl');
+        defs.write(_shapeToSvg(maskShape, symbols, indent: '$ind$ind$ind', nl: nl));
+        defs.write('$ind$ind</clipPath>$nl');
+      }
+    }
+
     buf.write(
       '<?xml version="1.0" encoding="UTF-8"?>$nl'
       '<svg xmlns="http://www.w3.org/2000/svg"'
       ' width="${_f(w)}" height="${_f(h)}"'
       ' viewBox="0 0 ${_f(w)} ${_f(h)}">$nl',
     );
+
+    // Emit <defs> with filter and clipPath definitions
+    if (defs.isNotEmpty) {
+      buf.write('$ind<defs>$nl');
+      buf.write(defs);
+      buf.write('$ind</defs>$nl');
+    }
 
     // Background rect
     if (bg.a > 0) {
@@ -52,7 +115,7 @@ class SvgExporter {
       if (layer.type == VecLayerType.guide) continue;
 
       for (final shape in layer.shapes) {
-        buf.write(_shapeToSvg(shape, symbols, indent: ind, nl: nl));
+        buf.write(_shapeToSvg(shape, symbols, indent: ind, nl: nl, filterMap: filterMap, clipPathMap: clipPathMap, maskShapeIds: maskShapeIds));
       }
     }
 
@@ -64,21 +127,45 @@ class SvgExporter {
   // Shape dispatch
   // ---------------------------------------------------------------------------
 
-  String _shapeToSvg(VecShape shape, List<VecSymbol> symbols, {String indent = '  ', String nl = '\n'}) {
+  String _shapeToSvg(
+    VecShape shape,
+    List<VecSymbol> symbols, {
+    String indent = '  ',
+    String nl = '\n',
+    Map<String, String> filterMap = const {},
+    Map<String, String> clipPathMap = const {},
+    Set<String> maskShapeIds = const {},
+  }) {
     final opacity = shape.opacity.clamp(0.0, 1.0);
     if (opacity <= 0) return '';
 
-    return shape.map(
+    // Skip shapes that serve as clip masks — they're in <defs> only.
+    if (maskShapeIds.contains(shape.id)) return '';
+
+    var result = shape.map(
       path: (s) => _pathShapeToSvg(s, indent, nl),
       rectangle: (s) => _rectToSvg(s, indent, nl),
       ellipse: (s) => _ellipseToSvg(s, indent, nl),
       polygon: (s) => _polygonToSvg(s, indent, nl),
       text: (s) => _textToSvg(s, indent, nl),
-      group: (s) => _groupToSvg(s, symbols, indent, nl),
+      group: (s) => _groupToSvg(s, symbols, indent, nl, filterMap: filterMap, clipPathMap: clipPathMap, maskShapeIds: maskShapeIds),
       compound: (s) => _compoundToSvg(s, indent, nl),
       symbolInstance: (s) => _symbolInstanceToSvg(s, symbols, indent, nl),
       image: (s) => _imageToSvg(s, indent, nl),
     );
+
+    // Wrap with clip-path and/or filter references
+    final clipId = shape.clipMaskId;
+    final cpId = clipId != null ? clipPathMap[clipId] : null;
+    final fid = filterMap[shape.id];
+
+    if (cpId != null || fid != null) {
+      final clipAttr = cpId != null ? ' clip-path="url(#$cpId)"' : '';
+      final filterAttr = fid != null ? ' filter="url(#$fid)"' : '';
+      result = '$indent<g$clipAttr$filterAttr>$nl$result$indent</g>$nl';
+    }
+
+    return result;
   }
 
   // ---------------------------------------------------------------------------
@@ -313,13 +400,21 @@ class SvgExporter {
   // Group
   // ---------------------------------------------------------------------------
 
-  String _groupToSvg(VecGroupShape s, List<VecSymbol> symbols, String ind, String nl) {
+  String _groupToSvg(
+    VecGroupShape s,
+    List<VecSymbol> symbols,
+    String ind,
+    String nl, {
+    Map<String, String> filterMap = const {},
+    Map<String, String> clipPathMap = const {},
+    Set<String> maskShapeIds = const {},
+  }) {
     final transform = _transformAttr(s.transform);
     final buf = StringBuffer();
 
     buf.write('$ind<g$transform${_opacityAttr(s.opacity)}${_blendModeAttr(s.blendMode)}>$nl');
     for (final child in s.children) {
-      buf.write(_shapeToSvg(child, symbols, indent: '$ind  ', nl: nl));
+      buf.write(_shapeToSvg(child, symbols, indent: '$ind  ', nl: nl, filterMap: filterMap, clipPathMap: clipPathMap, maskShapeIds: maskShapeIds));
     }
     buf.write('$ind</g>$nl');
 
@@ -388,6 +483,47 @@ class SvgExporter {
       case VecImageFit.none:
         return 'xMinYMin meet';
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // SVG filter generation
+  // ---------------------------------------------------------------------------
+
+  String _buildSvgFilter(String id, List<VecEffect> effects, String ind, String nl) {
+    final buf = StringBuffer();
+    buf.write('$ind$ind<filter id="$id" x="-50%" y="-50%" width="200%" height="200%">$nl');
+
+    for (final fx in effects) {
+      switch (fx.type) {
+        case VecEffectType.blur:
+          buf.write(
+            '$ind$ind$ind<feGaussianBlur in="SourceGraphic" stdDeviation="${_f(fx.blur)}"'
+            ' result="blur"/>$nl',
+          );
+          break;
+        case VecEffectType.shadow:
+          buf.write(
+            '$ind$ind$ind<feDropShadow dx="${_f(fx.offsetX)}" dy="${_f(fx.offsetY)}"'
+            ' stdDeviation="${_f(fx.blur)}"'
+            ' flood-color="${_hexColor(fx.color)}"'
+            ' flood-opacity="${_f(fx.opacity * (fx.color.a / 255.0))}"/>$nl',
+          );
+          break;
+        case VecEffectType.glow:
+          // Glow = no offset shadow with spread approximated by extra blur
+          final glowBlur = fx.blur + fx.spread;
+          buf.write(
+            '$ind$ind$ind<feDropShadow dx="0" dy="0"'
+            ' stdDeviation="${_f(glowBlur)}"'
+            ' flood-color="${_hexColor(fx.color)}"'
+            ' flood-opacity="${_f(fx.opacity * (fx.color.a / 255.0))}"/>$nl',
+          );
+          break;
+      }
+    }
+
+    buf.write('$ind$ind</filter>$nl');
+    return buf.toString();
   }
 
   // ---------------------------------------------------------------------------

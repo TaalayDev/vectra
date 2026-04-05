@@ -2445,18 +2445,120 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
   VecPathShape _convertRectToPath(VecRectangleShape rect) {
     final w = rect.data.transform.width;
     final h = rect.data.transform.height;
-    return VecPathShape(
-      data: rect.data,
-      nodes: [
-        VecPathNode(position: VecPoint(x: 0, y: 0)),
-        VecPathNode(position: VecPoint(x: w, y: 0)),
-        VecPathNode(
-          position: VecPoint(x: w, y: h),
-        ),
-        VecPathNode(position: VecPoint(x: 0, y: h)),
-      ],
-      isClosed: true,
-    );
+    final radii = rect.cornerRadii;
+    final tl = radii.isNotEmpty ? radii[0] : 0.0;
+    final tr = radii.length > 1 ? radii[1] : tl;
+    final br = radii.length > 2 ? radii[2] : tl;
+    final bl = radii.length > 3 ? radii[3] : tr;
+    final hasRadius = tl > 0 || tr > 0 || br > 0 || bl > 0;
+
+    if (!hasRadius || rect.cornerStyle == VecCornerStyle.chamfer) {
+      // Sharp corners or chamfer — straight segments, no handles needed.
+      final nodes = <VecPathNode>[];
+      if (rect.cornerStyle == VecCornerStyle.chamfer && hasRadius) {
+        // Chamfer: 8-node polygon with cut corners.
+        nodes.addAll([
+          VecPathNode(position: VecPoint(x: tl, y: 0)),
+          VecPathNode(position: VecPoint(x: w - tr, y: 0)),
+          VecPathNode(
+            position: VecPoint(x: w, y: tr),
+          ),
+          VecPathNode(
+            position: VecPoint(x: w, y: h - br),
+          ),
+          VecPathNode(
+            position: VecPoint(x: w - br, y: h),
+          ),
+          VecPathNode(
+            position: VecPoint(x: bl, y: h),
+          ),
+          VecPathNode(position: VecPoint(x: 0, y: h - bl)),
+          VecPathNode(position: VecPoint(x: 0, y: tl)),
+        ]);
+      } else {
+        nodes.addAll([
+          VecPathNode(position: VecPoint(x: 0, y: 0)),
+          VecPathNode(position: VecPoint(x: w, y: 0)),
+          VecPathNode(
+            position: VecPoint(x: w, y: h),
+          ),
+          VecPathNode(position: VecPoint(x: 0, y: h)),
+        ]);
+      }
+      return VecPathShape(data: rect.data, nodes: nodes, isClosed: true);
+    }
+
+    // Round or inverted corners — generate cubic bezier arcs.
+    // Each non-zero corner becomes a smooth node with handles;
+    // zero-radius corners remain sharp corner nodes.
+    // Kappa for a 90° circular arc approximation.
+    const k = 0.552284749831;
+    final isInverted = rect.cornerStyle == VecCornerStyle.inverted;
+
+    final nodes = <VecPathNode>[];
+
+    void addCorner(double cx, double cy, double r, double dx1, double dy1, double dx2, double dy2) {
+      if (r <= 0) {
+        // Sharp corner — single node, no handles.
+        nodes.add(
+          VecPathNode(
+            position: VecPoint(x: cx, y: cy),
+          ),
+        );
+        return;
+      }
+      // Arc from (cx + dx1*r, cy + dy1*r) through corner to (cx + dx2*r, cy + dy2*r).
+      // The control points sit at kappa*r along the tangent direction.
+      final p1x = cx + dx1 * r;
+      final p1y = cy + dy1 * r;
+      final p2x = cx + dx2 * r;
+      final p2y = cy + dy2 * r;
+
+      if (isInverted) {
+        // Inverted: concave arc — handles point AWAY from corner.
+        nodes.add(
+          VecPathNode(
+            position: VecPoint(x: p1x, y: p1y),
+            handleOut: VecPoint(x: p1x + dx1 * r * k, y: p1y + dy1 * r * k),
+            type: VecNodeType.smooth,
+          ),
+        );
+        nodes.add(
+          VecPathNode(
+            position: VecPoint(x: p2x, y: p2y),
+            handleIn: VecPoint(x: p2x + dx2 * r * k, y: p2y + dy2 * r * k),
+            type: VecNodeType.smooth,
+          ),
+        );
+      } else {
+        // Round: convex arc — handles point TOWARD corner (subtract).
+        nodes.add(
+          VecPathNode(
+            position: VecPoint(x: p1x, y: p1y),
+            handleOut: VecPoint(x: p1x - dx1 * r * k, y: p1y - dy1 * r * k),
+            type: VecNodeType.smooth,
+          ),
+        );
+        nodes.add(
+          VecPathNode(
+            position: VecPoint(x: p2x, y: p2y),
+            handleIn: VecPoint(x: p2x - dx2 * r * k, y: p2y - dy2 * r * k),
+            type: VecNodeType.smooth,
+          ),
+        );
+      }
+    }
+
+    // Top-left corner: from (0, tl) curving to (tl, 0)
+    addCorner(0, 0, tl, 0, 1, 1, 0);
+    // Top-right corner: from (w - tr, 0) curving to (w, tr)
+    addCorner(w, 0, tr, -1, 0, 0, 1);
+    // Bottom-right corner: from (w, h - br) curving to (w - br, h)
+    addCorner(w, h, br, 0, -1, -1, 0);
+    // Bottom-left corner: from (bl, h) curving to (0, h - bl)
+    addCorner(0, h, bl, 1, 0, 0, -1);
+
+    return VecPathShape(data: rect.data, nodes: nodes, isClosed: true);
   }
 
   VecPathShape _convertEllipseToPath(VecEllipseShape ellipse) {
@@ -2791,6 +2893,21 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
     final selectedId = ref.read(selectedShapeIdProvider);
     final clipboard = ref.read(clipboardProvider);
 
+    // Check if selected shape has a clip mask for "Release" option
+    final hasClipMask =
+        selectedId != null &&
+        (() {
+          final scene = ref.read(activeSceneProvider);
+          final layerId = ref.read(activeLayerIdProvider);
+          if (scene == null || layerId == null) return false;
+          for (final layer in scene.layers) {
+            if (layer.id != layerId) continue;
+            final shape = layer.shapes.cast<VecShape?>().firstWhere((s) => s!.id == selectedId, orElse: () => null);
+            return shape?.clipMaskId != null && shape!.clipMaskId!.isNotEmpty;
+          }
+          return false;
+        })();
+
     final choice = await showMenu<String>(
       context: context,
       position: RelativeRect.fromLTRB(
@@ -2806,6 +2923,13 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
         const PopupMenuDivider(),
         PopupMenuItem<String>(enabled: selectedIds.length >= 2, value: 'group', child: const Text('Group')),
         PopupMenuItem<String>(enabled: selectedId != null, value: 'ungroup', child: const Text('Ungroup')),
+        const PopupMenuDivider(),
+        PopupMenuItem<String>(
+          enabled: selectedIds.length == 2,
+          value: 'clipMask',
+          child: const Text('Use as Clip Mask'),
+        ),
+        PopupMenuItem<String>(enabled: hasClipMask, value: 'releaseClip', child: const Text('Release Clip Mask')),
         const PopupMenuDivider(),
         PopupMenuItem<String>(enabled: selectedId != null, value: 'front', child: const Text('Bring to front')),
         PopupMenuItem<String>(enabled: selectedId != null, value: 'back', child: const Text('Send to back')),
@@ -2827,6 +2951,12 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
         break;
       case 'ungroup':
         _menuUngroup();
+        break;
+      case 'clipMask':
+        _menuUseAsClipMask();
+        break;
+      case 'releaseClip':
+        _menuReleaseClipMask();
         break;
       case 'front':
         _menuBringToFront();
@@ -2924,6 +3054,44 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
     final selectedId = ref.read(selectedShapeIdProvider);
     if (scene == null || layerId == null || selectedId == null) return;
     ref.read(vecDocumentStateProvider.notifier).sendToBack(scene.id, layerId, selectedId);
+  }
+
+  /// With exactly 2 shapes selected, the topmost (last in list) becomes the
+  /// clip mask for the bottommost (first in list). The mask shape is hidden
+  /// from rendering but its geometry clips the target shape.
+  void _menuUseAsClipMask() {
+    final scene = ref.read(activeSceneProvider);
+    final layerId = ref.read(activeLayerIdProvider);
+    final selectedIds = ref.read(selectedShapeIdsProvider);
+    if (scene == null || layerId == null || selectedIds.length != 2) return;
+
+    // Find which is on top (later in the shapes list = higher z-order)
+    final layer = scene.layers.firstWhere((l) => l.id == layerId);
+    final indices = selectedIds.map((id) => layer.shapes.indexWhere((s) => s.id == id)).toList();
+
+    final topIdx = indices[0] > indices[1] ? 0 : 1;
+    final botIdx = 1 - topIdx;
+    final maskId = selectedIds[topIdx]; // top shape = mask
+    final targetId = selectedIds[botIdx]; // bottom shape = clipped
+
+    final notifier = ref.read(vecDocumentStateProvider.notifier);
+    notifier.updateShape(scene.id, layerId, targetId, (s) => s.copyWith(data: s.data.copyWith(clipMaskId: maskId)));
+
+    ref.read(selectedShapeIdsProvider.notifier).setSingle(targetId);
+    ref.read(selectedShapeIdProvider.notifier).set(targetId);
+    ref.read(toastProvider.notifier).show('Clip mask applied');
+  }
+
+  void _menuReleaseClipMask() {
+    final scene = ref.read(activeSceneProvider);
+    final layerId = ref.read(activeLayerIdProvider);
+    final selectedId = ref.read(selectedShapeIdProvider);
+    if (scene == null || layerId == null || selectedId == null) return;
+
+    ref
+        .read(vecDocumentStateProvider.notifier)
+        .updateShape(scene.id, layerId, selectedId, (s) => s.copyWith(data: s.data.copyWith(clipMaskId: null)));
+    ref.read(toastProvider.notifier).show('Clip mask released');
   }
 
   // ===========================================================================

@@ -25,6 +25,7 @@ mixin _$VecFill {
   double get opacity => throw _privateConstructorUsedError;
   VecBlendMode get blendMode => throw _privateConstructorUsedError;
   VecGradient? get gradient => throw _privateConstructorUsedError;
+  VecPattern? get pattern => throw _privateConstructorUsedError;
   String? get imageAssetId => throw _privateConstructorUsedError;
   VecFillImageFit get imageFit => throw _privateConstructorUsedError;
 
@@ -47,11 +48,13 @@ abstract class $VecFillCopyWith<$Res> {
     double opacity,
     VecBlendMode blendMode,
     VecGradient? gradient,
+    VecPattern? pattern,
     String? imageAssetId,
     VecFillImageFit imageFit,
   });
 
   $VecColorCopyWith<$Res> get color;
+  $VecPatternCopyWith<$Res>? get pattern;
 }
 
 /// @nodoc
@@ -73,6 +76,7 @@ class _$VecFillCopyWithImpl<$Res, $Val extends VecFill>
     Object? opacity = null,
     Object? blendMode = null,
     Object? gradient = freezed,
+    Object? pattern = freezed,
     Object? imageAssetId = freezed,
     Object? imageFit = null,
   }) {
@@ -94,6 +98,10 @@ class _$VecFillCopyWithImpl<$Res, $Val extends VecFill>
                 ? _value.gradient
                 : gradient // ignore: cast_nullable_to_non_nullable
                       as VecGradient?,
+            pattern: freezed == pattern
+                ? _value.pattern
+                : pattern // ignore: cast_nullable_to_non_nullable
+                      as VecPattern?,
             imageAssetId: freezed == imageAssetId
                 ? _value.imageAssetId
                 : imageAssetId // ignore: cast_nullable_to_non_nullable
@@ -116,6 +124,20 @@ class _$VecFillCopyWithImpl<$Res, $Val extends VecFill>
       return _then(_value.copyWith(color: value) as $Val);
     });
   }
+
+  /// Create a copy of VecFill
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $VecPatternCopyWith<$Res>? get pattern {
+    if (_value.pattern == null) {
+      return null;
+    }
+
+    return $VecPatternCopyWith<$Res>(_value.pattern!, (value) {
+      return _then(_value.copyWith(pattern: value) as $Val);
+    });
+  }
 }
 
 /// @nodoc
@@ -131,12 +153,15 @@ abstract class _$$VecFillImplCopyWith<$Res> implements $VecFillCopyWith<$Res> {
     double opacity,
     VecBlendMode blendMode,
     VecGradient? gradient,
+    VecPattern? pattern,
     String? imageAssetId,
     VecFillImageFit imageFit,
   });
 
   @override
   $VecColorCopyWith<$Res> get color;
+  @override
+  $VecPatternCopyWith<$Res>? get pattern;
 }
 
 /// @nodoc
@@ -157,6 +182,7 @@ class __$$VecFillImplCopyWithImpl<$Res>
     Object? opacity = null,
     Object? blendMode = null,
     Object? gradient = freezed,
+    Object? pattern = freezed,
     Object? imageAssetId = freezed,
     Object? imageFit = null,
   }) {
@@ -178,6 +204,10 @@ class __$$VecFillImplCopyWithImpl<$Res>
             ? _value.gradient
             : gradient // ignore: cast_nullable_to_non_nullable
                   as VecGradient?,
+        pattern: freezed == pattern
+            ? _value.pattern
+            : pattern // ignore: cast_nullable_to_non_nullable
+                  as VecPattern?,
         imageAssetId: freezed == imageAssetId
             ? _value.imageAssetId
             : imageAssetId // ignore: cast_nullable_to_non_nullable
@@ -199,6 +229,7 @@ class _$VecFillImpl implements _VecFill {
     this.opacity = 1.0,
     this.blendMode = VecBlendMode.normal,
     this.gradient,
+    this.pattern,
     this.imageAssetId,
     this.imageFit = VecFillImageFit.cover,
   });
@@ -217,6 +248,8 @@ class _$VecFillImpl implements _VecFill {
   @override
   final VecGradient? gradient;
   @override
+  final VecPattern? pattern;
+  @override
   final String? imageAssetId;
   @override
   @JsonKey()
@@ -224,7 +257,7 @@ class _$VecFillImpl implements _VecFill {
 
   @override
   String toString() {
-    return 'VecFill(color: $color, opacity: $opacity, blendMode: $blendMode, gradient: $gradient, imageAssetId: $imageAssetId, imageFit: $imageFit)';
+    return 'VecFill(color: $color, opacity: $opacity, blendMode: $blendMode, gradient: $gradient, pattern: $pattern, imageAssetId: $imageAssetId, imageFit: $imageFit)';
   }
 
   @override
@@ -238,6 +271,7 @@ class _$VecFillImpl implements _VecFill {
                 other.blendMode == blendMode) &&
             (identical(other.gradient, gradient) ||
                 other.gradient == gradient) &&
+            (identical(other.pattern, pattern) || other.pattern == pattern) &&
             (identical(other.imageAssetId, imageAssetId) ||
                 other.imageAssetId == imageAssetId) &&
             (identical(other.imageFit, imageFit) ||
@@ -252,6 +286,7 @@ class _$VecFillImpl implements _VecFill {
     opacity,
     blendMode,
     gradient,
+    pattern,
     imageAssetId,
     imageFit,
   );
@@ -276,6 +311,7 @@ abstract class _VecFill implements VecFill {
     final double opacity,
     final VecBlendMode blendMode,
     final VecGradient? gradient,
+    final VecPattern? pattern,
     final String? imageAssetId,
     final VecFillImageFit imageFit,
   }) = _$VecFillImpl;
@@ -290,6 +326,8 @@ abstract class _VecFill implements VecFill {
   VecBlendMode get blendMode;
   @override
   VecGradient? get gradient;
+  @override
+  VecPattern? get pattern;
   @override
   String? get imageAssetId;
   @override

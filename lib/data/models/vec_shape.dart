@@ -1,6 +1,7 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 import 'vec_color.dart';
+import 'vec_effect.dart';
 import 'vec_fill.dart';
 import 'vec_path_node.dart';
 import 'vec_stroke.dart';
@@ -37,6 +38,7 @@ class VecShapeData with _$VecShapeData {
     @Default([]) List<VecStroke> strokes,
     @Default(1.0) double opacity,
     @Default(VecBlendMode.normal) VecBlendMode blendMode,
+    @Default([]) List<VecEffect> effects,
     String? clipMaskId,
     String? name,
   }) = _VecShapeData;

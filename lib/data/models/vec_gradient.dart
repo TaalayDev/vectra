@@ -1,6 +1,6 @@
 import 'vec_color.dart';
 
-enum VecGradientType { linear, radial }
+enum VecGradientType { linear, radial, angular }
 
 /// A single color stop in a gradient.
 class VecGradientStop {

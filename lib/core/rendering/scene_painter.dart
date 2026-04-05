@@ -29,11 +29,18 @@ class ScenePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final renderer = ShapeRenderer(symbols: symbols, imageCache: imageCache);
-
-    // Sort layers by order ascending (bottom first)
+    // Collect all shapes across visible layers for clip mask resolution.
     final sortedLayers = List<VecLayer>.from(scene.layers)
       ..sort((a, b) => a.order.compareTo(b.order));
+
+    final allShapes = <VecShape>[];
+    for (final layer in sortedLayers) {
+      if (!layer.visible) continue;
+      if (layer.type == VecLayerType.guide && !showGuides) continue;
+      allShapes.addAll(layer.shapes);
+    }
+
+    final renderer = ShapeRenderer(symbols: symbols, imageCache: imageCache, allShapes: allShapes);
 
     for (final layer in sortedLayers) {
       if (!layer.visible) continue;
