@@ -320,16 +320,16 @@ class ExportService {
 
       // ── 2. Encode with FFmpegKit ──────────────────────────────────────────
       onProgress?.call(0.72);
-      final cmd =
-          '-y '
-          '-framerate $fps '
-          '-i ${framesDir.path}/frame_%04d.png '
-          '-c:v libx264 '
-          '-preset medium '
-          '-crf 18 '
-          '-pix_fmt yuv420p '
-          '-movflags +faststart '
-          '$finalPath';
+      // final cmd =
+      //     '-y '
+      //     '-framerate $fps '
+      //     '-i ${framesDir.path}/frame_%04d.png '
+      //     '-c:v libx264 '
+      //     '-preset medium '
+      //     '-crf 18 '
+      //     '-pix_fmt yuv420p '
+      //     '-movflags +faststart '
+      //     '$finalPath';
 
       // final session = await FFmpegKit.execute(cmd);
       // final rc = await session.getReturnCode();
@@ -339,16 +339,13 @@ class ExportService {
       //   return ExportError('FFmpeg encoding failed:\n$logs');
       // }
 
-      // onProgress?.call(1.0);
+      onProgress?.call(1.0);
 
-      // // ── 3. Mobile: share the generated file ──────────────────────────────
-      // if (Platform.isIOS || Platform.isAndroid) {
-      //   await Share.shareXFiles(
-      //     [XFile(finalPath, mimeType: 'video/mp4', name: '$baseName.mp4')],
-      //     subject: baseName,
-      //   );
-      //   return const ExportSuccess();
-      // }
+      // ── 3. Mobile: share the generated file ──────────────────────────────
+      if (Platform.isIOS || Platform.isAndroid) {
+        await Share.shareXFiles([XFile(finalPath, mimeType: 'video/mp4', name: '$baseName.mp4')], subject: baseName);
+        return const ExportSuccess();
+      }
 
       return ExportSuccess(savedPath: finalPath);
     } finally {

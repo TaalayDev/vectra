@@ -27,6 +27,9 @@ mixin _$VecSymbol {
   VecPoint? get registrationPoint => throw _privateConstructorUsedError;
   List<VecLayer> get layers => throw _privateConstructorUsedError;
   VecTimeline get timeline => throw _privateConstructorUsedError;
+  String? get componentSetId => throw _privateConstructorUsedError;
+  Map<String, String> get variantProperties =>
+      throw _privateConstructorUsedError;
 
   /// Serializes this VecSymbol to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -50,6 +53,8 @@ abstract class $VecSymbolCopyWith<$Res> {
     VecPoint? registrationPoint,
     List<VecLayer> layers,
     VecTimeline timeline,
+    String? componentSetId,
+    Map<String, String> variantProperties,
   });
 
   $VecPointCopyWith<$Res>? get registrationPoint;
@@ -77,6 +82,8 @@ class _$VecSymbolCopyWithImpl<$Res, $Val extends VecSymbol>
     Object? registrationPoint = freezed,
     Object? layers = null,
     Object? timeline = null,
+    Object? componentSetId = freezed,
+    Object? variantProperties = null,
   }) {
     return _then(
       _value.copyWith(
@@ -104,6 +111,14 @@ class _$VecSymbolCopyWithImpl<$Res, $Val extends VecSymbol>
                 ? _value.timeline
                 : timeline // ignore: cast_nullable_to_non_nullable
                       as VecTimeline,
+            componentSetId: freezed == componentSetId
+                ? _value.componentSetId
+                : componentSetId // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            variantProperties: null == variantProperties
+                ? _value.variantProperties
+                : variantProperties // ignore: cast_nullable_to_non_nullable
+                      as Map<String, String>,
           )
           as $Val,
     );
@@ -150,6 +165,8 @@ abstract class _$$VecSymbolImplCopyWith<$Res>
     VecPoint? registrationPoint,
     List<VecLayer> layers,
     VecTimeline timeline,
+    String? componentSetId,
+    Map<String, String> variantProperties,
   });
 
   @override
@@ -178,6 +195,8 @@ class __$$VecSymbolImplCopyWithImpl<$Res>
     Object? registrationPoint = freezed,
     Object? layers = null,
     Object? timeline = null,
+    Object? componentSetId = freezed,
+    Object? variantProperties = null,
   }) {
     return _then(
       _$VecSymbolImpl(
@@ -205,6 +224,14 @@ class __$$VecSymbolImplCopyWithImpl<$Res>
             ? _value.timeline
             : timeline // ignore: cast_nullable_to_non_nullable
                   as VecTimeline,
+        componentSetId: freezed == componentSetId
+            ? _value.componentSetId
+            : componentSetId // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        variantProperties: null == variantProperties
+            ? _value._variantProperties
+            : variantProperties // ignore: cast_nullable_to_non_nullable
+                  as Map<String, String>,
       ),
     );
   }
@@ -220,7 +247,10 @@ class _$VecSymbolImpl implements _VecSymbol {
     this.registrationPoint,
     required final List<VecLayer> layers,
     required this.timeline,
-  }) : _layers = layers;
+    this.componentSetId,
+    final Map<String, String> variantProperties = const {},
+  }) : _layers = layers,
+       _variantProperties = variantProperties;
 
   factory _$VecSymbolImpl.fromJson(Map<String, dynamic> json) =>
       _$$VecSymbolImplFromJson(json);
@@ -244,10 +274,21 @@ class _$VecSymbolImpl implements _VecSymbol {
 
   @override
   final VecTimeline timeline;
+  @override
+  final String? componentSetId;
+  final Map<String, String> _variantProperties;
+  @override
+  @JsonKey()
+  Map<String, String> get variantProperties {
+    if (_variantProperties is EqualUnmodifiableMapView)
+      return _variantProperties;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableMapView(_variantProperties);
+  }
 
   @override
   String toString() {
-    return 'VecSymbol(id: $id, name: $name, type: $type, registrationPoint: $registrationPoint, layers: $layers, timeline: $timeline)';
+    return 'VecSymbol(id: $id, name: $name, type: $type, registrationPoint: $registrationPoint, layers: $layers, timeline: $timeline, componentSetId: $componentSetId, variantProperties: $variantProperties)';
   }
 
   @override
@@ -262,7 +303,13 @@ class _$VecSymbolImpl implements _VecSymbol {
                 other.registrationPoint == registrationPoint) &&
             const DeepCollectionEquality().equals(other._layers, _layers) &&
             (identical(other.timeline, timeline) ||
-                other.timeline == timeline));
+                other.timeline == timeline) &&
+            (identical(other.componentSetId, componentSetId) ||
+                other.componentSetId == componentSetId) &&
+            const DeepCollectionEquality().equals(
+              other._variantProperties,
+              _variantProperties,
+            ));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -275,6 +322,8 @@ class _$VecSymbolImpl implements _VecSymbol {
     registrationPoint,
     const DeepCollectionEquality().hash(_layers),
     timeline,
+    componentSetId,
+    const DeepCollectionEquality().hash(_variantProperties),
   );
 
   /// Create a copy of VecSymbol
@@ -299,6 +348,8 @@ abstract class _VecSymbol implements VecSymbol {
     final VecPoint? registrationPoint,
     required final List<VecLayer> layers,
     required final VecTimeline timeline,
+    final String? componentSetId,
+    final Map<String, String> variantProperties,
   }) = _$VecSymbolImpl;
 
   factory _VecSymbol.fromJson(Map<String, dynamic> json) =
@@ -316,6 +367,10 @@ abstract class _VecSymbol implements VecSymbol {
   List<VecLayer> get layers;
   @override
   VecTimeline get timeline;
+  @override
+  String? get componentSetId;
+  @override
+  Map<String, String> get variantProperties;
 
   /// Create a copy of VecSymbol
   /// with the given fields replaced by the non-null parameter values.

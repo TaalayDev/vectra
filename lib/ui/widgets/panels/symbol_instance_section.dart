@@ -70,6 +70,121 @@ class SymbolInstanceSection extends ConsumerWidget {
                 ),
               ],
             ),
+          ] else ...[
+            // Variants UI
+            Builder(
+              builder: (context) {
+                final parts = resolvedSymbol.name.split('/').map((s) => s.trim()).toList();
+                if (parts.length <= 1) return const SizedBox.shrink();
+                
+                final baseName = parts.first;
+                final siblingSymbols = symbols.cast<VecSymbol>().where((s) {
+                  final sParts = s.name.split('/').map((x) => x.trim()).toList();
+                  return sParts.isNotEmpty && sParts.first == baseName && sParts.length > 1;
+                }).toList();
+
+                if (siblingSymbols.length <= 1) return const SizedBox.shrink();
+
+                // Compute properties for each sibling
+                final siblingsProps = <String, Map<String, String>>{};
+                final allKeys = <String>{};
+                for (final s in siblingSymbols) {
+                  final sParts = s.name.split('/').map((x) => x.trim()).toList();
+                  final map = <String, String>{};
+                  for (var i = 1; i < sParts.length; i++) {
+                    final prop = sParts[i];
+                    if (prop.contains('=')) {
+                      final kv = prop.split('=');
+                      map[kv[0].trim()] = kv[1].trim();
+                    } else {
+                      map['Property $i'] = prop;
+                    }
+                  }
+                  siblingsProps[s.id] = map;
+                  allKeys.addAll(map.keys);
+                }
+
+                final currentProps = siblingsProps[resolvedSymbol.id] ?? {};
+
+                return Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      for (final key in allKeys) ...[
+                        _buildLabel(key),
+                        const SizedBox(height: 4),
+                        // Dropdown for this specific variant property
+                        Container(
+                          height: 28,
+                          margin: const EdgeInsets.only(bottom: 8),
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          decoration: BoxDecoration(
+                            color: theme.surfaceVariant,
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(color: theme.divider),
+                          ),
+                          child: DropdownButtonHideUnderline(
+                            child: DropdownButton<String>(
+                              value: currentProps[key],
+                              isExpanded: true,
+                              dropdownColor: theme.surface,
+                              style: TextStyle(color: theme.textPrimary, fontSize: 12),
+                              items: () {
+                                // Find all unique values for this key
+                                final values = siblingsProps.values
+                                    .map((m) => m[key])
+                                    .whereType<String>()
+                                    .toSet()
+                                    .toList()..sort();
+                                return values.map((val) => DropdownMenuItem(
+                                  value: val,
+                                  child: Text(val, style: TextStyle(color: theme.textPrimary, fontSize: 12)),
+                                )).toList();
+                              }(),
+                              onChanged: (newVal) {
+                                if (newVal == null || newVal == currentProps[key]) return;
+                                
+                                // Construct target properties
+                                final targetProps = Map<String, String>.from(currentProps);
+                                targetProps[key] = newVal;
+                                
+                                // Find best matching sibling
+                                String bestSiblingId = resolvedSymbol.id;
+                                int bestMatchCount = -1;
+
+                                for (final entry in siblingsProps.entries) {
+                                  int matchCount = 0;
+                                  bool hasConflict = false;
+                                  for (final tk in targetProps.keys) {
+                                    if (entry.value[tk] == targetProps[tk]) {
+                                      matchCount++;
+                                    } else if (tk == key) {
+                                      hasConflict = true;
+                                    }
+                                  }
+                                  if (!hasConflict && matchCount > bestMatchCount) {
+                                    bestMatchCount = matchCount;
+                                    bestSiblingId = entry.key;
+                                  }
+                                }
+
+                                if (bestSiblingId != resolvedSymbol.id) {
+                                  onUpdate((s) => s.maybeMap(
+                                    symbolInstance: (si) => si.copyWith(symbolId: bestSiblingId),
+                                    orElse: () => s,
+                                  ));
+                                }
+                              },
+                            ),
+                          ),
+                        ),
+                      ]
+                    ],
+                  ),
+                );
+              },
+            ),
           ],
 
           const SizedBox(height: 10),

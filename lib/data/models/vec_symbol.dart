@@ -18,6 +18,8 @@ class VecSymbol with _$VecSymbol {
     VecPoint? registrationPoint,
     required List<VecLayer> layers,
     required VecTimeline timeline,
+    String? componentSetId,
+    @Default({}) Map<String, String> variantProperties,
   }) = _VecSymbol;
 
   factory VecSymbol.fromJson(Map<String, dynamic> json) =>

@@ -22,6 +22,12 @@ _$VecSymbolImpl _$$VecSymbolImplFromJson(Map<String, dynamic> json) =>
           .map((e) => VecLayer.fromJson(e as Map<String, dynamic>))
           .toList(),
       timeline: VecTimeline.fromJson(json['timeline'] as Map<String, dynamic>),
+      componentSetId: json['componentSetId'] as String?,
+      variantProperties:
+          (json['variantProperties'] as Map<String, dynamic>?)?.map(
+            (k, e) => MapEntry(k, e as String),
+          ) ??
+          const {},
     );
 
 Map<String, dynamic> _$$VecSymbolImplToJson(_$VecSymbolImpl instance) =>
@@ -32,6 +38,8 @@ Map<String, dynamic> _$$VecSymbolImplToJson(_$VecSymbolImpl instance) =>
       'registrationPoint': instance.registrationPoint,
       'layers': instance.layers,
       'timeline': instance.timeline,
+      'componentSetId': instance.componentSetId,
+      'variantProperties': instance.variantProperties,
     };
 
 const _$VecSymbolTypeEnumMap = {

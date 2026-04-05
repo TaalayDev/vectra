@@ -5,6 +5,7 @@ import 'package:universal_html/html.dart' show Element;
 import 'package:uuid/uuid.dart';
 
 import '../../data/models/vec_color.dart';
+import '../../data/models/vec_effect.dart';
 import '../../data/models/vec_fill.dart';
 import '../../data/models/vec_gradient.dart';
 import '../../data/models/vec_path_node.dart';
@@ -12,6 +13,13 @@ import '../../data/models/vec_point.dart';
 import '../../data/models/vec_shape.dart';
 import '../../data/models/vec_stroke.dart';
 import '../../data/models/vec_transform.dart';
+
+class _SvgContext {
+  final Map<String, VecGradient> gradients = {};
+  final Map<String, List<VecEffect>> filters = {};
+  final Map<String, String> clipPathShapes = {};
+  final List<VecShape> extraShapes = [];
+}
 
 /// Parses SVG markup and converts elements to [VecShape] objects.
 ///
@@ -33,9 +41,11 @@ class SvgImporter {
       final doc = html_parse.parseXmlDocument(svgContent);
       final svgEl = doc.documentElement;
       if (svgEl == null) return const [];
-      final gradients = _parseGradientDefs(svgEl);
+      final ctx = _SvgContext();
+      _parseDefs(svgEl, ctx);
       final inheritedStyle = _ParsedStyle.none();
-      return _parseChildren(svgEl, inheritedStyle, gradients);
+      final shapes = _parseChildren(svgEl, inheritedStyle, ctx);
+      return [...ctx.extraShapes, ...shapes];
     } catch (_) {
       return const [];
     }
@@ -45,13 +55,17 @@ class SvgImporter {
   // Recursive children parser
   // ---------------------------------------------------------------------------
 
-  List<VecShape> _parseChildren(Element parent, _ParsedStyle inherited, Map<String, VecGradient> gradients) {
+  List<VecShape> _parseChildren(Element parent, _ParsedStyle inherited, _SvgContext ctx) {
     final shapes = <VecShape>[];
     for (final node in parent.childNodes) {
       if (node is! Element) continue;
       final child = node;
       final tag = child.localName.toLowerCase();
-      final style = _ParsedStyle.from(child, inherited, gradients);
+      if (tag == 'defs' || tag == 'clippath' || tag == 'filter' || tag == 'lineargradient' || tag == 'radialgradient') {
+        continue;
+      }
+      
+      final style = _ParsedStyle.from(child, inherited, ctx);
 
       switch (tag) {
         case 'rect':
@@ -72,8 +86,11 @@ class SvgImporter {
           if (s != null) shapes.add(s);
         case 'path':
           shapes.addAll(_parsePath(child, style));
+        case 'text':
+          final s = _parseText(child, style);
+          if (s != null) shapes.add(s);
         case 'g':
-          final children = _parseChildren(child, style, gradients);
+          final children = _parseChildren(child, style, ctx);
           if (children.isNotEmpty) {
             final groupT = _parseTransform(child.getAttribute('transform'));
             shapes.add(
@@ -82,14 +99,15 @@ class SvgImporter {
                   id: _uuid.v4(),
                   transform: groupT ?? const VecTransform(width: 100, height: 100),
                   opacity: style.opacity,
+                  effects: style.effects,
+                  clipMaskId: style.clipMaskId,
                 ),
                 children: children,
               ),
             );
           }
         case 'svg':
-          // Nested <svg>: treat like <g>
-          shapes.addAll(_parseChildren(child, style, gradients));
+          shapes.addAll(_parseChildren(child, style, ctx));
         default:
           break;
       }
@@ -97,9 +115,7 @@ class SvgImporter {
     return shapes;
   }
 
-  Map<String, VecGradient> _parseGradientDefs(Element root) {
-    final defs = <String, VecGradient>{};
-
+  void _parseDefs(Element root, _SvgContext ctx) {
     void visit(Element parent) {
       for (final node in parent.childNodes) {
         if (node is! Element) continue;
@@ -110,22 +126,85 @@ class SvgImporter {
           final id = el.getAttribute('id');
           if (id != null && id.isNotEmpty) {
             final gradient = _parseLinearGradient(el);
-            if (gradient != null) defs[id] = gradient;
+            if (gradient != null) ctx.gradients[id] = gradient;
           }
         } else if (tag == 'radialgradient') {
           final id = el.getAttribute('id');
           if (id != null && id.isNotEmpty) {
             final gradient = _parseRadialGradient(el);
-            if (gradient != null) defs[id] = gradient;
+            if (gradient != null) ctx.gradients[id] = gradient;
+          }
+        } else if (tag == 'filter') {
+          final id = el.getAttribute('id');
+          if (id != null && id.isNotEmpty) {
+            final effects = _parseFilter(el);
+            if (effects.isNotEmpty) ctx.filters[id] = effects;
+          }
+        } else if (tag == 'clippath') {
+          final id = el.getAttribute('id');
+          if (id != null && id.isNotEmpty) {
+            final clipChildren = _parseChildren(el, _ParsedStyle.none(), ctx);
+            if (clipChildren.isNotEmpty) {
+              if (clipChildren.length == 1) {
+                ctx.clipPathShapes[id] = clipChildren.first.data.id;
+              } else {
+                final groupId = _uuid.v4();
+                ctx.clipPathShapes[id] = groupId;
+                clipChildren.insert(0, VecShape.group(
+                  data: VecShapeData(id: groupId, transform: const VecTransform(width: 100, height: 100)),
+                  children: List.from(clipChildren),
+                ));
+              }
+              // Hide clip mask source geometries by zeroing out opacity or strokes/fills to not render on canvas unless selected as mask.
+              final hiddenChildren = clipChildren.map((s) => s.map(
+                path: (p) => p.copyWith(data: p.data.copyWith(opacity: 0, strokes: [], fills: [])),
+                rectangle: (p) => p.copyWith(data: p.data.copyWith(opacity: 0, strokes: [], fills: [])),
+                ellipse: (p) => p.copyWith(data: p.data.copyWith(opacity: 0, strokes: [], fills: [])),
+                polygon: (p) => p.copyWith(data: p.data.copyWith(opacity: 0, strokes: [], fills: [])),
+                text: (p) => p.copyWith(data: p.data.copyWith(opacity: 0, strokes: [], fills: [])),
+                group: (p) => p.copyWith(data: p.data.copyWith(opacity: 0)),
+                symbolInstance: (p) => p.copyWith(data: p.data.copyWith(opacity: 0)),
+                compound: (p) => p.copyWith(data: p.data.copyWith(opacity: 0)),
+                image: (p) => p.copyWith(data: p.data.copyWith(opacity: 0)),
+              )).toList();
+              ctx.extraShapes.addAll(hiddenChildren);
+            }
           }
         }
 
         visit(el);
       }
     }
-
     visit(root);
-    return defs;
+  }
+
+  List<VecEffect> _parseFilter(Element el) {
+    final effects = <VecEffect>[];
+    for (final node in el.childNodes) {
+      if (node is! Element) continue;
+      final tag = node.localName.toLowerCase();
+      if (tag == 'fedropshadow') {
+        final dx = _d(node, 'dx');
+        final dy = _d(node, 'dy');
+        final stdDev = _d(node, 'stdDeviation', fallback: 2.0);
+        final color = _ParsedStyle.parseColor(node.getAttribute('flood-color') ?? 'black') ?? const VecColor(a: 255, r: 0, g: 0, b: 0);
+        final opacity = _d(node, 'flood-opacity', fallback: 1.0);
+        effects.add(VecEffect(
+          type: VecEffectType.shadow,
+          offsetX: dx,
+          offsetY: dy,
+          blur: stdDev * 2,
+          color: color.copyWith(a: (opacity * 255).round().clamp(0, 255)),
+        ));
+      } else if (tag == 'fegaussianblur') {
+        final stdDev = _d(node, 'stdDeviation', fallback: 2.0);
+        effects.add(VecEffect(
+          type: VecEffectType.blur,
+          blur: stdDev * 2,
+        ));
+      }
+    }
+    return effects;
   }
 
   VecGradient? _parseLinearGradient(Element el) {
@@ -201,6 +280,35 @@ class SvgImporter {
   // ---------------------------------------------------------------------------
   // Element parsers
   // ---------------------------------------------------------------------------
+
+  VecShape? _parseText(Element el, _ParsedStyle style) {
+    final x = _d(el, 'x');
+    final y = _d(el, 'y');
+    final text = el.text ?? '';
+    if (text.isEmpty) return null;
+
+    final fontSize = _d(el, 'font-size', fallback: 16);
+    final fontFamily = el.getAttribute('font-family') ?? 'Inter';
+    final fontWeightStr = el.getAttribute('font-weight') ?? '400';
+    final int fontWeight;
+    if (fontWeightStr == 'bold') {
+      fontWeight = 700;
+    } else if (fontWeightStr == 'normal') {
+      fontWeight = 400;
+    } else {
+      fontWeight = int.tryParse(fontWeightStr) ?? 400;
+    }
+
+    final t = _applyTransform(el, x, y - fontSize, fontSize * text.length * 0.6, fontSize);
+    
+    return VecShape.text(
+      data: _makeData(t, style),
+      content: text,
+      fontFamily: fontFamily,
+      fontSize: fontSize,
+      fontWeight: fontWeight,
+    );
+  }
 
   VecShape? _parseRect(Element el, _ParsedStyle style) {
     final x = _d(el, 'x');
@@ -518,6 +626,8 @@ class SvgImporter {
       fills: style.fill != null ? [style.fill!] : const [],
       strokes: style.stroke != null ? [style.stroke!] : const [],
       opacity: style.opacity,
+      effects: style.effects,
+      clipMaskId: style.clipMaskId,
     );
   }
 
@@ -577,11 +687,22 @@ class _Subpath {
 }
 
 class _ParsedStyle {
-  const _ParsedStyle({required this.fill, required this.stroke, required this.opacity});
+  const _ParsedStyle({
+    required this.fill,
+    required this.stroke,
+    required this.opacity,
+    required this.effects,
+    this.clipMaskId,
+  });
 
-  factory _ParsedStyle.none() => const _ParsedStyle(fill: null, stroke: null, opacity: 1.0);
+  factory _ParsedStyle.none() => const _ParsedStyle(
+    fill: null, 
+    stroke: null, 
+    opacity: 1.0, 
+    effects: [],
+  );
 
-  factory _ParsedStyle.from(Element el, _ParsedStyle parent, Map<String, VecGradient> gradients) {
+  factory _ParsedStyle.from(Element el, _ParsedStyle parent, _SvgContext ctx) {
     // Parse style="" inline first, then individual attributes
     final styleMap = parseInlineStyle(el.getAttribute('style') ?? '');
     String? attr(String name) => styleMap[name] ?? el.getAttribute(name);
@@ -593,7 +714,7 @@ class _ParsedStyle {
         fill = null;
       } else if (_isUrlRef(fillStr)) {
         final id = _extractUrlRefId(fillStr);
-        final gradient = id == null ? null : gradients[id];
+        final gradient = id == null ? null : ctx.gradients[id];
         if (gradient != null) {
           final fo = double.tryParse(attr('fill-opacity') ?? '') ?? 1.0;
           fill = VecFill(color: gradient.stops.first.color, opacity: fo, gradient: gradient);
@@ -627,12 +748,38 @@ class _ParsedStyle {
     final opStr = attr('opacity');
     final opacity = (double.tryParse(opStr ?? '') ?? 1.0) * parent.opacity;
 
-    return _ParsedStyle(fill: fill, stroke: stroke, opacity: opacity.clamp(0.0, 1.0));
+    List<VecEffect> effects = parent.effects;
+    final filterStr = attr('filter');
+    if (filterStr != null && _isUrlRef(filterStr)) {
+      final id = _extractUrlRefId(filterStr);
+      if (id != null && ctx.filters.containsKey(id)) {
+        effects = [...effects, ...ctx.filters[id]!];
+      }
+    }
+
+    String? clipMaskId = parent.clipMaskId;
+    final clipPathStr = attr('clip-path');
+    if (clipPathStr != null && _isUrlRef(clipPathStr)) {
+      final id = _extractUrlRefId(clipPathStr);
+      if (id != null && ctx.clipPathShapes.containsKey(id)) {
+        clipMaskId = ctx.clipPathShapes[id];
+      }
+    }
+
+    return _ParsedStyle(
+      fill: fill, 
+      stroke: stroke, 
+      opacity: opacity.clamp(0.0, 1.0),
+      effects: effects,
+      clipMaskId: clipMaskId,
+    );
   }
 
   final VecFill? fill;
   final VecStroke? stroke;
   final double opacity;
+  final List<VecEffect> effects;
+  final String? clipMaskId;
 
   static Map<String, String> parseInlineStyle(String style) {
     final map = <String, String>{};
