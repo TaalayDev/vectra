@@ -441,6 +441,11 @@ class EditorScreen extends HookConsumerWidget {
           },
           onExport: () => ExportDialog.show(context),
           onHelpSheet: () => showShortcutSheet(context, theme),
+          onPipetteStart: () => ref.read(pipetteModeProvider.notifier).state = true,
+          onPipetteEnd: () {
+            ref.read(pipetteModeProvider.notifier).state = false;
+            ref.read(pipetteColorProvider.notifier).state = null;
+          },
           onImport: () async {
             final notifier = ref.read(vecDocumentStateProvider.notifier);
             // Warn about unsaved changes before opening another file

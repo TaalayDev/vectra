@@ -1,3 +1,5 @@
+import 'dart:ui' show lerpDouble;
+
 import 'package:flutter/material.dart';
 
 import '../../core/utils/local_storage.dart';
@@ -47,6 +49,283 @@ import 'halloween.dart';
 import 'bioluminescent_brutalism.dart';
 
 export 'theme_type.dart';
+
+@immutable
+class AppThemeRadii {
+  final double xs;
+  final double sm;
+  final double md;
+  final double lg;
+  final double xl;
+  final double pill;
+
+  const AppThemeRadii({this.xs = 4, this.sm = 8, this.md = 12, this.lg = 16, this.xl = 24, this.pill = 999});
+
+  BorderRadius get extraSmall => BorderRadius.circular(xs);
+  BorderRadius get small => BorderRadius.circular(sm);
+  BorderRadius get medium => BorderRadius.circular(md);
+  BorderRadius get large => BorderRadius.circular(lg);
+  BorderRadius get extraLarge => BorderRadius.circular(xl);
+  BorderRadius get full => BorderRadius.circular(pill);
+
+  AppThemeRadii copyWith({double? xs, double? sm, double? md, double? lg, double? xl, double? pill}) {
+    return AppThemeRadii(
+      xs: xs ?? this.xs,
+      sm: sm ?? this.sm,
+      md: md ?? this.md,
+      lg: lg ?? this.lg,
+      xl: xl ?? this.xl,
+      pill: pill ?? this.pill,
+    );
+  }
+
+  static AppThemeRadii lerp(AppThemeRadii a, AppThemeRadii b, double t) {
+    return AppThemeRadii(
+      xs: lerpDouble(a.xs, b.xs, t) ?? a.xs,
+      sm: lerpDouble(a.sm, b.sm, t) ?? a.sm,
+      md: lerpDouble(a.md, b.md, t) ?? a.md,
+      lg: lerpDouble(a.lg, b.lg, t) ?? a.lg,
+      xl: lerpDouble(a.xl, b.xl, t) ?? a.xl,
+      pill: lerpDouble(a.pill, b.pill, t) ?? a.pill,
+    );
+  }
+}
+
+@immutable
+class AppThemeSizes {
+  final double xxs;
+  final double xs;
+  final double sm;
+  final double md;
+  final double lg;
+  final double xl;
+  final double xxl;
+  final double iconSm;
+  final double iconMd;
+  final double iconLg;
+  final double buttonHeight;
+  final double minButtonWidth;
+  final double inputHeight;
+  final double toolbarHeight;
+  final double cardElevation;
+
+  const AppThemeSizes({
+    this.xxs = 4,
+    this.xs = 8,
+    this.sm = 12,
+    this.md = 16,
+    this.lg = 20,
+    this.xl = 24,
+    this.xxl = 32,
+    this.iconSm = 16,
+    this.iconMd = 20,
+    this.iconLg = 24,
+    this.buttonHeight = 44,
+    this.minButtonWidth = 88,
+    this.inputHeight = 48,
+    this.toolbarHeight = kToolbarHeight,
+    this.cardElevation = 2,
+  });
+
+  AppThemeSizes copyWith({
+    double? xxs,
+    double? xs,
+    double? sm,
+    double? md,
+    double? lg,
+    double? xl,
+    double? xxl,
+    double? iconSm,
+    double? iconMd,
+    double? iconLg,
+    double? buttonHeight,
+    double? minButtonWidth,
+    double? inputHeight,
+    double? toolbarHeight,
+    double? cardElevation,
+  }) {
+    return AppThemeSizes(
+      xxs: xxs ?? this.xxs,
+      xs: xs ?? this.xs,
+      sm: sm ?? this.sm,
+      md: md ?? this.md,
+      lg: lg ?? this.lg,
+      xl: xl ?? this.xl,
+      xxl: xxl ?? this.xxl,
+      iconSm: iconSm ?? this.iconSm,
+      iconMd: iconMd ?? this.iconMd,
+      iconLg: iconLg ?? this.iconLg,
+      buttonHeight: buttonHeight ?? this.buttonHeight,
+      minButtonWidth: minButtonWidth ?? this.minButtonWidth,
+      inputHeight: inputHeight ?? this.inputHeight,
+      toolbarHeight: toolbarHeight ?? this.toolbarHeight,
+      cardElevation: cardElevation ?? this.cardElevation,
+    );
+  }
+
+  static AppThemeSizes lerp(AppThemeSizes a, AppThemeSizes b, double t) {
+    return AppThemeSizes(
+      xxs: lerpDouble(a.xxs, b.xxs, t) ?? a.xxs,
+      xs: lerpDouble(a.xs, b.xs, t) ?? a.xs,
+      sm: lerpDouble(a.sm, b.sm, t) ?? a.sm,
+      md: lerpDouble(a.md, b.md, t) ?? a.md,
+      lg: lerpDouble(a.lg, b.lg, t) ?? a.lg,
+      xl: lerpDouble(a.xl, b.xl, t) ?? a.xl,
+      xxl: lerpDouble(a.xxl, b.xxl, t) ?? a.xxl,
+      iconSm: lerpDouble(a.iconSm, b.iconSm, t) ?? a.iconSm,
+      iconMd: lerpDouble(a.iconMd, b.iconMd, t) ?? a.iconMd,
+      iconLg: lerpDouble(a.iconLg, b.iconLg, t) ?? a.iconLg,
+      buttonHeight: lerpDouble(a.buttonHeight, b.buttonHeight, t) ?? a.buttonHeight,
+      minButtonWidth: lerpDouble(a.minButtonWidth, b.minButtonWidth, t) ?? a.minButtonWidth,
+      inputHeight: lerpDouble(a.inputHeight, b.inputHeight, t) ?? a.inputHeight,
+      toolbarHeight: lerpDouble(a.toolbarHeight, b.toolbarHeight, t) ?? a.toolbarHeight,
+      cardElevation: lerpDouble(a.cardElevation, b.cardElevation, t) ?? a.cardElevation,
+    );
+  }
+}
+
+@immutable
+class AppThemeBorders {
+  final double thin;
+  final double regular;
+  final double thick;
+  final double focus;
+
+  const AppThemeBorders({this.thin = 1, this.regular = 1.25, this.thick = 2, this.focus = 2});
+
+  BorderSide side(Color color, {double? width}) {
+    return BorderSide(color: color, width: width ?? regular);
+  }
+
+  AppThemeBorders copyWith({double? thin, double? regular, double? thick, double? focus}) {
+    return AppThemeBorders(
+      thin: thin ?? this.thin,
+      regular: regular ?? this.regular,
+      thick: thick ?? this.thick,
+      focus: focus ?? this.focus,
+    );
+  }
+
+  static AppThemeBorders lerp(AppThemeBorders a, AppThemeBorders b, double t) {
+    return AppThemeBorders(
+      thin: lerpDouble(a.thin, b.thin, t) ?? a.thin,
+      regular: lerpDouble(a.regular, b.regular, t) ?? a.regular,
+      thick: lerpDouble(a.thick, b.thick, t) ?? a.thick,
+      focus: lerpDouble(a.focus, b.focus, t) ?? a.focus,
+    );
+  }
+}
+
+@immutable
+class AppButtonThemeTokens {
+  final EdgeInsetsGeometry padding;
+  final Size minimumSize;
+  final double elevation;
+  final double iconSize;
+
+  const AppButtonThemeTokens({
+    this.padding = const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+    this.minimumSize = const Size(88, 44),
+    this.elevation = 0,
+    this.iconSize = 20,
+  });
+
+  AppButtonThemeTokens copyWith({EdgeInsetsGeometry? padding, Size? minimumSize, double? elevation, double? iconSize}) {
+    return AppButtonThemeTokens(
+      padding: padding ?? this.padding,
+      minimumSize: minimumSize ?? this.minimumSize,
+      elevation: elevation ?? this.elevation,
+      iconSize: iconSize ?? this.iconSize,
+    );
+  }
+
+  static AppButtonThemeTokens lerp(AppButtonThemeTokens a, AppButtonThemeTokens b, double t) {
+    return AppButtonThemeTokens(
+      padding: EdgeInsetsGeometry.lerp(a.padding, b.padding, t) ?? a.padding,
+      minimumSize: Size.lerp(a.minimumSize, b.minimumSize, t) ?? a.minimumSize,
+      elevation: lerpDouble(a.elevation, b.elevation, t) ?? a.elevation,
+      iconSize: lerpDouble(a.iconSize, b.iconSize, t) ?? a.iconSize,
+    );
+  }
+}
+
+@immutable
+class AppInputThemeTokens {
+  final EdgeInsetsGeometry contentPadding;
+  final bool filled;
+  final bool isDense;
+
+  const AppInputThemeTokens({
+    this.contentPadding = const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+    this.filled = true,
+    this.isDense = false,
+  });
+
+  AppInputThemeTokens copyWith({EdgeInsetsGeometry? contentPadding, bool? filled, bool? isDense}) {
+    return AppInputThemeTokens(
+      contentPadding: contentPadding ?? this.contentPadding,
+      filled: filled ?? this.filled,
+      isDense: isDense ?? this.isDense,
+    );
+  }
+
+  static AppInputThemeTokens lerp(AppInputThemeTokens a, AppInputThemeTokens b, double t) {
+    return AppInputThemeTokens(
+      contentPadding: EdgeInsetsGeometry.lerp(a.contentPadding, b.contentPadding, t) ?? a.contentPadding,
+      filled: t < 0.5 ? a.filled : b.filled,
+      isDense: t < 0.5 ? a.isDense : b.isDense,
+    );
+  }
+}
+
+@immutable
+class AppThemeTokens extends ThemeExtension<AppThemeTokens> {
+  final AppThemeRadii radii;
+  final AppThemeSizes sizes;
+  final AppThemeBorders borders;
+  final AppButtonThemeTokens buttons;
+  final AppInputThemeTokens inputs;
+
+  const AppThemeTokens({
+    this.radii = const AppThemeRadii(),
+    this.sizes = const AppThemeSizes(),
+    this.borders = const AppThemeBorders(),
+    this.buttons = const AppButtonThemeTokens(),
+    this.inputs = const AppInputThemeTokens(),
+  });
+
+  @override
+  AppThemeTokens copyWith({
+    AppThemeRadii? radii,
+    AppThemeSizes? sizes,
+    AppThemeBorders? borders,
+    AppButtonThemeTokens? buttons,
+    AppInputThemeTokens? inputs,
+  }) {
+    return AppThemeTokens(
+      radii: radii ?? this.radii,
+      sizes: sizes ?? this.sizes,
+      borders: borders ?? this.borders,
+      buttons: buttons ?? this.buttons,
+      inputs: inputs ?? this.inputs,
+    );
+  }
+
+  @override
+  AppThemeTokens lerp(ThemeExtension<AppThemeTokens>? other, double t) {
+    if (other is! AppThemeTokens) {
+      return this;
+    }
+
+    return AppThemeTokens(
+      radii: AppThemeRadii.lerp(radii, other.radii, t),
+      sizes: AppThemeSizes.lerp(sizes, other.sizes, t),
+      borders: AppThemeBorders.lerp(borders, other.borders, t),
+      buttons: AppButtonThemeTokens.lerp(buttons, other.buttons, t),
+      inputs: AppInputThemeTokens.lerp(inputs, other.inputs, t),
+    );
+  }
+}
 
 class AppTheme {
   static const defaultType = ThemeType.retroWave;
@@ -98,6 +377,9 @@ class AppTheme {
   final TextTheme textTheme;
   final FontWeight primaryFontWeight;
 
+  // Shared design tokens
+  final AppThemeTokens tokens;
+
   AppTheme({
     required this.type,
     required this.isDark,
@@ -126,7 +408,76 @@ class AppTheme {
     required this.inactiveIcon,
     required this.textTheme,
     required this.primaryFontWeight,
+    this.tokens = const AppThemeTokens(),
   });
+
+  AppThemeRadii get radii => tokens.radii;
+  AppThemeSizes get sizes => tokens.sizes;
+  AppThemeBorders get borders => tokens.borders;
+  AppButtonThemeTokens get buttons => tokens.buttons;
+  AppInputThemeTokens get inputs => tokens.inputs;
+
+  AppTheme copyWith({
+    ThemeType? type,
+    bool? isDark,
+    Color? primaryColor,
+    Color? primaryVariant,
+    Color? onPrimary,
+    Color? accentColor,
+    Color? onAccent,
+    Color? background,
+    Color? surface,
+    Color? surfaceVariant,
+    Color? textPrimary,
+    Color? textSecondary,
+    Color? textDisabled,
+    Color? divider,
+    Color? toolbarColor,
+    Color? error,
+    Color? success,
+    Color? warning,
+    Color? gridLine,
+    Color? gridBackground,
+    Color? canvasBackground,
+    Color? selectionOutline,
+    Color? selectionFill,
+    Color? activeIcon,
+    Color? inactiveIcon,
+    TextTheme? textTheme,
+    FontWeight? primaryFontWeight,
+    AppThemeTokens? tokens,
+  }) {
+    return AppTheme(
+      type: type ?? this.type,
+      isDark: isDark ?? this.isDark,
+      primaryColor: primaryColor ?? this.primaryColor,
+      primaryVariant: primaryVariant ?? this.primaryVariant,
+      onPrimary: onPrimary ?? this.onPrimary,
+      accentColor: accentColor ?? this.accentColor,
+      onAccent: onAccent ?? this.onAccent,
+      background: background ?? this.background,
+      surface: surface ?? this.surface,
+      surfaceVariant: surfaceVariant ?? this.surfaceVariant,
+      textPrimary: textPrimary ?? this.textPrimary,
+      textSecondary: textSecondary ?? this.textSecondary,
+      textDisabled: textDisabled ?? this.textDisabled,
+      divider: divider ?? this.divider,
+      toolbarColor: toolbarColor ?? this.toolbarColor,
+      error: error ?? this.error,
+      success: success ?? this.success,
+      warning: warning ?? this.warning,
+      gridLine: gridLine ?? this.gridLine,
+      gridBackground: gridBackground ?? this.gridBackground,
+      canvasBackground: canvasBackground ?? this.canvasBackground,
+      selectionOutline: selectionOutline ?? this.selectionOutline,
+      selectionFill: selectionFill ?? this.selectionFill,
+      activeIcon: activeIcon ?? this.activeIcon,
+      inactiveIcon: inactiveIcon ?? this.inactiveIcon,
+      textTheme: textTheme ?? this.textTheme,
+      primaryFontWeight: primaryFontWeight ?? this.primaryFontWeight,
+      tokens: tokens ?? this.tokens,
+    );
+  }
 
   factory AppTheme.fromType(ThemeType type) {
     switch (type) {
@@ -218,8 +569,20 @@ class AppTheme {
   }
 
   ThemeData get themeData {
-    var t = ThemeData(
+    OutlineInputBorder inputBorder(Color color, {double? width}) {
+      return OutlineInputBorder(
+        borderSide: borders.side(color, width: width),
+        borderRadius: radii.medium,
+      );
+    }
+
+    final buttonShape = RoundedRectangleBorder(borderRadius: radii.medium);
+    final surfaceStroke = borders.side(divider.withValues(alpha: isDark ? 0.45 : 0.75), width: borders.thin);
+
+    return ThemeData(
       useMaterial3: true,
+      extensions: [tokens],
+      visualDensity: VisualDensity.adaptivePlatformDensity,
       brightness: isDark ? Brightness.dark : Brightness.light,
       colorScheme: ColorScheme(
         brightness: isDark ? Brightness.dark : Brightness.light,
@@ -229,8 +592,6 @@ class AppTheme {
         onSecondary: onAccent,
         error: error,
         onError: isDark ? Colors.black : Colors.white,
-        background: background,
-        onBackground: textPrimary,
         surface: surface,
         onSurface: textPrimary,
       ),
@@ -238,83 +599,133 @@ class AppTheme {
       scaffoldBackgroundColor: background,
       cardColor: surface,
       dividerColor: divider,
+      dividerTheme: DividerThemeData(color: divider, thickness: borders.thin, space: sizes.md),
       textTheme: textTheme,
-      iconTheme: IconThemeData(color: activeIcon),
+      iconTheme: IconThemeData(color: activeIcon, size: sizes.iconLg),
       appBarTheme: AppBarTheme(
         backgroundColor: toolbarColor,
         foregroundColor: textPrimary,
         centerTitle: true,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        toolbarHeight: sizes.toolbarHeight,
+        titleTextStyle: textTheme.titleLarge?.copyWith(color: textPrimary, fontWeight: primaryFontWeight),
       ),
-      dialogBackgroundColor: surface,
+      dialogTheme: DialogThemeData(
+        backgroundColor: surface,
+        shape: RoundedRectangleBorder(borderRadius: radii.large, side: surfaceStroke),
+        titleTextStyle: textTheme.titleLarge?.copyWith(color: textPrimary),
+        contentTextStyle: textTheme.bodyMedium?.copyWith(color: textSecondary),
+      ),
       popupMenuTheme: PopupMenuThemeData(
         color: surface,
         textStyle: TextStyle(color: textPrimary),
+        shape: RoundedRectangleBorder(borderRadius: radii.medium, side: surfaceStroke),
+      ),
+      bottomSheetTheme: BottomSheetThemeData(
+        backgroundColor: surface,
+        surfaceTintColor: surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(radii.lg)),
+          side: surfaceStroke,
+        ),
       ),
       bottomAppBarTheme: BottomAppBarThemeData(color: toolbarColor),
       cardTheme: CardThemeData(
         color: surface,
         shadowColor: isDark ? Colors.black54 : Colors.black12,
-        elevation: 2,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        surfaceTintColor: surface,
+        elevation: sizes.cardElevation,
+        margin: EdgeInsets.all(sizes.xs),
+        shape: RoundedRectangleBorder(borderRadius: radii.large, side: surfaceStroke),
       ),
       inputDecorationTheme: InputDecorationTheme(
         fillColor: surfaceVariant,
-        filled: true,
+        filled: inputs.filled,
+        isDense: inputs.isDense,
+        contentPadding: inputs.contentPadding,
+        constraints: BoxConstraints(minHeight: sizes.inputHeight),
         labelStyle: TextStyle(color: textSecondary),
-        enabledBorder: OutlineInputBorder(
-          borderSide: BorderSide(color: divider),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderSide: BorderSide(color: primaryColor, width: 2),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        errorBorder: OutlineInputBorder(
-          borderSide: BorderSide(color: error),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        focusedErrorBorder: OutlineInputBorder(
-          borderSide: BorderSide(color: error, width: 2),
-          borderRadius: BorderRadius.circular(8),
-        ),
+        hintStyle: TextStyle(color: textDisabled),
+        helperStyle: TextStyle(color: textSecondary),
+        prefixIconColor: textSecondary,
+        suffixIconColor: textSecondary,
+        enabledBorder: inputBorder(divider, width: borders.regular),
+        focusedBorder: inputBorder(primaryColor, width: borders.focus),
+        errorBorder: inputBorder(error, width: borders.regular),
+        focusedErrorBorder: inputBorder(error, width: borders.focus),
+        disabledBorder: inputBorder(divider.withValues(alpha: 0.55), width: borders.thin),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           foregroundColor: onPrimary,
           backgroundColor: primaryColor,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          minimumSize: buttons.minimumSize,
+          elevation: buttons.elevation,
+          padding: buttons.padding,
+          textStyle: textTheme.labelLarge?.copyWith(fontWeight: primaryFontWeight),
+          shape: buttonShape,
         ),
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: primaryColor,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          minimumSize: buttons.minimumSize,
+          padding: buttons.padding,
+          textStyle: textTheme.labelLarge?.copyWith(fontWeight: primaryFontWeight),
+          shape: buttonShape,
         ),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           foregroundColor: onPrimary,
           backgroundColor: primaryColor,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          minimumSize: buttons.minimumSize,
+          padding: buttons.padding,
+          textStyle: textTheme.labelLarge?.copyWith(fontWeight: primaryFontWeight),
+          shape: buttonShape,
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: primaryColor,
-          side: BorderSide(color: primaryColor),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          minimumSize: buttons.minimumSize,
+          side: borders.side(primaryColor, width: borders.regular),
+          padding: buttons.padding,
+          textStyle: textTheme.labelLarge?.copyWith(fontWeight: primaryFontWeight),
+          shape: buttonShape,
         ),
+      ),
+      iconButtonTheme: IconButtonThemeData(
+        style: IconButton.styleFrom(
+          foregroundColor: activeIcon,
+          iconSize: buttons.iconSize,
+          minimumSize: Size(sizes.buttonHeight, sizes.buttonHeight),
+          padding: EdgeInsets.all(sizes.xs),
+          shape: buttonShape,
+        ),
+      ),
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        backgroundColor: primaryColor,
+        foregroundColor: onPrimary,
+        elevation: buttons.elevation,
+        shape: RoundedRectangleBorder(borderRadius: radii.large),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: surface,
+        contentTextStyle: textTheme.bodyMedium?.copyWith(color: textPrimary),
+        shape: RoundedRectangleBorder(borderRadius: radii.medium, side: surfaceStroke),
       ),
       sliderTheme: SliderThemeData(
         activeTrackColor: primaryColor,
-        inactiveTrackColor: primaryColor.withOpacity(0.3),
+        inactiveTrackColor: primaryColor.withValues(alpha: 0.3),
         thumbColor: onPrimary,
+        overlayColor: primaryColor.withValues(alpha: 0.12),
       ),
       checkboxTheme: CheckboxThemeData(
+        shape: RoundedRectangleBorder(borderRadius: radii.small),
+        side: borders.side(divider),
         fillColor: WidgetStateProperty.resolveWith<Color>((states) {
           if (states.contains(WidgetState.selected)) {
             return primaryColor;
@@ -332,6 +743,7 @@ class AppTheme {
         }),
       ),
       switchTheme: SwitchThemeData(
+        trackOutlineColor: WidgetStateProperty.all(Colors.transparent),
         trackColor: WidgetStateProperty.resolveWith<Color>((states) {
           if (states.contains(WidgetState.selected)) {
             return primaryColor;
@@ -346,8 +758,6 @@ class AppTheme {
         }),
       ),
     );
-
-    return t;
   }
 
   Color shift(Color c, double amount) {
@@ -362,6 +772,10 @@ class AppTheme {
     /// Convert back to Color
     return hslc.withLightness(lightness).toColor();
   }
+}
+
+extension BuildContextAppThemeX on BuildContext {
+  AppThemeTokens get themeTokens => Theme.of(this).extension<AppThemeTokens>() ?? const AppThemeTokens();
 }
 
 class ThemeProvider extends ChangeNotifier {

@@ -263,17 +263,33 @@ class PropertiesPanel extends ConsumerWidget {
     List<String> selectedIds,
   ) {
     // Gather the selected shapes from the scene
-    final selectedShapes = <dynamic>[];
+    final selectedShapes = <VecShape>[];
     for (final layer in scene.layers) {
       for (final shape in layer.shapes) {
-        if (selectedIds.contains(shape.id)) selectedShapes.add(shape);
+        if (selectedIds.contains(shape.id)) selectedShapes.add(shape as VecShape);
       }
     }
 
-    // Compute average opacity across selected shapes
-    final avgOpacity = selectedShapes.isEmpty
-        ? 1.0
-        : selectedShapes.fold<double>(0, (sum, s) => sum + (s.opacity as double)) / selectedShapes.length;
+    if (selectedShapes.isEmpty) return const SizedBox.shrink();
+
+    // ── Helpers to detect uniform vs mixed values ──────────────────────────
+    bool allSame<T>(T Function(VecShape) getter) {
+      final first = getter(selectedShapes.first);
+      return selectedShapes.every((s) => getter(s) == first);
+    }
+
+    // ── Compute common / mixed values ─────────────────────────────────────
+    final avgOpacity = selectedShapes.fold<double>(0, (sum, s) => sum + s.opacity) / selectedShapes.length;
+    final opacitySame = allSame((s) => (s.opacity * 100).round());
+
+    final rotationSame = allSame((s) => s.transform.rotation);
+    final widthSame = allSame((s) => s.transform.width);
+    final heightSame = allSame((s) => s.transform.height);
+
+    final blendSame = allSame((s) => s.blendMode);
+
+    final fillsSame = allSame((s) => s.fills);
+    final strokesSame = allSame((s) => s.strokes);
 
     void applyToAll(VecShape Function(VecShape) updater) {
       for (final id in selectedIds) {
@@ -289,7 +305,6 @@ class PropertiesPanel extends ConsumerWidget {
     }
 
     Rect? computeGlobalBounds() {
-      if (selectedShapes.isEmpty) return null;
       var minX = double.infinity, minY = double.infinity;
       var maxX = double.negativeInfinity, maxY = double.negativeInfinity;
       for (final s in selectedShapes) {
@@ -332,6 +347,8 @@ class PropertiesPanel extends ConsumerWidget {
       if (isCommit) docNotifier.commitCurrentState();
     }
 
+    final bounds = computeGlobalBounds();
+
     return ListView(
       padding: const EdgeInsets.symmetric(vertical: 8),
       children: [
@@ -349,16 +366,67 @@ class PropertiesPanel extends ConsumerWidget {
 
         Divider(height: 1, color: theme.divider.withAlpha(60)),
 
-        // Opacity
+        // ── Transform summary ─────────────────────────────────────────────
+        Padding(
+          padding: const EdgeInsets.fromLTRB(14, 10, 14, 6),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Transform', style: TextStyle(fontSize: 10, color: theme.textDisabled, fontWeight: FontWeight.w500)),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  _MultiPropField(
+                    label: 'W',
+                    value: widthSame ? selectedShapes.first.transform.width.toStringAsFixed(1) : null,
+                    theme: theme,
+                    onSubmit: (v) {
+                      final val = double.tryParse(v);
+                      if (val != null) applyToAll((s) => s.copyWith(data: s.data.copyWith(transform: s.transform.copyWith(width: val))));
+                    },
+                  ),
+                  const SizedBox(width: 6),
+                  _MultiPropField(
+                    label: 'H',
+                    value: heightSame ? selectedShapes.first.transform.height.toStringAsFixed(1) : null,
+                    theme: theme,
+                    onSubmit: (v) {
+                      final val = double.tryParse(v);
+                      if (val != null) applyToAll((s) => s.copyWith(data: s.data.copyWith(transform: s.transform.copyWith(height: val))));
+                    },
+                  ),
+                  const SizedBox(width: 6),
+                  _MultiPropField(
+                    label: 'R',
+                    value: rotationSame ? selectedShapes.first.transform.rotation.toStringAsFixed(1) : null,
+                    theme: theme,
+                    onSubmit: (v) {
+                      final val = double.tryParse(v);
+                      if (val != null) applyToAll((s) => s.copyWith(data: s.data.copyWith(transform: s.transform.copyWith(rotation: val))));
+                    },
+                  ),
+                ],
+              ),
+              if (bounds != null) ...[
+                const SizedBox(height: 4),
+                Text(
+                  'Bounds: ${bounds.width.toStringAsFixed(1)} × ${bounds.height.toStringAsFixed(1)}',
+                  style: TextStyle(fontSize: 9, color: theme.textDisabled.withAlpha(140)),
+                ),
+              ],
+            ],
+          ),
+        ),
+
+        Divider(height: 1, color: theme.divider.withAlpha(60)),
+
+        // ── Opacity ───────────────────────────────────────────────────────
         Padding(
           padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Opacity',
-                style: TextStyle(fontSize: 10, color: theme.textDisabled, fontWeight: FontWeight.w500),
-              ),
+              Text('Opacity', style: TextStyle(fontSize: 10, color: theme.textDisabled, fontWeight: FontWeight.w500)),
               const SizedBox(height: 4),
               Row(
                 children: [
@@ -372,10 +440,14 @@ class PropertiesPanel extends ConsumerWidget {
                   ),
                   const SizedBox(width: 6),
                   SizedBox(
-                    width: 36,
+                    width: 42,
                     child: Text(
-                      '${(avgOpacity * 100).round()}%',
-                      style: TextStyle(fontSize: 10, color: theme.textDisabled),
+                      opacitySame ? '${(avgOpacity * 100).round()}%' : 'Mixed',
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: opacitySame ? theme.textDisabled : theme.accentColor,
+                        fontStyle: opacitySame ? FontStyle.normal : FontStyle.italic,
+                      ),
                       textAlign: TextAlign.right,
                     ),
                   ),
@@ -387,17 +459,46 @@ class PropertiesPanel extends ConsumerWidget {
 
         Divider(height: 1, color: theme.divider.withAlpha(60)),
 
-        if (selectedShapes.isNotEmpty) ...[
+        // ── Fill ──────────────────────────────────────────────────────────
+        if (fillsSame) ...[
           FillSection(
-            fills: selectedShapes.first.fills, // Show the first shape's fills as prototype
+            fills: selectedShapes.first.fills,
             imageAssets: const [],
             theme: theme,
             onUpdate: (updater) => applySeamlessFills(updater, isCommit: true),
             onLiveUpdate: (updater) => applySeamlessFills(updater, isCommit: false),
             onCommit: () => docNotifier.commitCurrentState(),
           ),
-          Divider(height: 1, color: theme.divider.withAlpha(60)),
+        ] else ...[
+          _MixedPropertyRow(label: 'Fill', theme: theme),
         ],
+        Divider(height: 1, color: theme.divider.withAlpha(60)),
+
+        // ── Stroke ────────────────────────────────────────────────────────
+        if (strokesSame) ...[
+          StrokeSection(
+            strokes: selectedShapes.first.strokes,
+            theme: theme,
+            onUpdate: applyToAll,
+            onLiveUpdate: liveApplyToAll,
+            onCommit: () => docNotifier.commitCurrentState(),
+          ),
+        ] else ...[
+          _MixedPropertyRow(label: 'Stroke', theme: theme),
+        ],
+        Divider(height: 1, color: theme.divider.withAlpha(60)),
+
+        // ── Blend mode ────────────────────────────────────────────────────
+        if (blendSame) ...[
+          BlendSection(
+            blendMode: selectedShapes.first.blendMode,
+            theme: theme,
+            onUpdate: applyToAll,
+          ),
+        ] else ...[
+          _MixedPropertyRow(label: 'Blend', theme: theme),
+        ],
+        Divider(height: 1, color: theme.divider.withAlpha(60)),
 
         // Nudge position
         Padding(
@@ -405,10 +506,7 @@ class PropertiesPanel extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Move All',
-                style: TextStyle(fontSize: 10, color: theme.textDisabled, fontWeight: FontWeight.w500),
-              ),
+              Text('Move All', style: TextStyle(fontSize: 10, color: theme.textDisabled, fontWeight: FontWeight.w500)),
               const SizedBox(height: 6),
               Row(
                 children: [
@@ -416,9 +514,7 @@ class PropertiesPanel extends ConsumerWidget {
                     label: '← −10',
                     theme: theme,
                     onTap: () => applyToAll(
-                      (s) => s.copyWith(
-                        data: s.data.copyWith(transform: s.transform.copyWith(x: s.transform.x - 10)),
-                      ),
+                      (s) => s.copyWith(data: s.data.copyWith(transform: s.transform.copyWith(x: s.transform.x - 10))),
                     ),
                   ),
                   const SizedBox(width: 4),
@@ -426,9 +522,7 @@ class PropertiesPanel extends ConsumerWidget {
                     label: '→ +10',
                     theme: theme,
                     onTap: () => applyToAll(
-                      (s) => s.copyWith(
-                        data: s.data.copyWith(transform: s.transform.copyWith(x: s.transform.x + 10)),
-                      ),
+                      (s) => s.copyWith(data: s.data.copyWith(transform: s.transform.copyWith(x: s.transform.x + 10))),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -436,9 +530,7 @@ class PropertiesPanel extends ConsumerWidget {
                     label: '↑ −10',
                     theme: theme,
                     onTap: () => applyToAll(
-                      (s) => s.copyWith(
-                        data: s.data.copyWith(transform: s.transform.copyWith(y: s.transform.y - 10)),
-                      ),
+                      (s) => s.copyWith(data: s.data.copyWith(transform: s.transform.copyWith(y: s.transform.y - 10))),
                     ),
                   ),
                   const SizedBox(width: 4),
@@ -446,9 +538,7 @@ class PropertiesPanel extends ConsumerWidget {
                     label: '↓ +10',
                     theme: theme,
                     onTap: () => applyToAll(
-                      (s) => s.copyWith(
-                        data: s.data.copyWith(transform: s.transform.copyWith(y: s.transform.y + 10)),
-                      ),
+                      (s) => s.copyWith(data: s.data.copyWith(transform: s.transform.copyWith(y: s.transform.y + 10))),
                     ),
                   ),
                 ],
@@ -461,7 +551,7 @@ class PropertiesPanel extends ConsumerWidget {
 
         // Align & Distribute
         AlignSection(
-          shapes: selectedShapes.cast<VecShape>(),
+          shapes: selectedShapes,
           theme: theme,
           onAlignApply: (updated) {
             for (final s in updated) {
@@ -793,6 +883,96 @@ class _NudgeButton extends StatelessWidget {
           ),
           child: Text(label, style: TextStyle(fontSize: 10, color: theme.textSecondary)),
         ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// "Mixed" indicator row for multi-select when values differ
+// ---------------------------------------------------------------------------
+
+class _MixedPropertyRow extends StatelessWidget {
+  const _MixedPropertyRow({required this.label, required this.theme});
+
+  final String label;
+  final AppTheme theme;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
+      child: Row(
+        children: [
+          Text(label, style: TextStyle(fontSize: 10, color: theme.textDisabled, fontWeight: FontWeight.w500)),
+          const Spacer(),
+          Text(
+            'Mixed',
+            style: TextStyle(fontSize: 10, color: theme.accentColor.withAlpha(180), fontStyle: FontStyle.italic),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Inline field for multi-select transform values (shows value or "Mixed")
+// ---------------------------------------------------------------------------
+
+class _MultiPropField extends StatelessWidget {
+  const _MultiPropField({
+    required this.label,
+    required this.value,
+    required this.theme,
+    required this.onSubmit,
+  });
+
+  final String label;
+  /// Null means "Mixed".
+  final String? value;
+  final AppTheme theme;
+  final void Function(String) onSubmit;
+
+  @override
+  Widget build(BuildContext context) {
+    final isMixed = value == null;
+    return Expanded(
+      child: Row(
+        children: [
+          Text(label, style: TextStyle(fontSize: 9, color: theme.textDisabled, fontWeight: FontWeight.w600)),
+          const SizedBox(width: 3),
+          Expanded(
+            child: SizedBox(
+              height: 22,
+              child: TextField(
+                controller: TextEditingController(text: isMixed ? '' : value),
+                style: TextStyle(
+                  fontSize: 10,
+                  color: isMixed ? theme.accentColor : theme.textPrimary,
+                  fontStyle: isMixed ? FontStyle.italic : FontStyle.normal,
+                ),
+                decoration: InputDecoration(
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+                  filled: true,
+                  fillColor: theme.surface,
+                  hintText: isMixed ? 'Mixed' : null,
+                  hintStyle: TextStyle(fontSize: 10, color: theme.accentColor.withAlpha(140), fontStyle: FontStyle.italic),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(3),
+                    borderSide: BorderSide(color: theme.divider, width: 0.5),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(3),
+                    borderSide: BorderSide(color: theme.divider, width: 0.5),
+                  ),
+                ),
+                onSubmitted: onSubmit,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

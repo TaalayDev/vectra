@@ -126,6 +126,13 @@ class EditorToolbar extends HookConsumerWidget {
             theme: theme,
             tooltip: 'Zoom in',
           ),
+          const SizedBox(width: 4),
+          _ToolbarIconButton(
+            icon: Icons.center_focus_strong_outlined,
+            onTap: () => ref.read(fitSelectionRequestProvider.notifier).state++,
+            theme: theme,
+            tooltip: 'Zoom to selection (Ctrl+Shift+F)',
+          ),
           const SizedBox(width: 12),
           Container(width: 1, height: 20, color: theme.divider),
           const SizedBox(width: 8),

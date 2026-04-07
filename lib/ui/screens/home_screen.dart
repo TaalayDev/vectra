@@ -226,7 +226,7 @@ class _WideLayout extends ConsumerWidget {
           width: 320,
           child: _Sidebar(theme: theme, recentProjects: recentProjects),
         ),
-        Container(width: 1, color: theme.divider.withOpacity(0.3)),
+        Container(width: 1, color: theme.divider.withValues(alpha: 0.3)),
         // Right — templates
         Expanded(child: _TemplatesArea(theme: theme)),
       ],
@@ -247,19 +247,21 @@ class _NarrowLayout extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final sizes = theme.sizes;
+
     return SingleChildScrollView(
-      padding: EdgeInsets.symmetric(horizontal: isMedium ? 48 : 24, vertical: 32),
+      padding: EdgeInsets.symmetric(horizontal: isMedium ? sizes.xxl * 1.5 : sizes.xl, vertical: sizes.xxl),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _LogoHeader(theme: theme),
-          const SizedBox(height: 28),
+          SizedBox(height: sizes.xl + sizes.xs),
           _ActionButtons(theme: theme),
-          const SizedBox(height: 32),
+          SizedBox(height: sizes.xxl),
           _TemplatesSection(theme: theme),
-          const SizedBox(height: 32),
+          SizedBox(height: sizes.xxl),
           _RecentProjectsCompact(theme: theme, recentProjects: recentProjects),
-          const SizedBox(height: 24),
+          SizedBox(height: sizes.lg),
           _BottomBar(theme: theme),
         ],
       ),
@@ -279,26 +281,28 @@ class _Sidebar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final sizes = theme.sizes;
+
     return Container(
-      color: theme.surface.withOpacity(0.5),
+      color: theme.surface.withValues(alpha: 0.5),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SizedBox(height: 40),
+          SizedBox(height: sizes.xxl + sizes.sm),
           _LogoHeader(theme: theme),
-          const SizedBox(height: 32),
+          SizedBox(height: sizes.xxl),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 28),
+            padding: EdgeInsets.symmetric(horizontal: sizes.xl),
             child: _ActionButtons(theme: theme),
           ),
-          const SizedBox(height: 28),
+          SizedBox(height: sizes.xl + sizes.xs),
           // Recent projects — compact list
           Expanded(
             child: _RecentProjectsCompact(theme: theme, recentProjects: recentProjects),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: sizes.xs),
           _BottomBar(theme: theme),
-          const SizedBox(height: 12),
+          SizedBox(height: sizes.sm),
         ],
       ),
     );
@@ -315,39 +319,51 @@ class _LogoHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final sizes = theme.sizes;
+    final textTheme = theme.textTheme;
+
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 28),
+      padding: EdgeInsets.symmetric(horizontal: sizes.xl + sizes.sm),
       child: Row(
         children: [
           Container(
-            width: 44,
-            height: 44,
+            width: sizes.buttonHeight,
+            height: sizes.buttonHeight,
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [theme.primaryColor, theme.accentColor],
               ),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: theme.radii.medium,
               boxShadow: [
-                BoxShadow(color: theme.primaryColor.withOpacity(0.3), blurRadius: 12, offset: const Offset(0, 3)),
+                BoxShadow(
+                  color: theme.primaryColor.withValues(alpha: 0.3),
+                  blurRadius: sizes.lg * 0.6,
+                  offset: const Offset(0, 3),
+                ),
               ],
             ),
             child: Center(
               child: Text(
                 'V',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: theme.onPrimary, letterSpacing: -1),
+                style: textTheme.titleLarge?.copyWith(
+                  fontSize: sizes.iconLg,
+                  fontWeight: FontWeight.w900,
+                  color: theme.onPrimary,
+                  letterSpacing: -1,
+                ),
               ),
             ),
           ),
-          const SizedBox(width: 14),
+          SizedBox(width: sizes.sm + 2),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 'Vectra',
-                style: TextStyle(
-                  fontSize: 24,
+                style: textTheme.titleLarge?.copyWith(
+                  fontSize: sizes.xl,
                   fontWeight: FontWeight.w800,
                   color: theme.textPrimary,
                   letterSpacing: -0.5,
@@ -355,7 +371,7 @@ class _LogoHeader extends StatelessWidget {
               ),
               Text(
                 'Vector Animation Studio',
-                style: TextStyle(fontSize: 11, color: theme.textSecondary, letterSpacing: 0.3),
+                style: textTheme.bodySmall?.copyWith(fontSize: 11, color: theme.textSecondary, letterSpacing: 0.3),
               ),
             ],
           ),
@@ -465,6 +481,8 @@ class _ActionButtonState extends State<_ActionButton> {
   @override
   Widget build(BuildContext context) {
     final theme = widget.theme;
+    final sizes = theme.sizes;
+
     return MouseRegion(
       onEnter: (_) => setState(() => _hovering = true),
       onExit: (_) => setState(() => _hovering = false),
@@ -473,28 +491,42 @@ class _ActionButtonState extends State<_ActionButton> {
         onTap: widget.onTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          constraints: BoxConstraints(minHeight: sizes.buttonHeight),
+          padding: theme.buttons.padding,
           decoration: BoxDecoration(
             color: widget.isPrimary
-                ? (_hovering ? theme.primaryColor : theme.primaryColor.withOpacity(0.9))
-                : (_hovering ? theme.surfaceVariant : theme.surface.withOpacity(0.6)),
-            borderRadius: BorderRadius.circular(10),
+                ? (_hovering ? theme.primaryColor : theme.primaryColor.withValues(alpha: 0.9))
+                : (_hovering ? theme.surfaceVariant : theme.surface.withValues(alpha: 0.6)),
+            borderRadius: theme.radii.medium,
             border: Border.all(
               color: widget.isPrimary
                   ? theme.primaryColor
-                  : (_hovering ? theme.primaryColor.withOpacity(0.4) : theme.divider.withOpacity(0.3)),
+                  : (_hovering ? theme.primaryColor.withValues(alpha: 0.4) : theme.divider.withValues(alpha: 0.3)),
+              width: theme.borders.regular,
             ),
+            boxShadow: [
+              if (_hovering)
+                BoxShadow(
+                  color: (widget.isPrimary ? theme.primaryColor : theme.accentColor).withValues(alpha: 0.12),
+                  blurRadius: sizes.lg * 0.7,
+                  offset: const Offset(0, 3),
+                ),
+            ],
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(widget.icon, size: 16, color: widget.isPrimary ? theme.onPrimary : theme.primaryColor),
-              const SizedBox(width: 8),
+              Icon(
+                widget.icon,
+                size: theme.buttons.iconSize,
+                color: widget.isPrimary ? theme.onPrimary : theme.primaryColor,
+              ),
+              SizedBox(width: sizes.xs),
               Text(
                 widget.label,
-                style: TextStyle(
+                style: theme.textTheme.labelLarge?.copyWith(
                   fontSize: 13,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: theme.primaryFontWeight,
                   color: widget.isPrimary ? theme.onPrimary : theme.textPrimary,
                 ),
               ),
@@ -518,19 +550,21 @@ class _RecentProjectsCompact extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final sizes = theme.sizes;
+
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 28),
+      padding: EdgeInsets.symmetric(horizontal: sizes.xl + sizes.sm),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
           Row(
             children: [
-              Icon(Icons.history_rounded, size: 14, color: theme.textDisabled),
-              const SizedBox(width: 6),
+              Icon(Icons.history_rounded, size: sizes.iconSm - 2, color: theme.textDisabled),
+              SizedBox(width: sizes.xxs + 2),
               Text(
                 'RECENT',
-                style: TextStyle(
+                style: theme.textTheme.labelSmall?.copyWith(
                   fontSize: 10,
                   fontWeight: FontWeight.w700,
                   color: theme.textDisabled,
@@ -539,14 +573,14 @@ class _RecentProjectsCompact extends ConsumerWidget {
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          SizedBox(height: sizes.sm - 2),
           recentProjects.when(
             loading: () => Padding(
-              padding: const EdgeInsets.symmetric(vertical: 16),
+              padding: EdgeInsets.symmetric(vertical: sizes.md),
               child: Center(
                 child: SizedBox(
-                  width: 16,
-                  height: 16,
+                  width: sizes.iconSm,
+                  height: sizes.iconSm,
                   child: CircularProgressIndicator(color: theme.primaryColor, strokeWidth: 1.5),
                 ),
               ),
@@ -599,6 +633,8 @@ class _RecentRowState extends State<_RecentRow> {
   @override
   Widget build(BuildContext context) {
     final theme = widget.theme;
+    final sizes = theme.sizes;
+
     return MouseRegion(
       onEnter: (_) => setState(() => _hovering = true),
       onExit: (_) => setState(() => _hovering = false),
@@ -607,24 +643,24 @@ class _RecentRowState extends State<_RecentRow> {
         onTap: widget.onTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 120),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          margin: const EdgeInsets.only(bottom: 2),
+          padding: EdgeInsets.symmetric(horizontal: sizes.sm - 2, vertical: sizes.xs),
+          margin: EdgeInsets.only(bottom: sizes.xxs / 2),
           decoration: BoxDecoration(
-            color: _hovering ? theme.primaryColor.withOpacity(0.08) : Colors.transparent,
-            borderRadius: BorderRadius.circular(8),
+            color: _hovering ? theme.primaryColor.withValues(alpha: 0.08) : Colors.transparent,
+            borderRadius: theme.radii.small,
           ),
           child: Row(
             children: [
               Icon(
                 MaterialCommunityIcons.vector_square,
-                size: 14,
+                size: sizes.iconSm - 2,
                 color: _hovering ? theme.primaryColor : theme.textDisabled,
               ),
-              const SizedBox(width: 10),
+              SizedBox(width: sizes.sm - 2),
               Expanded(
                 child: Text(
                   widget.project.name,
-                  style: TextStyle(
+                  style: theme.textTheme.bodySmall?.copyWith(
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
                     color: _hovering ? theme.textPrimary : theme.textSecondary,
@@ -633,8 +669,11 @@ class _RecentRowState extends State<_RecentRow> {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              const SizedBox(width: 8),
-              Text(_formatDate(widget.project.modifiedAt), style: TextStyle(fontSize: 10, color: theme.textDisabled)),
+              SizedBox(width: sizes.xs),
+              Text(
+                _formatDate(widget.project.modifiedAt),
+                style: theme.textTheme.labelSmall?.copyWith(fontSize: 10, color: theme.textDisabled),
+              ),
             ],
           ),
         ),
@@ -653,23 +692,28 @@ class _TemplatesArea extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final sizes = theme.sizes;
+    final textTheme = theme.textTheme;
     final categories = <String, List<_Template>>{};
     for (final t in _templates) {
       categories.putIfAbsent(t.category, () => []).add(t);
     }
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(36, 40, 36, 24),
+      padding: EdgeInsets.fromLTRB(sizes.xxl + sizes.xs, sizes.xxl + sizes.sm, sizes.xxl + sizes.xs, sizes.lg),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             'Start from a template',
-            style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: theme.textPrimary),
+            style: textTheme.titleLarge?.copyWith(fontSize: 22, fontWeight: FontWeight.w700, color: theme.textPrimary),
           ),
-          const SizedBox(height: 4),
-          Text('Pick a canvas size and start creating', style: TextStyle(fontSize: 13, color: theme.textSecondary)),
-          const SizedBox(height: 28),
+          SizedBox(height: sizes.xxs),
+          Text(
+            'Pick a canvas size and start creating',
+            style: textTheme.bodyMedium?.copyWith(fontSize: 13, color: theme.textSecondary),
+          ),
+          SizedBox(height: sizes.xl + sizes.xs),
           Expanded(
             child: SingleChildScrollView(
               child: Column(
@@ -699,6 +743,8 @@ class _TemplatesSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final sizes = theme.sizes;
+    final textTheme = theme.textTheme;
     final categories = <String, List<_Template>>{};
     for (final t in _templates) {
       categories.putIfAbsent(t.category, () => []).add(t);
@@ -709,11 +755,14 @@ class _TemplatesSection extends ConsumerWidget {
       children: [
         Text(
           'Templates',
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: theme.textPrimary),
+          style: textTheme.titleLarge?.copyWith(fontSize: 20, fontWeight: FontWeight.w700, color: theme.textPrimary),
         ),
-        const SizedBox(height: 4),
-        Text('Pick a canvas size and start creating', style: TextStyle(fontSize: 13, color: theme.textSecondary)),
-        const SizedBox(height: 20),
+        SizedBox(height: sizes.xxs),
+        Text(
+          'Pick a canvas size and start creating',
+          style: textTheme.bodyMedium?.copyWith(fontSize: 13, color: theme.textSecondary),
+        ),
+        SizedBox(height: sizes.lg),
         ...categories.entries.map((entry) {
           return _TemplateCategorySection(theme: theme, category: entry.key, templates: entry.value);
         }),
@@ -736,6 +785,8 @@ class _TemplateCategorySection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final sizes = theme.sizes;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -743,24 +794,24 @@ class _TemplateCategorySection extends StatelessWidget {
           children: [
             Text(
               category.toUpperCase(),
-              style: TextStyle(
+              style: theme.textTheme.labelSmall?.copyWith(
                 fontSize: 10,
                 fontWeight: FontWeight.w700,
                 color: theme.textDisabled,
                 letterSpacing: 1.2,
               ),
             ),
-            const SizedBox(width: 8),
-            Expanded(child: Divider(color: theme.divider.withOpacity(0.2), height: 1)),
+            SizedBox(width: sizes.xs),
+            Expanded(child: Divider(color: theme.divider.withValues(alpha: 0.2), height: 1)),
           ],
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: sizes.sm - 2),
         Wrap(
-          spacing: 10,
-          runSpacing: 10,
+          spacing: sizes.sm - 2,
+          runSpacing: sizes.sm - 2,
           children: templates.map((t) => _TemplateCard(theme: theme, template: t)).toList(),
         ),
-        const SizedBox(height: 24),
+        SizedBox(height: sizes.xl),
       ],
     );
   }
@@ -787,6 +838,8 @@ class _TemplateCardState extends ConsumerState<_TemplateCard> {
   Widget build(BuildContext context) {
     final theme = widget.theme;
     final t = widget.template;
+    final sizes = theme.sizes;
+    final textTheme = theme.textTheme;
     final aspect = (t.width / t.height).clamp(0.3, 4.0);
 
     return MouseRegion(
@@ -797,45 +850,62 @@ class _TemplateCardState extends ConsumerState<_TemplateCard> {
         onTap: () => _createFromTemplate(context),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
-          width: 155,
-          padding: const EdgeInsets.all(14),
+          width: sizes.xxl * 5,
+          padding: EdgeInsets.all(sizes.sm + 2),
           decoration: BoxDecoration(
-            color: _hovering ? theme.surfaceVariant : theme.surface.withOpacity(0.45),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: _hovering ? theme.primaryColor.withOpacity(0.5) : theme.divider.withOpacity(0.2)),
+            color: _hovering ? theme.surfaceVariant : theme.surface.withValues(alpha: 0.45),
+            borderRadius: theme.radii.large,
+            border: Border.all(
+              color: _hovering ? theme.primaryColor.withValues(alpha: 0.5) : theme.divider.withValues(alpha: 0.2),
+              width: theme.borders.thin,
+            ),
             boxShadow: _hovering
-                ? [BoxShadow(color: theme.primaryColor.withOpacity(0.08), blurRadius: 12, offset: const Offset(0, 3))]
+                ? [
+                    BoxShadow(
+                      color: theme.primaryColor.withValues(alpha: 0.08),
+                      blurRadius: sizes.lg * 0.6,
+                      offset: const Offset(0, 3),
+                    ),
+                  ]
                 : [],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Aspect ratio preview
               Center(
                 child: Container(
-                  height: 50,
+                  height: sizes.xxl + sizes.lg,
                   alignment: Alignment.center,
                   child: AspectRatio(
                     aspectRatio: aspect,
                     child: Container(
                       decoration: BoxDecoration(
-                        color: _hovering ? theme.primaryColor.withOpacity(0.12) : theme.surfaceVariant.withOpacity(0.8),
-                        borderRadius: BorderRadius.circular(4),
+                        color: _hovering
+                            ? theme.primaryColor.withValues(alpha: 0.12)
+                            : theme.surfaceVariant.withValues(alpha: 0.8),
+                        borderRadius: theme.radii.extraSmall,
                         border: Border.all(
-                          color: _hovering ? theme.primaryColor.withOpacity(0.3) : theme.divider.withOpacity(0.3),
+                          color: _hovering
+                              ? theme.primaryColor.withValues(alpha: 0.3)
+                              : theme.divider.withValues(alpha: 0.3),
+                          width: theme.borders.thin,
                         ),
                       ),
                       child: Center(
-                        child: Icon(t.icon, size: 16, color: _hovering ? theme.primaryColor : theme.textDisabled),
+                        child: Icon(
+                          t.icon,
+                          size: sizes.iconSm,
+                          color: _hovering ? theme.primaryColor : theme.textDisabled,
+                        ),
                       ),
                     ),
                   ),
                 ),
               ),
-              const SizedBox(height: 10),
+              SizedBox(height: sizes.sm - 2),
               Text(
                 t.name,
-                style: TextStyle(
+                style: textTheme.bodyMedium?.copyWith(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                   color: _hovering ? theme.primaryColor : theme.textPrimary,
@@ -843,10 +913,10 @@ class _TemplateCardState extends ConsumerState<_TemplateCard> {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
-              const SizedBox(height: 2),
+              SizedBox(height: sizes.xxs / 2),
               Text(
                 t.sizeLabel,
-                style: TextStyle(
+                style: textTheme.labelSmall?.copyWith(
                   fontSize: 10,
                   color: theme.textDisabled,
                   fontFeatures: const [FontFeature.tabularFigures()],
@@ -875,6 +945,8 @@ class _ArtworkTemplatesSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final sizes = theme.sizes;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -882,24 +954,24 @@ class _ArtworkTemplatesSection extends StatelessWidget {
           children: [
             Text(
               'ARTWORK TEMPLATES',
-              style: TextStyle(
+              style: theme.textTheme.labelSmall?.copyWith(
                 fontSize: 10,
                 fontWeight: FontWeight.w700,
                 color: theme.textDisabled,
                 letterSpacing: 1.2,
               ),
             ),
-            const SizedBox(width: 8),
-            Expanded(child: Divider(color: theme.divider.withOpacity(0.2), height: 1)),
+            SizedBox(width: sizes.xs),
+            Expanded(child: Divider(color: theme.divider.withValues(alpha: 0.2), height: 1)),
           ],
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: sizes.sm - 2),
         Wrap(
-          spacing: 10,
-          runSpacing: 10,
+          spacing: sizes.sm - 2,
+          runSpacing: sizes.sm - 2,
           children: _artworkTemplates.map((t) => _ArtworkTemplateCard(theme: theme, template: t)).toList(),
         ),
-        const SizedBox(height: 24),
+        SizedBox(height: sizes.xl),
       ],
     );
   }
@@ -922,6 +994,8 @@ class _ArtworkTemplateCardState extends ConsumerState<_ArtworkTemplateCard> {
   Widget build(BuildContext context) {
     final theme = widget.theme;
     final t = widget.template;
+    final sizes = theme.sizes;
+    final textTheme = theme.textTheme;
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hovering = true),
@@ -931,14 +1005,23 @@ class _ArtworkTemplateCardState extends ConsumerState<_ArtworkTemplateCard> {
         onTap: () => _createFromArtworkTemplate(context),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
-          width: 155,
-          padding: const EdgeInsets.all(14),
+          width: sizes.xxl * 5,
+          padding: EdgeInsets.all(sizes.sm + 2),
           decoration: BoxDecoration(
-            color: _hovering ? theme.surfaceVariant : theme.surface.withOpacity(0.45),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: _hovering ? theme.primaryColor.withOpacity(0.5) : theme.divider.withOpacity(0.2)),
+            color: _hovering ? theme.surfaceVariant : theme.surface.withValues(alpha: 0.45),
+            borderRadius: theme.radii.large,
+            border: Border.all(
+              color: _hovering ? theme.primaryColor.withValues(alpha: 0.5) : theme.divider.withValues(alpha: 0.2),
+              width: theme.borders.thin,
+            ),
             boxShadow: _hovering
-                ? [BoxShadow(color: theme.primaryColor.withOpacity(0.08), blurRadius: 12, offset: const Offset(0, 3))]
+                ? [
+                    BoxShadow(
+                      color: theme.primaryColor.withValues(alpha: 0.08),
+                      blurRadius: sizes.lg * 0.6,
+                      offset: const Offset(0, 3),
+                    ),
+                  ]
                 : [],
           ),
           child: Column(
@@ -946,31 +1029,36 @@ class _ArtworkTemplateCardState extends ConsumerState<_ArtworkTemplateCard> {
             children: [
               Center(
                 child: Container(
-                  height: 50,
-                  width: 70,
+                  height: sizes.xxl + sizes.lg,
+                  width: sizes.xxl * 2 + sizes.xs,
                   decoration: BoxDecoration(
-                    color: _hovering ? theme.primaryColor.withOpacity(0.12) : theme.surfaceVariant.withOpacity(0.8),
-                    borderRadius: BorderRadius.circular(6),
+                    color: _hovering
+                        ? theme.primaryColor.withValues(alpha: 0.12)
+                        : theme.surfaceVariant.withValues(alpha: 0.8),
+                    borderRadius: theme.radii.small,
                     border: Border.all(
-                      color: _hovering ? theme.primaryColor.withOpacity(0.3) : theme.divider.withOpacity(0.3),
+                      color: _hovering
+                          ? theme.primaryColor.withValues(alpha: 0.3)
+                          : theme.divider.withValues(alpha: 0.3),
+                      width: theme.borders.thin,
                     ),
                   ),
-                  padding: const EdgeInsets.all(6),
+                  padding: EdgeInsets.all(sizes.xxs + 2),
                   child: SvgPicture.asset(
                     t.assetPath,
                     fit: BoxFit.contain,
                     placeholderBuilder: (_) => Icon(
                       Icons.image_outlined,
-                      size: 18,
+                      size: sizes.iconSm + 2,
                       color: _hovering ? theme.primaryColor : theme.textDisabled,
                     ),
                   ),
                 ),
               ),
-              const SizedBox(height: 10),
+              SizedBox(height: sizes.sm - 2),
               Text(
                 t.name,
-                style: TextStyle(
+                style: textTheme.bodyMedium?.copyWith(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                   color: _hovering ? theme.primaryColor : theme.textPrimary,
@@ -978,10 +1066,10 @@ class _ArtworkTemplateCardState extends ConsumerState<_ArtworkTemplateCard> {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
-              const SizedBox(height: 2),
+              SizedBox(height: sizes.xxs / 2),
               Text(
                 t.description,
-                style: TextStyle(fontSize: 10, color: theme.textDisabled),
+                style: textTheme.labelSmall?.copyWith(fontSize: 10, color: theme.textDisabled),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -1171,22 +1259,28 @@ class _BottomBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final sizes = theme.sizes;
+
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 28),
+      padding: EdgeInsets.symmetric(horizontal: sizes.xl + sizes.sm),
       child: Row(
         children: [
           Text(
             'v1.0.0',
-            style: TextStyle(fontSize: 10, color: theme.textDisabled, fontWeight: FontWeight.w500),
+            style: theme.textTheme.labelSmall?.copyWith(
+              fontSize: 10,
+              color: theme.textDisabled,
+              fontWeight: FontWeight.w500,
+            ),
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: sizes.xs),
           Container(
             width: 3,
             height: 3,
             decoration: BoxDecoration(color: theme.textDisabled, shape: BoxShape.circle),
           ),
-          const SizedBox(width: 8),
-          Text('Flutter', style: TextStyle(fontSize: 10, color: theme.textDisabled)),
+          SizedBox(width: sizes.xs),
+          Text('Flutter', style: theme.textTheme.labelSmall?.copyWith(fontSize: 10, color: theme.textDisabled)),
         ],
       ),
     );

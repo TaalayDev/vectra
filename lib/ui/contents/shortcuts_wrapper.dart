@@ -127,7 +127,7 @@ class ShortcutsWrapper extends StatefulWidget {
 class _ShortcutsWrapperState extends State<ShortcutsWrapper> {
   late FocusNode _focusNode;
   bool _isSpacePressed = false;
-  bool _isAltPressed = false;
+  bool _isPipettePressed = false;
 
   @override
   void initState() {
@@ -231,12 +231,13 @@ class _ShortcutsWrapperState extends State<ShortcutsWrapper> {
         widget.onPanEnd?.call();
       }
     }
-    if (event.logicalKey == LogicalKeyboardKey.altLeft || event.logicalKey == LogicalKeyboardKey.altRight) {
-      if (event is KeyDownEvent && !_isAltPressed) {
-        _isAltPressed = true;
+    // 'I' key — toggle eyedropper / pipette mode (press to enter, press again to exit)
+    if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.keyI) {
+      if (!_isPipettePressed) {
+        _isPipettePressed = true;
         widget.onPipetteStart?.call();
-      } else if (event is KeyUpEvent && _isAltPressed) {
-        _isAltPressed = false;
+      } else {
+        _isPipettePressed = false;
         widget.onPipetteEnd?.call();
       }
     }

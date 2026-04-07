@@ -316,9 +316,17 @@ class _FrameGridState extends ConsumerState<FrameGrid> with SingleTickerProvider
         if (_dragShapeId != null && _dragLayerId != null && _dragPreviewFrame != _dragFromFrame) {
           final scene = ref.read(activeSceneProvider);
           if (scene != null) {
-            ref
-                .read(vecDocumentStateProvider.notifier)
-                .moveKeyframeForShape(scene.id, _dragLayerId!, _dragShapeId!, _dragFromFrame, _dragPreviewFrame);
+            final isAlt = HardwareKeyboard.instance.isAltPressed;
+            if (isAlt) {
+              // Alt+drag: duplicate keyframe instead of moving
+              ref
+                  .read(vecDocumentStateProvider.notifier)
+                  .duplicateKeyframeForShape(scene.id, _dragLayerId!, _dragShapeId!, _dragFromFrame, _dragPreviewFrame);
+            } else {
+              ref
+                  .read(vecDocumentStateProvider.notifier)
+                  .moveKeyframeForShape(scene.id, _dragLayerId!, _dragShapeId!, _dragFromFrame, _dragPreviewFrame);
+            }
             // Update selected keyframe to the new position
             ref.read(selectedKeyframeFrameProvider.notifier).state = _dragPreviewFrame;
           }

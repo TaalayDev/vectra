@@ -1352,6 +1352,28 @@ class VecDocumentState extends _$VecDocumentState {
     );
   }
 
+  /// Duplicates a keyframe: keeps the original at [fromFrame] and places a
+  /// copy at [toFrame]. Replaces any existing keyframe at [toFrame].
+  void duplicateKeyframeForShape(String sceneId, String layerId, String shapeId, int fromFrame, int toFrame) {
+    if (fromFrame == toFrame) return;
+    _commit(
+      _withScene(sceneId, (scene) {
+        final clampedTo = toFrame.clamp(0, scene.timeline.duration - 1);
+        final newTracks = scene.timeline.tracks.map((t) {
+          if (t.layerId != layerId || t.shapeId != shapeId) return t;
+          final kfSource = t.keyframes.where((k) => k.frame == fromFrame).firstOrNull;
+          if (kfSource == null) return t;
+          // Keep original, remove any existing at target, add copy at target
+          final others = t.keyframes.where((k) => k.frame != clampedTo).toList();
+          final duplicated = [...others, kfSource.copyWith(frame: clampedTo)]
+            ..sort((a, b) => a.frame.compareTo(b.frame));
+          return t.copyWith(keyframes: duplicated);
+        }).toList();
+        return scene.copyWith(timeline: scene.timeline.copyWith(tracks: newTracks));
+      }),
+    );
+  }
+
   /// Applies an [AnimationPreset] to [shapeId] starting at [atFrame].
   /// Each preset keyframe's [frameOffset] is added to [atFrame] to produce the
   /// absolute frame number. Existing keyframes at those frames are replaced.

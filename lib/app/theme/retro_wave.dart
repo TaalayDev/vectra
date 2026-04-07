@@ -49,18 +49,43 @@ AppTheme buildRetroWaveTheme() {
         color: const Color(0xFF00FFFF),
         fontWeight: FontWeight.w700, // Bold for retro feel
       ),
-      titleMedium: baseTextTheme.titleMedium!.copyWith(
-        color: const Color(0xFF00FFFF),
-        fontWeight: FontWeight.w600,
-      ),
-      bodyLarge: baseTextTheme.bodyLarge!.copyWith(
-        color: const Color(0xFF00FFFF),
-      ),
-      bodyMedium: baseTextTheme.bodyMedium!.copyWith(
-        color: const Color(0xFFFF0080),
-      ),
+      titleMedium: baseTextTheme.titleMedium!.copyWith(color: const Color(0xFF00FFFF), fontWeight: FontWeight.w600),
+      bodyLarge: baseTextTheme.bodyLarge!.copyWith(color: const Color(0xFF00FFFF)),
+      bodyMedium: baseTextTheme.bodyMedium!.copyWith(color: const Color(0xFFFF0080)),
     ),
     primaryFontWeight: FontWeight.w600, // Bold for 80s aesthetic
+    tokens: const AppThemeTokens(
+      radii: AppThemeRadii(xs: 3, sm: 10, md: 14, lg: 18, xl: 28, pill: 999),
+      sizes: AppThemeSizes(
+        xxs: 4,
+        xs: 10,
+        sm: 14,
+        md: 18,
+        lg: 24,
+        xl: 28,
+        xxl: 36,
+        iconSm: 18,
+        iconMd: 22,
+        iconLg: 28,
+        buttonHeight: 48,
+        minButtonWidth: 104,
+        inputHeight: 52,
+        toolbarHeight: 64,
+        cardElevation: 6,
+      ),
+      borders: AppThemeBorders(thin: 1, regular: 1.4, thick: 2.4, focus: 2.6),
+      buttons: AppButtonThemeTokens(
+        padding: EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+        minimumSize: Size(104, 48),
+        elevation: 2,
+        iconSize: 22,
+      ),
+      inputs: AppInputThemeTokens(
+        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        filled: true,
+        isDense: false,
+      ),
+    ),
   );
 }
 
@@ -75,18 +100,11 @@ class RetroWaveBackground extends HookWidget {
   /// Toggles the animation on or off.
   final bool enableAnimation;
 
-  const RetroWaveBackground({
-    super.key,
-    required this.theme,
-    this.intensity = 0.8,
-    this.enableAnimation = true,
-  });
+  const RetroWaveBackground({super.key, required this.theme, this.intensity = 0.8, this.enableAnimation = true});
 
   @override
   Widget build(BuildContext context) {
-    final controller = useAnimationController(
-      duration: theme.type.animationDuration,
-    );
+    final controller = useAnimationController(duration: theme.type.animationDuration);
 
     useEffect(() {
       if (enableAnimation) {
@@ -132,15 +150,15 @@ class _RetroWavePainter extends CustomPainter {
     required this.accentColor,
     required this.intensity,
     this.animationEnabled = true,
-  })  : _paint = Paint(),
-        _stars = List.generate(50, (index) {
-          final random = math.Random(index);
-          return Offset(random.nextDouble(), random.nextDouble());
-        }),
-        _starOpacities = List.generate(50, (index) {
-          final random = math.Random(index * 2);
-          return random.nextDouble();
-        });
+  }) : _paint = Paint(),
+       _stars = List.generate(50, (index) {
+         final random = math.Random(index);
+         return Offset(random.nextDouble(), random.nextDouble());
+       }),
+       _starOpacities = List.generate(50, (index) {
+         final random = math.Random(index * 2);
+         return random.nextDouble();
+       });
 
   // --- Aesthetic & Animation constants ---
   static const _bgTop = Color(0xFF0B0E2A);
@@ -151,7 +169,6 @@ class _RetroWavePainter extends CustomPainter {
   static const _sunPulseCycles = 2;
   static const _gridPulseCycles = 1;
   static const _gridDriftCycles = 1;
-  static const _particleCycles = 3;
 
   // --- Animation Helper Functions ---
   double get _phase => 2 * math.pi * t;
@@ -210,11 +227,10 @@ class _RetroWavePainter extends CustomPainter {
       paint
         ..strokeWidth = strokeW
         ..color = Color.lerp(
-          primaryColor.withOpacity(baseAlpha * 0.9),
-          accentColor.withOpacity(baseAlpha * 0.7),
+          primaryColor.withValues(alpha: baseAlpha * 0.9),
+          accentColor.withValues(alpha: baseAlpha * 0.7),
           0.6,
-        )!
-            .withOpacity(baseAlpha * (0.85 + 0.15 * pulse));
+        )!.withValues(alpha: baseAlpha * (0.85 + 0.15 * pulse));
       canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
     }
 
@@ -241,8 +257,8 @@ class _RetroWavePainter extends CustomPainter {
       paint
         ..strokeWidth = strokeW
         ..color = Color.lerp(
-          primaryColor.withOpacity(baseAlpha * (0.65 + 0.25 * (1 - side))),
-          accentColor.withOpacity(baseAlpha * (0.45 + 0.25 * side)),
+          primaryColor.withValues(alpha: baseAlpha * (0.65 + 0.25 * (1 - side))),
+          accentColor.withValues(alpha: baseAlpha * (0.45 + 0.25 * side)),
           0.4,
         )!;
       canvas.drawLine(p1, p2, paint);
@@ -257,7 +273,11 @@ class _RetroWavePainter extends CustomPainter {
     final glowPaint = Paint()
       ..style = PaintingStyle.fill
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 28);
-    final glowColor = Color.lerp(primaryColor, accentColor, 0.35)!.withOpacity((0.22 * intensity).clamp(0.06, 0.22));
+    final glowColor = Color.lerp(
+      primaryColor,
+      accentColor,
+      0.35,
+    )!.withValues(alpha: (0.22 * intensity).clamp(0.06, 0.22));
     glowPaint.color = glowColor;
     canvas.drawCircle(center.translate(0, -radius * 0.05), radius * 1.45, glowPaint);
 
@@ -268,8 +288,8 @@ class _RetroWavePainter extends CustomPainter {
       ..style = PaintingStyle.fill
       ..shader = RadialGradient(
         colors: [
-          Color.lerp(primaryColor, accentColor, 0.25)!.withOpacity(0.95),
-          Color.lerp(primaryColor, accentColor, 0.25)!.withOpacity(0.7),
+          Color.lerp(primaryColor, accentColor, 0.25)!.withValues(alpha: 0.95),
+          Color.lerp(primaryColor, accentColor, 0.25)!.withValues(alpha: 0.7),
         ],
       ).createShader(Rect.fromCircle(center: center, radius: radius));
     canvas.drawCircle(center, radius, bodyPaint);
@@ -277,7 +297,7 @@ class _RetroWavePainter extends CustomPainter {
     final stripePaint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = (2.0 * intensity).clamp(1.0, 3.0)
-      ..color = Colors.black.withOpacity(0.18);
+      ..color = Colors.black.withValues(alpha: 0.18);
     for (int i = -4; i <= 4; i++) {
       final y = center.dy - radius * 0.85 + (i + 4) * (radius * 0.22);
       final halfW = math.sqrt(math.max(0, radius * radius - (y - center.dy) * (y - center.dy)));
@@ -287,7 +307,7 @@ class _RetroWavePainter extends CustomPainter {
     final outlinePaint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = (1.8 * intensity).clamp(1.2, 2.2)
-      ..color = Color.lerp(primaryColor, accentColor, 0.25)!.withOpacity(0.9);
+      ..color = Color.lerp(primaryColor, accentColor, 0.25)!.withValues(alpha: 0.9);
     canvas.drawCircle(center, radius, outlinePaint);
 
     canvas.restore();
@@ -295,7 +315,7 @@ class _RetroWavePainter extends CustomPainter {
     final horizonPaint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = (1.2 * intensity).clamp(0.8, 1.6)
-      ..color = Color.lerp(primaryColor, accentColor, 0.35)!.withOpacity(0.35);
+      ..color = Color.lerp(primaryColor, accentColor, 0.35)!.withValues(alpha: 0.35);
     canvas.drawLine(Offset(0, horizonY), Offset(size.width, horizonY), horizonPaint);
   }
 
@@ -312,10 +332,10 @@ class _RetroWavePainter extends CustomPainter {
     final y1 = sweep1 * size.height;
     final y2 = sweep2 * size.height;
 
-    paint.color = primaryColor.withOpacity((0.12 * intensity).clamp(0.05, 0.14));
+    paint.color = primaryColor.withValues(alpha: (0.12 * intensity).clamp(0.05, 0.14));
     canvas.drawLine(Offset(0, y1), Offset(size.width, y1), paint);
 
-    paint.color = accentColor.withOpacity((0.10 * intensity).clamp(0.04, 0.12));
+    paint.color = accentColor.withValues(alpha: (0.10 * intensity).clamp(0.04, 0.12));
     canvas.drawLine(Offset(0, y2), Offset(size.width, y2), paint);
   }
 
@@ -329,12 +349,8 @@ class _RetroWavePainter extends CustomPainter {
       final twinkle = math.sin(animOffset * 2 * math.pi);
 
       if (twinkle > 0.5) {
-        _paint.color = Colors.white.withOpacity(twinkle * 0.8);
-        canvas.drawCircle(
-          Offset(starPos.dx * size.width, starPos.dy * horizonY),
-          (twinkle * 0.8) * intensity,
-          _paint,
-        );
+        _paint.color = Colors.white.withValues(alpha: twinkle * 0.8);
+        canvas.drawCircle(Offset(starPos.dx * size.width, starPos.dy * horizonY), (twinkle * 0.8) * intensity, _paint);
       }
     }
   }

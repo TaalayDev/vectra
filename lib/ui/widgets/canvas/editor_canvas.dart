@@ -112,6 +112,9 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
   Offset _bendStartLocalPos = Offset.zero; // node[0] position at drag start
   Offset _bendEndLocalPos = Offset.zero; // node[1] position at drag start
 
+  // Alt+drag duplication: true if we already cloned on this drag
+  bool _altDragCloned = false;
+
   // Bend tool state (VecTool.bend)
   int _bendToolHoverSegment = -1; // segment index hovered (-1 = none)
   int _bendToolDragSegment = -1; // segment being dragged
@@ -150,6 +153,11 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
   final Map<String, ui.Image> _imageCache = {};
   // Track which assetIds are currently being loaded to avoid duplicate decodes
   final Set<String> _imageLoading = {};
+
+  // Pipette / eyedropper state
+  Offset _pipetteCursorPos = Offset.zero;
+  ui.Image? _pipetteSnapshot; // small region screenshot for magnifier
+  bool _pipetteSnapshotBusy = false;
 
   AppTheme get theme => widget.theme;
 
@@ -236,6 +244,90 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
     final stageOriginY = cy - (meta.stageHeight * zoom) / 2;
 
     return Offset((screenLocal.dx - stageOriginX) / zoom, (screenLocal.dy - stageOriginY) / zoom);
+  }
+
+  // ===========================================================================
+  // Pipette — sample pixel color from rendered scene
+  // ===========================================================================
+
+  Future<void> _samplePipetteColor(Offset screenLocal) async {
+    if (_pipetteSnapshotBusy) return;
+    _pipetteSnapshotBusy = true;
+
+    try {
+      final scene = ref.read(animatedSceneProvider);
+      if (scene == null) {
+        _pipetteSnapshotBusy = false;
+        return;
+      }
+
+      final meta = ref.read(currentMetaProvider);
+      final symbols = ref.read(symbolLibraryProvider);
+      final canvasPt = _toCanvasPoint(screenLocal);
+
+      // Render a small region around the cursor (11×11 pixels at 1:1 scale)
+      const regionSize = 11;
+      const half = regionSize ~/ 2;
+      final left = canvasPt.dx - half;
+      final top = canvasPt.dy - half;
+
+      final recorder = ui.PictureRecorder();
+      final regionD = regionSize.toDouble();
+      final canvas = ui.Canvas(recorder, Rect.fromLTWH(0, 0, regionD, regionD));
+      canvas.translate(-left, -top);
+      ScenePainter(scene: scene, symbols: symbols, imageCache: _imageCache)
+          .paint(canvas, Size(meta.stageWidth, meta.stageHeight));
+      final picture = recorder.endRecording();
+      final image = await picture.toImage(regionSize, regionSize);
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+      picture.dispose();
+
+      if (!mounted || byteData == null) {
+        image.dispose();
+        _pipetteSnapshotBusy = false;
+        return;
+      }
+
+      // Extract center pixel color
+      final centerOffset = (half * regionSize + half) * 4;
+      if (centerOffset + 3 < byteData.lengthInBytes) {
+        final r = byteData.getUint8(centerOffset);
+        final g = byteData.getUint8(centerOffset + 1);
+        final b = byteData.getUint8(centerOffset + 2);
+        final a = byteData.getUint8(centerOffset + 3);
+        ref.read(pipetteColorProvider.notifier).state = Color.fromARGB(a, r, g, b);
+      }
+
+      // Replace the snapshot for the magnifier overlay
+      _pipetteSnapshot?.dispose();
+      _pipetteSnapshot = image;
+
+      if (mounted) setState(() {});
+    } catch (_) {
+      // Silently ignore rendering errors during sampling
+    }
+    _pipetteSnapshotBusy = false;
+  }
+
+  void _applyPipetteColor() {
+    final color = ref.read(pipetteColorProvider);
+    if (color == null) return;
+    final selectedId = ref.read(selectedShapeIdProvider);
+    final scene = ref.read(activeSceneProvider);
+    final layerId = ref.read(activeLayerIdProvider);
+    if (selectedId == null || scene == null || layerId == null) return;
+
+    final vecColor = VecColor(a: color.alpha, r: color.red, g: color.green, b: color.blue);
+    ref.read(vecDocumentStateProvider.notifier).updateShape(
+      scene.id,
+      layerId,
+      selectedId,
+      (s) {
+        if (s.fills.isEmpty) return s;
+        final updatedFills = [s.fills.first.copyWith(color: vecColor), ...s.fills.skip(1)];
+        return s.copyWith(data: s.data.copyWith(fills: updatedFills));
+      },
+    );
   }
 
   // ===========================================================================
@@ -328,6 +420,8 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
     final isMotionPathDrawing = mpDrawTargetNullable != null;
     final mpDrawTarget = mpDrawTargetNullable ?? '';
 
+    final isPipetteMode = ref.watch(pipetteModeProvider);
+
     final isDrawingTool =
         activeTool == VecTool.rectangle ||
         activeTool == VecTool.ellipse ||
@@ -415,6 +509,11 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
             return Listener(
               onPointerHover: (event) {
                 ref.read(cursorPositionProvider.notifier).set(event.localPosition);
+                if (isPipetteMode) {
+                  setState(() => _pipetteCursorPos = event.localPosition);
+                  _samplePipetteColor(event.localPosition);
+                  return;
+                }
                 if (isSelectTool && displaySelectedShape != null) {
                   _updateHoverCursor(displaySelectedShape.transform, zoom, event.localPosition);
                 }
@@ -439,6 +538,11 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
 
                 onPanStart: (details) {
                   if (_isPanning) return;
+                  // ── Pipette mode: apply sampled color on click ────────────────
+                  if (isPipetteMode) {
+                    _applyPipetteColor();
+                    return;
+                  }
                   // ── Guide drag from rulers ──────────────────────────────────────
                   final snapSettings = ref.read(snapSettingsProvider);
                   if (snapSettings.showRulers) {
@@ -788,7 +892,9 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
                     : null,
 
                 child: MouseRegion(
-                  cursor: _isPanning ? SystemMouseCursors.grab : _currentCursor(activeTool, selectedShape),
+                  cursor: isPipetteMode
+                      ? SystemMouseCursors.precise
+                      : _isPanning ? SystemMouseCursors.grab : _currentCursor(activeTool, selectedShape),
                   child: SizedBox(
                     width: viewportSize.width,
                     height: viewportSize.height,
@@ -1029,6 +1135,19 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
                                   tickColor: theme.textDisabled,
                                   borderColor: theme.divider,
                                 ),
+                              ),
+                            ),
+                          ),
+
+                        // Pipette magnifier overlay
+                        if (isPipetteMode)
+                          Positioned(
+                            left: _pipetteCursorPos.dx - 40,
+                            top: _pipetteCursorPos.dy - 100,
+                            child: IgnorePointer(
+                              child: _PipetteMagnifier(
+                                snapshot: _pipetteSnapshot,
+                                sampledColor: ref.watch(pipetteColorProvider),
                               ),
                             ),
                           ),
@@ -1631,6 +1750,53 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
       }
 
       if (hitAny) {
+        final isAlt = HardwareKeyboard.instance.isAltPressed;
+
+        // Alt+drag: clone selected shapes first, then drag the clones.
+        if (isAlt) {
+          final layerIdLocal = ref.read(activeLayerIdProvider);
+          if (layerIdLocal != null) {
+            final cloneIds = <String>[];
+            for (final id in selectedIds) {
+              for (final layer in scene.layers) {
+                final original = layer.shapes.cast<VecShape?>().firstWhere(
+                  (s) => s!.id == id,
+                  orElse: () => null,
+                );
+                if (original != null) {
+                  final clone = _cloneForMenuPaste(original, offset: 0);
+                  ref.read(vecDocumentStateProvider.notifier).addShape(scene.id, layerIdLocal, clone);
+                  cloneIds.add(clone.id);
+                  break;
+                }
+              }
+            }
+            if (cloneIds.isNotEmpty) {
+              ref.read(selectedShapeIdsProvider.notifier).setAll(cloneIds);
+              ref.read(selectedShapeIdProvider.notifier).set(cloneIds.last);
+              // Refresh scene and build transforms for the clones
+              final updatedScene = ref.read(activeSceneProvider);
+              final transforms = <String, dynamic>{};
+              if (updatedScene != null) {
+                for (final layer in updatedScene.layers) {
+                  for (final shape in layer.shapes) {
+                    if (cloneIds.contains(shape.id)) {
+                      transforms[shape.id] = shape.data.transform;
+                    }
+                  }
+                }
+              }
+              setState(() {
+                _selectDragMode = _SelectDragMode.move;
+                _dragStartTransforms = transforms;
+                _dragStartCanvasPoint = canvasPoint;
+                _altDragCloned = true;
+              });
+              return;
+            }
+          }
+        }
+
         // Capture start transforms for every selected shape
         final transforms = <String, dynamic>{};
         for (final layer in scene.layers) {
@@ -1644,6 +1810,7 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
           _selectDragMode = _SelectDragMode.move;
           _dragStartTransforms = transforms;
           _dragStartCanvasPoint = canvasPoint;
+          _altDragCloned = false;
         });
         return;
       }
@@ -1753,12 +1920,32 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
       });
     } else if (SelectToolHandler.hitTestBody(t, canvasPoint)) {
       // Move single shape
-      setState(() {
-        _selectDragMode = _SelectDragMode.move;
-        _dragStartTransform = t;
-        _dragStartCanvasPoint = canvasPoint;
-        _dragGroupTransform = activeGroup?.data.transform;
-      });
+      final isAlt = HardwareKeyboard.instance.isAltPressed;
+      if (isAlt && displaySelectedShape != null) {
+        // Alt+drag: clone shape, select clone, drag clone
+        final layerIdLocal = ref.read(activeLayerIdProvider);
+        if (layerIdLocal != null) {
+          final clone = _cloneForMenuPaste(displaySelectedShape as VecShape, offset: 0);
+          ref.read(vecDocumentStateProvider.notifier).addShape(scene.id, layerIdLocal, clone);
+          ref.read(selectedShapeIdProvider.notifier).set(clone.id);
+          ref.read(selectedShapeIdsProvider.notifier).setSingle(clone.id);
+          setState(() {
+            _selectDragMode = _SelectDragMode.move;
+            _dragStartTransform = t;
+            _dragStartCanvasPoint = canvasPoint;
+            _dragGroupTransform = activeGroup?.data.transform;
+            _altDragCloned = true;
+          });
+        }
+      } else {
+        setState(() {
+          _selectDragMode = _SelectDragMode.move;
+          _dragStartTransform = t;
+          _dragStartCanvasPoint = canvasPoint;
+          _dragGroupTransform = activeGroup?.data.transform;
+          _altDragCloned = false;
+        });
+      }
     } else {
       // Started on empty space → begin marquee selection
       setState(() {
@@ -1994,6 +2181,7 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
       _dragStartPivot = null;
       _dragInfoText = null;
       _activeGuides = const [];
+      _altDragCloned = false;
     });
   }
 
@@ -3274,9 +3462,48 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
     final layerId = ref.read(activeLayerIdProvider);
     if (scene == null || layerId == null) return;
 
-    ref.read(vecDocumentStateProvider.notifier).addShape(scene.id, layerId, shape);
-    ref.read(selectedShapeIdProvider.notifier).set(shape.id);
-    ref.read(selectedShapeIdsProvider.notifier).setSingle(shape.id);
+    // Auto-name: "Rectangle 1", "Ellipse 2", etc.
+    final namedShape = _autoNameShape(shape as VecShape, scene);
+
+    ref.read(vecDocumentStateProvider.notifier).addShape(scene.id, layerId, namedShape);
+    ref.read(selectedShapeIdProvider.notifier).set(namedShape.id);
+    ref.read(selectedShapeIdsProvider.notifier).setSingle(namedShape.id);
+  }
+
+  VecShape _autoNameShape(VecShape shape, dynamic scene) {
+    // Skip if already named
+    if (shape.data.name != null && shape.data.name!.isNotEmpty) return shape;
+
+    final baseName = shape.map(
+      path: (_) => 'Path',
+      rectangle: (_) => 'Rectangle',
+      ellipse: (_) => 'Ellipse',
+      polygon: (_) => 'Polygon',
+      text: (_) => 'Text',
+      group: (_) => 'Group',
+      compound: (_) => 'Compound',
+      symbolInstance: (_) => 'Symbol',
+      image: (_) => 'Image',
+    );
+
+    // Count existing shapes with the same base name across all layers
+    int maxNum = 0;
+    final pattern = RegExp('^${RegExp.escape(baseName)} (\\d+)\$');
+    for (final layer in scene.layers) {
+      for (final s in layer.shapes) {
+        final n = s.data.name;
+        if (n != null) {
+          final match = pattern.firstMatch(n);
+          if (match != null) {
+            final num = int.tryParse(match.group(1)!) ?? 0;
+            if (num > maxNum) maxNum = num;
+          }
+        }
+      }
+    }
+
+    final name = '$baseName ${maxNum + 1}';
+    return shape.copyWith(data: shape.data.copyWith(name: name));
   }
 
   // ===========================================================================
@@ -4051,4 +4278,102 @@ class _FreeDrawPreviewPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _FreeDrawPreviewPainter old) =>
       old.points != points || old.zoom != zoom || old.color != color || old.strokeWidth != strokeWidth;
+}
+
+// =============================================================================
+// Pipette magnifier overlay — shows a magnified region + sampled color swatch
+// =============================================================================
+
+class _PipetteMagnifier extends StatelessWidget {
+  const _PipetteMagnifier({required this.snapshot, required this.sampledColor});
+
+  final ui.Image? snapshot;
+  final Color? sampledColor;
+
+  @override
+  Widget build(BuildContext context) {
+    const outerSize = 80.0;
+    final color = sampledColor ?? Colors.transparent;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Magnified circle
+        Container(
+          width: outerSize,
+          height: outerSize,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white, width: 2.5),
+            boxShadow: const [BoxShadow(color: Color(0x60000000), blurRadius: 8, offset: Offset(0, 2))],
+          ),
+          child: ClipOval(
+            child: snapshot != null
+                ? CustomPaint(
+                    size: const Size(outerSize, outerSize),
+                    painter: _MagnifierPainter(image: snapshot!),
+                  )
+                : const ColoredBox(color: Color(0xFF222222)),
+          ),
+        ),
+        const SizedBox(height: 4),
+        // Color swatch + hex
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+          decoration: BoxDecoration(
+            color: const Color(0xE6111827),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 14,
+                height: 14,
+                decoration: BoxDecoration(
+                  color: color,
+                  border: Border.all(color: Colors.white54, width: 0.5),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(width: 4),
+              Text(
+                '#${color.toARGB32().toRadixString(16).padLeft(8, '0').substring(2, 8).toUpperCase()}',
+                style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w500),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _MagnifierPainter extends CustomPainter {
+  const _MagnifierPainter({required this.image});
+
+  final ui.Image image;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Scale the 11×11 snapshot to fill the circle area
+    final src = Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble());
+    final dst = Rect.fromLTWH(0, 0, size.width, size.height);
+    final paint = Paint()..filterQuality = FilterQuality.none; // nearest-neighbor for crisp pixels
+    canvas.drawImageRect(image, src, dst, paint);
+
+    // Draw crosshair
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+    final pixelW = size.width / image.width;
+    final pixelH = size.height / image.height;
+    final crossPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..color = Colors.white
+      ..strokeWidth = 1.0;
+    canvas.drawRect(Rect.fromCenter(center: Offset(cx, cy), width: pixelW, height: pixelH), crossPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _MagnifierPainter old) => old.image != image;
 }

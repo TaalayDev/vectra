@@ -1,4 +1,4 @@
-import 'dart:ui' show Offset;
+import 'dart:ui' show Offset, Color;
 
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -78,6 +78,12 @@ class FitRequest extends _$FitRequest {
 
 /// Incremented to request a zoom-to-selected-shapes from the canvas.
 final fitSelectionRequestProvider = StateProvider<int>((ref) => 0);
+
+/// True when the Alt-key eyedropper/pipette mode is active.
+final pipetteModeProvider = StateProvider<bool>((ref) => false);
+
+/// The sampled color under the pipette cursor (updated on hover).
+final pipetteColorProvider = StateProvider<Color?>((ref) => null);
 
 @riverpod
 class CanvasOffset extends _$CanvasOffset {
