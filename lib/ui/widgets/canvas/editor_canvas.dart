@@ -275,8 +275,11 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
       final regionD = regionSize.toDouble();
       final canvas = ui.Canvas(recorder, Rect.fromLTWH(0, 0, regionD, regionD));
       canvas.translate(-left, -top);
-      ScenePainter(scene: scene, symbols: symbols, imageCache: _imageCache)
-          .paint(canvas, Size(meta.stageWidth, meta.stageHeight));
+      ScenePainter(
+        scene: scene,
+        symbols: symbols,
+        imageCache: _imageCache,
+      ).paint(canvas, Size(meta.stageWidth, meta.stageHeight));
       final picture = recorder.endRecording();
       final image = await picture.toImage(regionSize, regionSize);
       final byteData = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
@@ -318,16 +321,11 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
     if (selectedId == null || scene == null || layerId == null) return;
 
     final vecColor = VecColor(a: color.alpha, r: color.red, g: color.green, b: color.blue);
-    ref.read(vecDocumentStateProvider.notifier).updateShape(
-      scene.id,
-      layerId,
-      selectedId,
-      (s) {
-        if (s.fills.isEmpty) return s;
-        final updatedFills = [s.fills.first.copyWith(color: vecColor), ...s.fills.skip(1)];
-        return s.copyWith(data: s.data.copyWith(fills: updatedFills));
-      },
-    );
+    ref.read(vecDocumentStateProvider.notifier).updateShape(scene.id, layerId, selectedId, (s) {
+      if (s.fills.isEmpty) return s;
+      final updatedFills = [s.fills.first.copyWith(color: vecColor), ...s.fills.skip(1)];
+      return s.copyWith(data: s.data.copyWith(fills: updatedFills));
+    });
   }
 
   // ===========================================================================
@@ -894,7 +892,9 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
                 child: MouseRegion(
                   cursor: isPipetteMode
                       ? SystemMouseCursors.precise
-                      : _isPanning ? SystemMouseCursors.grab : _currentCursor(activeTool, selectedShape),
+                      : _isPanning
+                      ? SystemMouseCursors.grab
+                      : _currentCursor(activeTool, selectedShape),
                   child: SizedBox(
                     width: viewportSize.width,
                     height: viewportSize.height,
@@ -1759,10 +1759,7 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
             final cloneIds = <String>[];
             for (final id in selectedIds) {
               for (final layer in scene.layers) {
-                final original = layer.shapes.cast<VecShape?>().firstWhere(
-                  (s) => s!.id == id,
-                  orElse: () => null,
-                );
+                final original = layer.shapes.cast<VecShape?>().firstWhere((s) => s!.id == id, orElse: () => null);
                 if (original != null) {
                   final clone = _cloneForMenuPaste(original, offset: 0);
                   ref.read(vecDocumentStateProvider.notifier).addShape(scene.id, layerIdLocal, clone);
@@ -4320,10 +4317,7 @@ class _PipetteMagnifier extends StatelessWidget {
         // Color swatch + hex
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-          decoration: BoxDecoration(
-            color: const Color(0xE6111827),
-            borderRadius: BorderRadius.circular(4),
-          ),
+          decoration: BoxDecoration(color: const Color(0xE6111827), borderRadius: BorderRadius.circular(4)),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [

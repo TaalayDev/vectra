@@ -226,6 +226,8 @@ class _SearchField extends StatelessWidget {
                 hintStyle: TextStyle(fontSize: 11, color: theme.textDisabled),
                 isDense: true,
                 border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
                 contentPadding: EdgeInsets.zero,
               ),
             ),
