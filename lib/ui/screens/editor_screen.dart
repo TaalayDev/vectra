@@ -1,11 +1,16 @@
 import 'dart:convert';
+import 'dart:io';
 
+import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../app/theme/theme.dart';
+import '../../core/import/svg_importer.dart';
 import '../../core/tools/drawing_tool_handler.dart';
 import '../../data/models/vec_shape.dart';
 import '../../providers/clipboard_provider.dart';
@@ -65,6 +70,7 @@ class EditorScreen extends HookConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = ref.watch(themeProvider).theme;
+    final isDragging = useState(false);
 
     return PopScope(
       canPop: false,
@@ -474,9 +480,103 @@ class EditorScreen extends HookConsumerWidget {
               ref.read(toastProvider.notifier).show('Opened $fileName');
             }
           },
-          child: WorkspaceLayout(theme: theme),
+          child: DropTarget(
+            onDragEntered: (_) => isDragging.value = true,
+            onDragExited: (_) => isDragging.value = false,
+            onDragDone: (detail) async {
+              isDragging.value = false;
+              final files = detail.files;
+              if (files.isEmpty) return;
+              final file = files.first;
+              final path = file.path;
+              final ext = path.split('.').last.toLowerCase();
+
+              if (ext == 'vct') {
+                final notifier = ref.read(vecDocumentStateProvider.notifier);
+                if (notifier.isDirty) {
+                  final proceed = await showDialog<bool>(
+                    context: context,
+                    builder: (ctx) => AlertDialog(
+                      title: const Text('Unsaved changes'),
+                      content: const Text('Opening a new file will discard unsaved changes. Continue?'),
+                      actions: [
+                        TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
+                        TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Open')),
+                      ],
+                    ),
+                  );
+                  if (!(proceed ?? false)) return;
+                }
+                await notifier.openFile(path);
+                final fileName = path.split('/').last;
+                if (context.mounted) ref.read(toastProvider.notifier).show('Opened $fileName');
+              } else if (ext == 'svg') {
+                final svgContent = await File(path).readAsString();
+                const importer = SvgImporter();
+                final shapes = importer.import(svgContent);
+                if (shapes.isEmpty) return;
+                final scene = ref.read(activeSceneProvider);
+                final layerId = ref.read(activeLayerIdProvider);
+                if (scene == null || layerId == null) return;
+                ref.read(vecDocumentStateProvider.notifier).addShapes(scene.id, layerId, shapes);
+                final fileName = path.split('/').last;
+                if (context.mounted) ref.read(toastProvider.notifier).show('Imported $fileName');
+              }
+            },
+            child: Stack(
+              children: [
+                WorkspaceLayout(theme: theme),
+                if (isDragging.value) _EditorDropOverlay(theme: theme),
+              ],
+            ),
+          ),
         ),
       ), // Scaffold
     ); // PopScope
+  }
+}
+
+// =============================================================================
+// Drop overlay for the editor
+// =============================================================================
+
+class _EditorDropOverlay extends StatelessWidget {
+  const _EditorDropOverlay({required this.theme});
+
+  final AppTheme theme;
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned.fill(
+      child: IgnorePointer(
+        child: Container(
+          color: theme.primaryColor.withValues(alpha: 0.08),
+          child: Center(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+              decoration: BoxDecoration(
+                color: theme.surface.withValues(alpha: 0.95),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: theme.primaryColor, width: 2),
+                boxShadow: [
+                  BoxShadow(color: theme.primaryColor.withValues(alpha: 0.2), blurRadius: 24, spreadRadius: 4),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.file_download_outlined, size: 48, color: theme.primaryColor),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Drop .vct to open · .svg to import',
+                    style: theme.textTheme.titleMedium?.copyWith(color: theme.textPrimary, fontWeight: FontWeight.w600),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

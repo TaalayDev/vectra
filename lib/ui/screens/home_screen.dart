@@ -1,6 +1,10 @@
+import 'dart:io';
+
+import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter/material.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_vector_icons/flutter_vector_icons.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
@@ -169,39 +173,83 @@ class HomeScreen extends HookConsumerWidget {
     final size = MediaQuery.sizeOf(context);
     final isWide = size.width > 900;
     final isMedium = size.width > 600;
+    final isDragging = useState(false);
+
+    Future<void> handleDrop(DropDoneDetails detail) async {
+      isDragging.value = false;
+      final files = detail.files;
+      if (files.isEmpty) return;
+      final file = files.first;
+      final path = file.path;
+      final ext = path.split('.').last.toLowerCase();
+
+      if (ext == 'vct') {
+        await ref.read(vecDocumentStateProvider.notifier).openFile(path);
+        if (context.mounted) {
+          Navigator.of(context).push(MaterialPageRoute(builder: (_) => const EditorScreen()));
+        }
+      } else if (ext == 'svg') {
+        final svgContent = await File(path).readAsString();
+        final name = path.split(Platform.pathSeparator).last.replaceAll('.svg', '');
+        const stageW = 1080.0;
+        const stageH = 1080.0;
+        ref.read(vecDocumentStateProvider.notifier).newDocument(
+          name: name,
+          stageWidth: stageW,
+          stageHeight: stageH,
+          fps: 24,
+        );
+        const importer = SvgImporter();
+        final shapes = _centerShapesOnStage(importer.import(svgContent), stageW, stageH);
+        final doc = ref.read(vecDocumentStateProvider);
+        if (doc.scenes.isNotEmpty && doc.scenes.first.layers.isNotEmpty && shapes.isNotEmpty) {
+          final scene = doc.scenes.first;
+          ref.read(vecDocumentStateProvider.notifier).addShapes(scene.id, scene.layers.first.id, shapes);
+        }
+        if (context.mounted) {
+          Navigator.of(context).push(MaterialPageRoute(builder: (_) => const EditorScreen()));
+        }
+      }
+    }
 
     return Scaffold(
       backgroundColor: theme.background,
-      body: Stack(
-        children: [
-          Positioned.fill(
-            child: AnimatedBackground(
-              // intensity: 0.15,
-              enableAnimation: true,
-              child: Container(color: Colors.transparent),
+      body: DropTarget(
+        onDragEntered: (_) => isDragging.value = true,
+        onDragExited: (_) => isDragging.value = false,
+        onDragDone: handleDrop,
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: AnimatedBackground(
+                // intensity: 0.15,
+                enableAnimation: true,
+                child: Container(color: Colors.transparent),
+              ),
             ),
-          ),
-          // Positioned.fill(
-          //   child: DecoratedBox(
-          //     decoration: BoxDecoration(
-          //       gradient: LinearGradient(
-          //         begin: Alignment.topLeft,
-          //         end: Alignment.bottomRight,
-          //         colors: [
-          //           theme.background.withOpacity(0.95),
-          //           theme.background.withOpacity(0.85),
-          //           Color.lerp(theme.background, theme.primaryColor, 0.03)!.withOpacity(0.9),
-          //         ],
-          //       ),
-          //     ),
-          //   ),
-          // ),
-          SafeArea(
-            child: isWide
-                ? _WideLayout(theme: theme, recentProjects: recentProjects)
-                : _NarrowLayout(theme: theme, recentProjects: recentProjects, isMedium: isMedium),
-          ),
-        ],
+            // Positioned.fill(
+            //   child: DecoratedBox(
+            //     decoration: BoxDecoration(
+            //       gradient: LinearGradient(
+            //         begin: Alignment.topLeft,
+            //         end: Alignment.bottomRight,
+            //         colors: [
+            //           theme.background.withOpacity(0.95),
+            //           theme.background.withOpacity(0.85),
+            //           Color.lerp(theme.background, theme.primaryColor, 0.03)!.withOpacity(0.9),
+            //         ],
+            //       ),
+            //     ),
+            //   ),
+            // ),
+            SafeArea(
+              child: isWide
+                  ? _WideLayout(theme: theme, recentProjects: recentProjects)
+                  : _NarrowLayout(theme: theme, recentProjects: recentProjects, isMedium: isMedium),
+            ),
+            if (isDragging.value) _DropOverlay(theme: theme, message: 'Drop .vct or .svg to open'),
+          ],
+        ),
       ),
     );
   }
@@ -1247,6 +1295,53 @@ VecShape _translateShape(VecShape shape, double dx, double dy) {
     image: (s) => s.copyWith(data: shift(s.data)),
     group: (s) => s.copyWith(data: shift(s.data)),
   );
+}
+
+// =============================================================================
+// Drop overlay
+// =============================================================================
+
+class _DropOverlay extends StatelessWidget {
+  const _DropOverlay({required this.theme, required this.message});
+
+  final AppTheme theme;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned.fill(
+      child: Container(
+        color: theme.primaryColor.withValues(alpha: 0.12),
+        child: Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+            decoration: BoxDecoration(
+              color: theme.surface.withValues(alpha: 0.95),
+              borderRadius: theme.radii.large,
+              border: Border.all(color: theme.primaryColor, width: 2),
+              boxShadow: [
+                BoxShadow(color: theme.primaryColor.withValues(alpha: 0.2), blurRadius: 24, spreadRadius: 4),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.file_download_outlined, size: 48, color: theme.primaryColor),
+                const SizedBox(height: 12),
+                Text(
+                  message,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color: theme.textPrimary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 // =============================================================================
