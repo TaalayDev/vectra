@@ -25,6 +25,8 @@ _$VecLayerImpl _$$VecLayerImplFromJson(Map<String, dynamic> json) =>
               ?.map((e) => VecShape.fromJson(e as Map<String, dynamic>))
               .toList() ??
           const [],
+      isReference: json['isReference'] as bool? ?? false,
+      referenceOpacity: (json['referenceOpacity'] as num?)?.toDouble() ?? 0.5,
     );
 
 Map<String, dynamic> _$$VecLayerImplToJson(_$VecLayerImpl instance) =>
@@ -38,9 +40,12 @@ Map<String, dynamic> _$$VecLayerImplToJson(_$VecLayerImpl instance) =>
       'order': instance.order,
       'parentId': instance.parentId,
       'shapes': instance.shapes,
+      'isReference': instance.isReference,
+      'referenceOpacity': instance.referenceOpacity,
     };
 
 const _$VecLayerTypeEnumMap = {
   VecLayerType.normal: 'normal',
   VecLayerType.guide: 'guide',
+  VecLayerType.raster: 'raster',
 };

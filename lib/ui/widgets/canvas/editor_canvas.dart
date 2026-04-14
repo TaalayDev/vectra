@@ -27,6 +27,7 @@ import '../../../core/tools/knife_tool.dart';
 import '../../../core/tools/select_tool_handler.dart';
 import '../../../data/models/vec_document.dart';
 import '../../../data/models/vec_color.dart';
+import '../../../data/models/vec_layer.dart';
 import '../../../data/models/vec_shape.dart';
 import '../../../data/models/vec_symbol.dart';
 import '../../../data/models/vec_transform.dart';
@@ -148,6 +149,12 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
 
   // Free Draw tool state
   final List<Offset> _freedrawPoints = []; // canvas-space freehand stroke
+
+  // Touch gesture state (two-finger pan + pinch-to-zoom)
+  bool _touchIsMulti = false;
+  double _touchZoomBase = 1.0;
+  Offset _touchPanBase = Offset.zero;
+  Offset _touchFocalBase = Offset.zero;
 
   // Image cache: assetId → decoded ui.Image
   final Map<String, ui.Image> _imageCache = {};
@@ -534,7 +541,15 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
 
-                onPanStart: (details) {
+                onScaleStart: (details) {
+                  // Two-finger gesture: record base state for pinch-zoom + pan.
+                  if (details.pointerCount >= 2) {
+                    setState(() => _touchIsMulti = true);
+                    _touchZoomBase = ref.read(zoomLevelProvider);
+                    _touchPanBase = ref.read(canvasOffsetProvider);
+                    _touchFocalBase = details.localFocalPoint;
+                    return;
+                  }
                   if (_isPanning) return;
                   // ── Pipette mode: apply sampled color on click ────────────────
                   if (isPipetteMode) {
@@ -544,7 +559,7 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
                   // ── Guide drag from rulers ──────────────────────────────────────
                   final snapSettings = ref.read(snapSettingsProvider);
                   if (snapSettings.showRulers) {
-                    final pos = details.localPosition;
+                    final pos = details.localFocalPoint;
                     const rulerSize = 20.0;
                     final guides = ref.read(guidesProvider);
                     // Drag from horizontal ruler (top strip) → creates horizontal guide
@@ -599,20 +614,20 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
                     return;
                   }
                   if (isDrawingTool) {
-                    final local = _toCanvasPoint(details.localPosition);
+                    final local = _toCanvasPoint(details.localFocalPoint);
                     ref.read(activeDrawingProvider.notifier).start(local);
                     return;
                   }
                   if (isPenTool) {
-                    _handlePenPanStart(details, selectedShape, zoom);
+                    _handlePenPanStart(details.localFocalPoint, selectedShape, zoom);
                     return;
                   }
                   if (isBendTool) {
-                    _handleBendToolPanStart(details, selectedShape, displaySelectedShape, zoom);
+                    _handleBendToolPanStart(details.localFocalPoint, selectedShape, displaySelectedShape, zoom);
                     return;
                   }
                   if (isKnifeTool) {
-                    final local = _toCanvasPoint(details.localPosition);
+                    final local = _toCanvasPoint(details.localFocalPoint);
                     setState(() {
                       _knifePoints.clear();
                       _knifePoints.add(local);
@@ -620,7 +635,7 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
                     return;
                   }
                   if (isFreedrawTool) {
-                    final local = _toCanvasPoint(details.localPosition);
+                    final local = _toCanvasPoint(details.localFocalPoint);
                     setState(() {
                       _freedrawPoints.clear();
                       _freedrawPoints.add(local);
@@ -628,36 +643,48 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
                     return;
                   }
                   if (isSelectTool) {
-                    _handleSelectPanStart(details, scene, selectedShape, displaySelectedShape, zoom, activeGroup);
+                    _handleSelectPanStart(details.localFocalPoint, scene, selectedShape, displaySelectedShape, zoom, activeGroup);
                   }
                 },
 
-                onPanUpdate: (details) {
+                onScaleUpdate: (details) {
+                  // Ongoing two-finger gesture.
+                  if (_touchIsMulti || details.pointerCount >= 2) {
+                    if (!_touchIsMulti) {
+                      // Transitioned from 1→2 fingers mid-gesture; re-record base.
+                      setState(() => _touchIsMulti = true);
+                      _touchZoomBase = ref.read(zoomLevelProvider);
+                      _touchPanBase = ref.read(canvasOffsetProvider);
+                      _touchFocalBase = details.localFocalPoint;
+                    }
+                    _handleTouchZoomPan(details, viewportSize);
+                    return;
+                  }
                   // Guide drag update
                   if (_guideDragAxis != 0) {
-                    final cp = _toCanvasPoint(details.localPosition);
+                    final cp = _toCanvasPoint(details.localFocalPoint);
                     setState(() => _guideDragPos = _guideDragAxis == 1 ? cp.dy : cp.dx);
                     return;
                   }
                   if (_isPanning) {
-                    ref.read(canvasOffsetProvider.notifier).pan(details.delta);
+                    ref.read(canvasOffsetProvider.notifier).pan(details.focalPointDelta);
                     return;
                   }
                   if (isDrawingTool) {
-                    final local = _toCanvasPoint(details.localPosition);
+                    final local = _toCanvasPoint(details.localFocalPoint);
                     ref.read(activeDrawingProvider.notifier).update(local);
                     return;
                   }
                   if (isPenTool && (_isPenHandleDrag || _editNodeIndex >= 0)) {
-                    _handlePenPanUpdate(details, scene, selectedShape);
+                    _handlePenPanUpdate(details.localFocalPoint, scene, selectedShape);
                     return;
                   }
                   if (isBendTool && _bendToolDragging) {
-                    _handleBendToolPanUpdate(details, selectedShape, zoom);
+                    _handleBendToolPanUpdate(details.localFocalPoint, selectedShape, zoom);
                     return;
                   }
                   if (isKnifeTool && _knifePoints.isNotEmpty) {
-                    final local = _toCanvasPoint(details.localPosition);
+                    final local = _toCanvasPoint(details.localFocalPoint);
                     final last = _knifePoints.last;
                     // Throttle: only add if moved > 2 canvas units
                     if ((local - last).distance > 2.0) {
@@ -666,7 +693,7 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
                     return;
                   }
                   if (isFreedrawTool && _freedrawPoints.isNotEmpty) {
-                    final local = _toCanvasPoint(details.localPosition);
+                    final local = _toCanvasPoint(details.localFocalPoint);
                     final last = _freedrawPoints.last;
                     if ((local - last).distance > 2.0) {
                       setState(() => _freedrawPoints.add(local));
@@ -674,19 +701,24 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
                     return;
                   }
                   if (_selectDragMode == _SelectDragMode.motionPathNode) {
-                    _handleMpNodeDrag(details);
+                    _handleMpNodeDrag(details.localFocalPoint);
                     return;
                   }
                   if (isSelectTool && _isMarqueeDrag) {
-                    setState(() => _marqueeCurrentCanvas = _toCanvasPoint(details.localPosition));
+                    setState(() => _marqueeCurrentCanvas = _toCanvasPoint(details.localFocalPoint));
                     return;
                   }
                   if (isSelectTool && _selectDragMode != _SelectDragMode.none) {
-                    _handleSelectPanUpdate(details, scene, selectedShape, zoom, activeGroup);
+                    _handleSelectPanUpdate(details.localFocalPoint, scene, selectedShape, zoom, activeGroup);
                   }
                 },
 
-                onPanEnd: (details) {
+                onScaleEnd: (details) {
+                  // Two-finger gesture ended.
+                  if (_touchIsMulti) {
+                    setState(() => _touchIsMulti = false);
+                    return;
+                  }
                   // Guide drag commit / remove
                   if (_guideDragAxis != 0) {
                     final guidesNotifier = ref.read(guidesProvider.notifier);
@@ -1661,9 +1693,13 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
 
     // --- Normal mode ---
     final layers = List.from(scene.layers)..sort((a, b) => b.order.compareTo(a.order));
+    final activeLayerId = ref.read(activeLayerIdProvider);
 
     for (final layer in layers) {
       if (!layer.visible || layer.locked) continue;
+      // Raster layers are only hit-testable when they are the active layer so
+      // they don't intercept clicks intended for vector layers above them.
+      if (layer.type == VecLayerType.raster && layer.id != activeLayerId) continue;
       for (var i = layer.shapes.length - 1; i >= 0; i--) {
         final shape = layer.shapes[i];
         final t = shape.transform;
@@ -1711,14 +1747,14 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
   // ===========================================================================
 
   void _handleSelectPanStart(
-    DragStartDetails details,
+    Offset localPosition,
     dynamic scene,
     dynamic selectedShape,
     dynamic displaySelectedShape,
     double zoom,
     dynamic activeGroup,
   ) {
-    final canvasPoint = _toCanvasPoint(details.localPosition);
+    final canvasPoint = _toCanvasPoint(localPosition);
     final selectedIds = ref.read(selectedShapeIdsProvider);
 
     // --- Motion path node drag ---
@@ -1954,7 +1990,7 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
   }
 
   void _handleSelectPanUpdate(
-    DragUpdateDetails details,
+    Offset localPosition,
     dynamic scene,
     dynamic selectedShape,
     double zoom,
@@ -1964,7 +2000,7 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
     final layerId = ref.read(activeLayerIdProvider);
     if (layerId == null) return;
 
-    final canvasPoint = _toCanvasPoint(details.localPosition);
+    final canvasPoint = _toCanvasPoint(localPosition);
     final delta = canvasPoint - _dragStartCanvasPoint;
 
     // --- Multi-shape move ---
@@ -2128,7 +2164,7 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
         _SelectDragMode.rotate => '${(newCanvasTransform.rotation % 360).toStringAsFixed(1)}°',
         _ => null,
       };
-      _dragInfoPos = details.localPosition;
+      _dragInfoPos = localPosition;
     }
 
     if (_dragGroupTransform != null) {
@@ -2207,8 +2243,10 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
       }
     } else {
       // Normal mode: select shapes whose bounds overlap the marquee
+      final activeLayerId = ref.read(activeLayerIdProvider);
       for (final layer in scene.layers) {
         if (!layer.visible || layer.locked) continue;
+        if (layer.type == VecLayerType.raster && layer.id != activeLayerId) continue;
         for (final shape in layer.shapes) {
           final t = shape.transform;
           final shapeRect = Rect.fromLTWH(t.x, t.y, t.width, t.height);
@@ -2227,7 +2265,7 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
   // Pen tool — handle drag + node editing
   // ===========================================================================
 
-  void _handlePenPanStart(DragStartDetails details, dynamic selectedShape, double zoom) {
+  void _handlePenPanStart(Offset localPosition, dynamic selectedShape, double zoom) {
     final pen = ref.read(activePenDrawingProvider);
 
     // Case 1: currently drawing → pull handle from the last placed node
@@ -2240,7 +2278,7 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
     if (pen == null && selectedShape != null) {
       final pathShape = selectedShape.maybeMap(path: (s) => s, orElse: () => null);
       if (pathShape != null) {
-        final canvasPoint = _toCanvasPoint(details.localPosition);
+        final canvasPoint = _toCanvasPoint(localPosition);
         final nodeIdx = PathEditOverlayPainter.hitTestNode(pathShape, canvasPoint, zoom);
         if (nodeIdx != -1) {
           setState(() {
@@ -2256,8 +2294,8 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
     }
   }
 
-  void _handlePenPanUpdate(DragUpdateDetails details, dynamic scene, dynamic selectedShape) {
-    final canvasPoint = _toCanvasPoint(details.localPosition);
+  void _handlePenPanUpdate(Offset localPosition, dynamic scene, dynamic selectedShape) {
+    final canvasPoint = _toCanvasPoint(localPosition);
 
     if (_isPenHandleDrag) {
       ref.read(activePenDrawingProvider.notifier).updateLastHandle(canvasPoint);
@@ -2375,13 +2413,13 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
   }
 
   void _handleBendToolPanStart(
-    DragStartDetails details,
+    Offset localPosition,
     dynamic selectedShape,
     dynamic displaySelectedShape,
     double zoom,
   ) {
     if (displaySelectedShape == null) return;
-    final canvasPoint = _toCanvasPoint(details.localPosition);
+    final canvasPoint = _toCanvasPoint(localPosition);
 
     final scene = ref.read(activeSceneProvider);
     final layerId = ref.read(activeLayerIdProvider);
@@ -2499,13 +2537,13 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
     });
   }
 
-  void _handleBendToolPanUpdate(DragUpdateDetails details, dynamic selectedShape, double zoom) {
+  void _handleBendToolPanUpdate(Offset localPosition, dynamic selectedShape, double zoom) {
     if (selectedShape == null) return;
     final scene = ref.read(activeSceneProvider);
     final layerId = ref.read(activeLayerIdProvider);
     if (scene == null || layerId == null) return;
 
-    final canvasPoint = _toCanvasPoint(details.localPosition);
+    final canvasPoint = _toCanvasPoint(localPosition);
     final tr = _dragStartTransform!;
 
     // Transforming a corner node directly
@@ -3280,6 +3318,22 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
   }
 
   // ===========================================================================
+  // ===========================================================================
+  // Touch gesture — two-finger pan + pinch-to-zoom
+  // ===========================================================================
+
+  void _handleTouchZoomPan(ScaleUpdateDetails details, Size viewportSize) {
+    final newZoom = (_touchZoomBase * details.scale).clamp(0.01, 64.0);
+    final viewCenter = Offset(viewportSize.width / 2, viewportSize.height / 2);
+    final focalFromCenter = _touchFocalBase - viewCenter - _touchPanBase;
+    final scaleRatio = newZoom / _touchZoomBase;
+    final anchoredPan = _touchPanBase - focalFromCenter * (scaleRatio - 1);
+    final focalDelta = details.localFocalPoint - _touchFocalBase;
+    final newPan = anchoredPan + focalDelta;
+    ref.read(zoomLevelProvider.notifier).set(newZoom);
+    ref.read(canvasOffsetProvider.notifier).set(newPan);
+  }
+
   // Scroll-to-zoom
   // ===========================================================================
 
@@ -3540,7 +3594,7 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
   // Motion path — node drag
   // ===========================================================================
 
-  void _handleMpNodeDrag(DragUpdateDetails details) {
+  void _handleMpNodeDrag(Offset localPosition) {
     final pathId = _mpDragPathId;
     final nodeIdx = _mpDragNodeIndex;
     if (pathId == null || nodeIdx < 0) return;
@@ -3548,7 +3602,7 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
     final scene = ref.read(activeSceneProvider);
     if (scene == null) return;
 
-    final canvasPoint = _toCanvasPoint(details.localPosition);
+    final canvasPoint = _toCanvasPoint(localPosition);
     final mp = scene.motionPaths.where((p) => p.id == pathId).firstOrNull;
     if (mp == null || nodeIdx >= mp.nodes.length) return;
 

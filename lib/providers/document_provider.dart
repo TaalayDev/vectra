@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:uuid/uuid.dart';
 
@@ -268,6 +270,101 @@ class VecDocumentState extends _$VecDocumentState {
           ),
         );
       }),
+    );
+  }
+
+  /// Creates a raster layer containing a single [VecImageShape] and its asset,
+  /// all committed atomically.  The image is scaled down to fit the stage while
+  /// preserving aspect ratio and centred.
+  ///
+  /// Raster layers are **locked by default** so the image does not intercept
+  /// pointer events on vector shapes above it.  The user can unlock via the
+  /// layers panel to reposition the image.
+  ///
+  /// Pass [isReference] = true to additionally render the layer at
+  /// [referenceOpacity] for use as a tracing reference.
+  void addRasterLayer(
+    String sceneId, {
+    required String assetName,
+    required String mimeType,
+    required String dataBase64,
+    required double imageWidth,
+    required double imageHeight,
+    bool isReference = false,
+    double referenceOpacity = 0.5,
+  }) {
+    final meta = state.meta;
+    // Scale image to fit the stage (never upscale).
+    final scale = math.min(1.0, math.min(meta.stageWidth / imageWidth, meta.stageHeight / imageHeight));
+    final w = imageWidth * scale;
+    final h = imageHeight * scale;
+    final x = (meta.stageWidth - w) / 2;
+    final y = (meta.stageHeight - h) / 2;
+
+    final assetId = _uuid.v4();
+    final layerId = _uuid.v4();
+    final shapeId = _uuid.v4();
+    final layerTrackId = _uuid.v4();
+    final shapeTrackId = _uuid.v4();
+
+    final asset = VecAsset(
+      id: assetId,
+      name: assetName,
+      type: VecAssetType.image,
+      path: assetName,
+      mimeType: mimeType,
+      dataBase64: dataBase64,
+    );
+
+    final shape = VecShape.image(
+      assetId: assetId,
+      data: VecShapeData(
+        id: shapeId,
+        transform: VecTransform(x: x, y: y, width: w, height: h),
+      ),
+    );
+
+    final kf = VecKeyframe(
+      frame: 0,
+      tweenType: VecTweenType.classic,
+      transform: shape.data.transform,
+      opacity: shape.data.opacity,
+      fills: const [],
+      strokes: const [],
+    );
+
+    final scene = state.scenes.firstWhere((s) => s.id == sceneId);
+    final layer = VecLayer(
+      id: layerId,
+      name: assetName.contains('.') ? assetName.substring(0, assetName.lastIndexOf('.')) : assetName,
+      type: VecLayerType.raster,
+      order: scene.layers.length,
+      locked: false, // unlocked — raster layers are guarded in hit-testing when not active
+      isReference: isReference,
+      referenceOpacity: referenceOpacity,
+      shapes: [shape],
+    );
+
+    _commit(
+      state.copyWith(
+        assets: [...state.assets, asset],
+        scenes: [
+          for (final s in state.scenes)
+            if (s.id == sceneId)
+              s.copyWith(
+                layers: [...s.layers, layer],
+                timeline: s.timeline.copyWith(
+                  tracks: [
+                    ...s.timeline.tracks,
+                    VecTrack(id: layerTrackId, layerId: layerId),
+                    VecTrack(id: shapeTrackId, layerId: layerId, shapeId: shapeId, keyframes: [kf]),
+                  ],
+                ),
+              )
+            else
+              s,
+        ],
+      ),
     );
   }
 

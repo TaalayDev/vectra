@@ -192,20 +192,35 @@ class _LayerRowState extends ConsumerState<LayerRow> {
                         ),
                 ),
 
-                // Guide badge
+                // Type badge (Guide / Raster)
                 if (layer.type == VecLayerType.guide)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 4),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 4, vertical: 1),
-                      decoration: BoxDecoration(
-                        color: t.surfaceVariant,
-                        borderRadius: BorderRadius.circular(3),
-                      ),
-                      child: Text('G',
-                          style: TextStyle(
-                              fontSize: 8, color: t.textDisabled)),
+                  _LayerTypeBadge(label: 'G', theme: t),
+                if (layer.type == VecLayerType.raster)
+                  _LayerTypeBadge(
+                    label: 'R',
+                    theme: t,
+                    color: t.accentColor.withAlpha(180),
+                  ),
+
+                // Reference toggle (raster layers only)
+                if (layer.type == VecLayerType.raster)
+                  Tooltip(
+                    message: layer.isReference ? 'Reference (click to disable)' : 'Use as reference',
+                    child: _SmallIconButton(
+                      icon: layer.isReference
+                          ? Icons.speaker_notes_outlined
+                          : Icons.speaker_notes_off_outlined,
+                      color: layer.isReference ? t.accentColor : t.textDisabled,
+                      onTap: () => ref
+                          .read(vecDocumentStateProvider.notifier)
+                          .updateLayer(
+                            widget.sceneId,
+                            layer.id,
+                            (l) => l.copyWith(
+                              isReference: !l.isReference,
+                              locked: !l.isReference, // lock when enabling reference
+                            ),
+                          ),
                     ),
                   ),
 
@@ -322,6 +337,36 @@ class _RenameField extends StatelessWidget {
       ),
       onSubmitted: (_) => onCommit(),
       onTapOutside: (_) => onCommit(),
+    );
+  }
+}
+
+// =============================================================================
+// Layer type badge (Guide / Raster)
+// =============================================================================
+
+class _LayerTypeBadge extends StatelessWidget {
+  const _LayerTypeBadge({required this.label, required this.theme, this.color});
+
+  final String label;
+  final AppTheme theme;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 2),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+        decoration: BoxDecoration(
+          color: theme.surfaceVariant,
+          borderRadius: BorderRadius.circular(3),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(fontSize: 8, color: color ?? theme.textDisabled),
+        ),
+      ),
     );
   }
 }

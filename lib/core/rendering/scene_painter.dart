@@ -45,9 +45,17 @@ class ScenePainter extends CustomPainter {
       if (!layer.visible) continue;
       if (layer.type == VecLayerType.guide && !showGuides) continue;
 
+      final needsOpacityLayer = layer.isReference && layer.referenceOpacity < 1.0;
+      if (needsOpacityLayer) {
+        final alpha = (layer.referenceOpacity.clamp(0.0, 1.0) * 255).round();
+        canvas.saveLayer(null, ui.Paint()..color = ui.Color.fromARGB(alpha, 255, 255, 255));
+      }
+
       for (final shape in layer.shapes) {
         renderer.render(canvas, shape);
       }
+
+      if (needsOpacityLayer) canvas.restore();
     }
   }
 

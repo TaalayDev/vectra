@@ -1,13 +1,16 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_vector_icons/flutter_vector_icons.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:image/image.dart' as img;
 
 import '../../app/theme/theme.dart';
 import '../../core/import/svg_importer.dart';
@@ -209,15 +212,49 @@ class HomeScreen extends HookConsumerWidget {
         if (context.mounted) {
           Navigator.of(context).push(MaterialPageRoute(builder: (_) => const EditorScreen()));
         }
+      } else if (_kImageExtensions.contains(ext)) {
+        final fileName = path.split(Platform.pathSeparator).last;
+        final bytes = await File(path).readAsBytes();
+        final dims = await compute(_decodeImageDimensions, bytes);
+        if (dims == null) return;
+        // Create a new document sized to the image.
+        final docName = fileName.contains('.') ? fileName.substring(0, fileName.lastIndexOf('.')) : fileName;
+        final stageW = dims.$1.toDouble();
+        final stageH = dims.$2.toDouble();
+        ref.read(vecDocumentStateProvider.notifier).newDocument(
+          name: docName,
+          stageWidth: stageW,
+          stageHeight: stageH,
+          fps: 24,
+        );
+        final doc = ref.read(vecDocumentStateProvider);
+        if (doc.scenes.isNotEmpty) {
+          ref.read(vecDocumentStateProvider.notifier).addRasterLayer(
+            doc.scenes.first.id,
+            assetName: fileName,
+            mimeType: _mimeFromExt(ext),
+            dataBase64: base64Encode(bytes),
+            imageWidth: stageW,
+            imageHeight: stageH,
+          );
+        }
+        if (context.mounted) {
+          Navigator.of(context).push(MaterialPageRoute(builder: (_) => const EditorScreen()));
+        }
       }
     }
 
     return Scaffold(
       backgroundColor: theme.background,
       body: DropTarget(
-        onDragEntered: (_) => isDragging.value = true,
+        onDragEntered: (_) {
+          if (ModalRoute.of(context)?.isCurrent ?? false) isDragging.value = true;
+        },
         onDragExited: (_) => isDragging.value = false,
-        onDragDone: handleDrop,
+        onDragDone: (detail) {
+          if (!(ModalRoute.of(context)?.isCurrent ?? false)) return;
+          handleDrop(detail);
+        },
         child: Stack(
           children: [
             Positioned.fill(
@@ -247,7 +284,7 @@ class HomeScreen extends HookConsumerWidget {
                   ? _WideLayout(theme: theme, recentProjects: recentProjects)
                   : _NarrowLayout(theme: theme, recentProjects: recentProjects, isMedium: isMedium),
             ),
-            if (isDragging.value) _DropOverlay(theme: theme, message: 'Drop .vct or .svg to open'),
+            if (isDragging.value) _DropOverlay(theme: theme, message: 'Drop .vct  ·  .svg  ·  or image to open'),
           ],
         ),
       ),
@@ -1295,6 +1332,28 @@ VecShape _translateShape(VecShape shape, double dx, double dy) {
     image: (s) => s.copyWith(data: shift(s.data)),
     group: (s) => s.copyWith(data: shift(s.data)),
   );
+}
+
+// =============================================================================
+// Image drop helpers
+// =============================================================================
+
+const _kImageExtensions = {'png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'};
+
+String _mimeFromExt(String ext) => switch (ext) {
+  'png' => 'image/png',
+  'jpg' || 'jpeg' => 'image/jpeg',
+  'gif' => 'image/gif',
+  'bmp' => 'image/bmp',
+  'webp' => 'image/webp',
+  _ => 'image/*',
+};
+
+/// Top-level function so it can be passed to [compute].
+(int, int)? _decodeImageDimensions(Uint8List bytes) {
+  final decoded = img.decodeImage(bytes);
+  if (decoded == null) return null;
+  return (decoded.width, decoded.height);
 }
 
 // =============================================================================

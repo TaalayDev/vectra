@@ -31,6 +31,13 @@ mixin _$VecLayer {
   String? get parentId => throw _privateConstructorUsedError;
   List<VecShape> get shapes => throw _privateConstructorUsedError;
 
+  /// When true this layer acts as a non-destructive tracing reference.
+  /// It renders at [referenceOpacity] and is auto-locked.
+  bool get isReference => throw _privateConstructorUsedError;
+
+  /// Opacity used when [isReference] is true (0–1).
+  double get referenceOpacity => throw _privateConstructorUsedError;
+
   /// Serializes this VecLayer to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
 
@@ -56,6 +63,8 @@ abstract class $VecLayerCopyWith<$Res> {
     int order,
     String? parentId,
     List<VecShape> shapes,
+    bool isReference,
+    double referenceOpacity,
   });
 
   $VecColorCopyWith<$Res>? get colorDot;
@@ -85,6 +94,8 @@ class _$VecLayerCopyWithImpl<$Res, $Val extends VecLayer>
     Object? order = null,
     Object? parentId = freezed,
     Object? shapes = null,
+    Object? isReference = null,
+    Object? referenceOpacity = null,
   }) {
     return _then(
       _value.copyWith(
@@ -124,6 +135,14 @@ class _$VecLayerCopyWithImpl<$Res, $Val extends VecLayer>
                 ? _value.shapes
                 : shapes // ignore: cast_nullable_to_non_nullable
                       as List<VecShape>,
+            isReference: null == isReference
+                ? _value.isReference
+                : isReference // ignore: cast_nullable_to_non_nullable
+                      as bool,
+            referenceOpacity: null == referenceOpacity
+                ? _value.referenceOpacity
+                : referenceOpacity // ignore: cast_nullable_to_non_nullable
+                      as double,
           )
           as $Val,
     );
@@ -163,6 +182,8 @@ abstract class _$$VecLayerImplCopyWith<$Res>
     int order,
     String? parentId,
     List<VecShape> shapes,
+    bool isReference,
+    double referenceOpacity,
   });
 
   @override
@@ -192,6 +213,8 @@ class __$$VecLayerImplCopyWithImpl<$Res>
     Object? order = null,
     Object? parentId = freezed,
     Object? shapes = null,
+    Object? isReference = null,
+    Object? referenceOpacity = null,
   }) {
     return _then(
       _$VecLayerImpl(
@@ -231,6 +254,14 @@ class __$$VecLayerImplCopyWithImpl<$Res>
             ? _value._shapes
             : shapes // ignore: cast_nullable_to_non_nullable
                   as List<VecShape>,
+        isReference: null == isReference
+            ? _value.isReference
+            : isReference // ignore: cast_nullable_to_non_nullable
+                  as bool,
+        referenceOpacity: null == referenceOpacity
+            ? _value.referenceOpacity
+            : referenceOpacity // ignore: cast_nullable_to_non_nullable
+                  as double,
       ),
     );
   }
@@ -249,6 +280,8 @@ class _$VecLayerImpl implements _VecLayer {
     this.order = 0,
     this.parentId,
     final List<VecShape> shapes = const [],
+    this.isReference = false,
+    this.referenceOpacity = 0.5,
   }) : _shapes = shapes;
 
   factory _$VecLayerImpl.fromJson(Map<String, dynamic> json) =>
@@ -283,9 +316,20 @@ class _$VecLayerImpl implements _VecLayer {
     return EqualUnmodifiableListView(_shapes);
   }
 
+  /// When true this layer acts as a non-destructive tracing reference.
+  /// It renders at [referenceOpacity] and is auto-locked.
+  @override
+  @JsonKey()
+  final bool isReference;
+
+  /// Opacity used when [isReference] is true (0–1).
+  @override
+  @JsonKey()
+  final double referenceOpacity;
+
   @override
   String toString() {
-    return 'VecLayer(id: $id, name: $name, type: $type, visible: $visible, locked: $locked, colorDot: $colorDot, order: $order, parentId: $parentId, shapes: $shapes)';
+    return 'VecLayer(id: $id, name: $name, type: $type, visible: $visible, locked: $locked, colorDot: $colorDot, order: $order, parentId: $parentId, shapes: $shapes, isReference: $isReference, referenceOpacity: $referenceOpacity)';
   }
 
   @override
@@ -303,7 +347,11 @@ class _$VecLayerImpl implements _VecLayer {
             (identical(other.order, order) || other.order == order) &&
             (identical(other.parentId, parentId) ||
                 other.parentId == parentId) &&
-            const DeepCollectionEquality().equals(other._shapes, _shapes));
+            const DeepCollectionEquality().equals(other._shapes, _shapes) &&
+            (identical(other.isReference, isReference) ||
+                other.isReference == isReference) &&
+            (identical(other.referenceOpacity, referenceOpacity) ||
+                other.referenceOpacity == referenceOpacity));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -319,6 +367,8 @@ class _$VecLayerImpl implements _VecLayer {
     order,
     parentId,
     const DeepCollectionEquality().hash(_shapes),
+    isReference,
+    referenceOpacity,
   );
 
   /// Create a copy of VecLayer
@@ -346,6 +396,8 @@ abstract class _VecLayer implements VecLayer {
     final int order,
     final String? parentId,
     final List<VecShape> shapes,
+    final bool isReference,
+    final double referenceOpacity,
   }) = _$VecLayerImpl;
 
   factory _VecLayer.fromJson(Map<String, dynamic> json) =
@@ -369,6 +421,15 @@ abstract class _VecLayer implements VecLayer {
   String? get parentId;
   @override
   List<VecShape> get shapes;
+
+  /// When true this layer acts as a non-destructive tracing reference.
+  /// It renders at [referenceOpacity] and is auto-locked.
+  @override
+  bool get isReference;
+
+  /// Opacity used when [isReference] is true (0–1).
+  @override
+  double get referenceOpacity;
 
   /// Create a copy of VecLayer
   /// with the given fields replaced by the non-null parameter values.

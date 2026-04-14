@@ -3,10 +3,12 @@ import 'dart:io';
 
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:image/image.dart' as img;
 import 'package:uuid/uuid.dart';
 
 import '../../app/theme/theme.dart';
@@ -28,6 +30,24 @@ import '../widgets/workspace/workspace_layout.dart';
 const _uuid = Uuid();
 const _pasteOffset = 20.0;
 const _clipboardMime = 'application/x-vectra-shapes+json';
+
+const _kImageExtensions = {'png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'};
+
+String _mimeFromExt(String ext) => switch (ext) {
+  'png' => 'image/png',
+  'jpg' || 'jpeg' => 'image/jpeg',
+  'gif' => 'image/gif',
+  'bmp' => 'image/bmp',
+  'webp' => 'image/webp',
+  _ => 'image/*',
+};
+
+/// Top-level function so it can be passed to [compute].
+(int, int)? _decodeImageDimensions(Uint8List bytes) {
+  final decoded = img.decodeImage(bytes);
+  if (decoded == null) return null;
+  return (decoded.width, decoded.height);
+}
 
 String _encodeClipboardPayload(List<VecShape> shapes) {
   return jsonEncode({
@@ -519,8 +539,35 @@ class EditorScreen extends HookConsumerWidget {
                 final layerId = ref.read(activeLayerIdProvider);
                 if (scene == null || layerId == null) return;
                 ref.read(vecDocumentStateProvider.notifier).addShapes(scene.id, layerId, shapes);
-                final fileName = path.split('/').last;
+                final fileName = path.split(Platform.pathSeparator).last;
                 if (context.mounted) ref.read(toastProvider.notifier).show('Imported $fileName');
+              } else if (_kImageExtensions.contains(ext)) {
+                final scene = ref.read(activeSceneProvider);
+                if (scene == null) return;
+                final bytes = await File(path).readAsBytes();
+                final dims = await compute(_decodeImageDimensions, bytes);
+                final fileName = path.split(Platform.pathSeparator).last;
+                if (dims == null) {
+                  if (context.mounted) ref.read(toastProvider.notifier).show('Could not read image');
+                  return;
+                }
+                final dataBase64 = base64Encode(bytes);
+                ref
+                    .read(vecDocumentStateProvider.notifier)
+                    .addRasterLayer(
+                      scene.id,
+                      assetName: fileName,
+                      mimeType: _mimeFromExt(ext),
+                      dataBase64: dataBase64,
+                      imageWidth: dims.$1.toDouble(),
+                      imageHeight: dims.$2.toDouble(),
+                    );
+                // Switch active layer to the newly-created raster layer.
+                final newScene = ref.read(activeSceneProvider);
+                if (newScene != null && newScene.layers.isNotEmpty) {
+                  ref.read(activeLayerIdProvider.notifier).set(newScene.layers.last.id);
+                }
+                if (context.mounted) ref.read(toastProvider.notifier).show('Added raster layer: $fileName');
               }
             },
             child: Stack(
@@ -568,7 +615,7 @@ class _EditorDropOverlay extends StatelessWidget {
                   Icon(Icons.file_download_outlined, size: 48, color: theme.primaryColor),
                   const SizedBox(height: 12),
                   Text(
-                    'Drop .vct to open · .svg to import',
+                    'Drop .vct to open  ·  .svg to import  ·  image to raster layer',
                     style: theme.textTheme.titleMedium?.copyWith(color: theme.textPrimary, fontWeight: FontWeight.w600),
                   ),
                 ],
