@@ -13,6 +13,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../app/theme/theme.dart';
 import '../../core/import/svg_importer.dart';
+import '../../core/services/in_app_review_service.dart';
 import '../../core/tools/drawing_tool_handler.dart';
 import '../../data/models/vec_shape.dart';
 import '../../providers/clipboard_provider.dart';
@@ -121,12 +122,25 @@ class EditorScreen extends HookConsumerWidget {
           onUndo: () => ref.read(vecDocumentStateProvider.notifier).undo(),
           onRedo: () => ref.read(vecDocumentStateProvider.notifier).redo(),
           onSave: () async {
-            // Ctrl+S — only saves if document already has a file path.
-            // For new documents use Ctrl+Shift+S (Save As).
             final notifier = ref.read(vecDocumentStateProvider.notifier);
             if (notifier.hasFilePath) {
               await notifier.save();
               ref.read(toastProvider.notifier).show('Saved');
+              _maybeRequestReview();
+              return;
+            }
+            final docName = ref.read(vecDocumentStateProvider).meta.name;
+            final path = await FilePicker.platform.saveFile(
+              dialogTitle: 'Save document',
+              fileName: '$docName.vct',
+              type: FileType.custom,
+              allowedExtensions: ['vct'],
+            );
+            if (path != null) {
+              await notifier.saveAs(path);
+              final fileName = path.split('/').last;
+              ref.read(toastProvider.notifier).show('Saved as $fileName');
+              _maybeRequestReview();
             }
           },
           onSaveAs: () async {
@@ -142,6 +156,7 @@ class EditorScreen extends HookConsumerWidget {
               await notifier.saveAs(path);
               final fileName = path.split('/').last;
               ref.read(toastProvider.notifier).show('Saved as $fileName');
+              _maybeRequestReview();
             }
           },
           onZoomIn: () => ref.read(zoomLevelProvider.notifier).zoomIn(),
@@ -465,6 +480,20 @@ class EditorScreen extends HookConsumerWidget {
               ref.read(vecDocumentStateProvider.notifier).sendToBack(scene.id, layerId, shapeId);
             }
           },
+          onFlipH: () {
+            final scene = ref.read(activeSceneProvider);
+            final layerId = ref.read(activeLayerIdProvider);
+            final shapeId = ref.read(selectedShapeIdProvider);
+            if (scene == null || layerId == null || shapeId == null) return;
+            ref.read(vecDocumentStateProvider.notifier).flipHorizontal(scene.id, layerId, shapeId);
+          },
+          onFlipV: () {
+            final scene = ref.read(activeSceneProvider);
+            final layerId = ref.read(activeLayerIdProvider);
+            final shapeId = ref.read(selectedShapeIdProvider);
+            if (scene == null || layerId == null || shapeId == null) return;
+            ref.read(vecDocumentStateProvider.notifier).flipVertical(scene.id, layerId, shapeId);
+          },
           onExport: () => ExportDialog.show(context),
           onHelpSheet: () => showShortcutSheet(context, theme),
           onPipetteStart: () => ref.read(pipetteModeProvider.notifier).state = true,
@@ -495,8 +524,35 @@ class EditorScreen extends HookConsumerWidget {
               dialogTitle: 'Open document',
             );
             if (result != null && result.files.single.path != null) {
-              await notifier.openFile(result.files.single.path!);
-              final fileName = result.files.single.path!.split('/').last;
+              final filePath = result.files.single.path!;
+              await notifier.openFile(
+                filePath,
+                onAutosaveFound: (recovered) async {
+                  if (!context.mounted) return false;
+                  return await showDialog<bool>(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: const Text('Recover unsaved changes?'),
+                          content: const Text(
+                            'An autosaved version of this document was found. '
+                            'Do you want to restore it?',
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.of(ctx).pop(false),
+                              child: const Text('Discard'),
+                            ),
+                            TextButton(
+                              onPressed: () => Navigator.of(ctx).pop(true),
+                              child: const Text('Restore'),
+                            ),
+                          ],
+                        ),
+                      ) ??
+                      false;
+                },
+              );
+              final fileName = filePath.split('/').last;
               ref.read(toastProvider.notifier).show('Opened $fileName');
             }
           },
@@ -527,7 +583,33 @@ class EditorScreen extends HookConsumerWidget {
                   );
                   if (!(proceed ?? false)) return;
                 }
-                await notifier.openFile(path);
+                await notifier.openFile(
+                  path,
+                  onAutosaveFound: (recovered) async {
+                    if (!context.mounted) return false;
+                    return await showDialog<bool>(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            title: const Text('Recover unsaved changes?'),
+                            content: const Text(
+                              'An autosaved version of this document was found. '
+                              'Do you want to restore it?',
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.of(ctx).pop(false),
+                                child: const Text('Discard'),
+                              ),
+                              TextButton(
+                                onPressed: () => Navigator.of(ctx).pop(true),
+                                child: const Text('Restore'),
+                              ),
+                            ],
+                          ),
+                        ) ??
+                        false;
+                  },
+                );
                 final fileName = path.split('/').last;
                 if (context.mounted) ref.read(toastProvider.notifier).show('Opened $fileName');
               } else if (ext == 'svg') {
@@ -580,6 +662,18 @@ class EditorScreen extends HookConsumerWidget {
         ),
       ), // Scaffold
     ); // PopScope
+  }
+}
+
+// =============================================================================
+// Review request helper
+// =============================================================================
+
+void _maybeRequestReview() async {
+  final service = InAppReviewService();
+  await service.incrementProjectCount();
+  if (await service.shouldRequestReview()) {
+    await service.requestReview();
   }
 }
 

@@ -96,7 +96,7 @@ String _$undoAvailabilityHash() => r'f6e1d7f6aa75f3f5a877d00909343f23da1b08b8';
 /// Copied from [UndoAvailability].
 @ProviderFor(UndoAvailability)
 final undoAvailabilityProvider =
-    NotifierProvider<UndoAvailability, ({bool canUndo, bool canRedo})>.internal(
+    NotifierProvider<UndoAvailability, ({bool canUndo, bool canRedo, int undoDepth})>.internal(
       UndoAvailability.new,
       name: r'undoAvailabilityProvider',
       debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
@@ -106,7 +106,7 @@ final undoAvailabilityProvider =
       allTransitiveDependencies: null,
     );
 
-typedef _$UndoAvailability = Notifier<({bool canUndo, bool canRedo})>;
+typedef _$UndoAvailability = Notifier<({bool canUndo, bool canRedo, int undoDepth})>;
 String _$fitRequestHash() => r'a19e16965a48446f29f546408259ce3898a82b12';
 
 /// Incremented to request a zoom-to-fit from the canvas.

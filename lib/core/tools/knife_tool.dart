@@ -1,12 +1,9 @@
-import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/painting.dart';
 import 'package:uuid/uuid.dart';
 
-import '../../data/models/vec_path_node.dart';
 import '../../data/models/vec_shape.dart';
-import '../../data/models/vec_transform.dart';
 import '../pathfinder/pathfinder.dart';
 
 const _uuid = Uuid();
@@ -161,7 +158,17 @@ class KnifeTool {
       rectangle: (s) => _shapeToPath.convert(s),
       ellipse: (s) => _shapeToPath.convert(s),
       polygon: (s) => _shapeToPath.convert(s),
-      // Unsupported types
+      // Compound paths: flatten to canvas path via ShapeToPath
+      compound: (s) {
+        final p = _shapeToPath.convert(s);
+        return p.getBounds().isEmpty ? null : p;
+      },
+      // Groups: union of all child paths in canvas space
+      group: (s) {
+        final p = _shapeToPath.convert(s);
+        return p.getBounds().isEmpty ? null : p;
+      },
+      // Unsupported types (text, image, symbol instance)
       orElse: () => null,
     );
   }

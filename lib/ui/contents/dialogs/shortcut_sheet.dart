@@ -197,6 +197,10 @@ class _ShortcutSheetDialog extends StatelessWidget {
       _Entry('Move 1px', ['↑ ↓ ← →']),
       _Entry('Move 10px', ['⇧ + Arrow']),
     ]),
+    _Group('Transform', [
+      _Entry('Flip Horizontal', ['⇧', 'H']),
+      _Entry('Flip Vertical', ['⇧', 'V']),
+    ]),
   ];
 }
 

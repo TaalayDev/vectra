@@ -1,5 +1,3 @@
-import 'dart:ui' show Offset;
-
 import 'package:flutter/material.dart';
 
 import '../../data/models/vec_motion_path.dart';
@@ -176,24 +174,61 @@ class MotionPathOverlayPainter extends CustomPainter {
 // Hit-test helpers (used by editor_canvas)
 // ---------------------------------------------------------------------------
 
+enum MpHandleType { node, handleIn, handleOut }
+
 class MotionPathHitTest {
   const MotionPathHitTest._();
 
-  static const double _hitRadius = 8.0;
+  static const double _nodeHitRadius = 8.0;
+  static const double _handleHitRadius = 6.0;
 
-  /// Returns the (pathId, nodeIndex) of the node nearest to [canvasPos],
-  /// or null if nothing is within [_hitRadius / zoom] canvas units.
+  /// Returns the nearest motion-path node within the hit threshold, or null.
   static ({String pathId, int nodeIndex})? hitTestNode(
     List<VecMotionPath> paths,
     Offset canvasPos,
     double zoom,
   ) {
-    final threshold = _hitRadius / zoom;
+    final threshold = _nodeHitRadius / zoom;
     for (final mp in paths) {
       for (var i = 0; i < mp.nodes.length; i++) {
         final n = mp.nodes[i];
         final d = (Offset(n.position.x, n.position.y) - canvasPos).distance;
         if (d <= threshold) return (pathId: mp.id, nodeIndex: i);
+      }
+    }
+    return null;
+  }
+
+  /// Returns the nearest bezier handle (handleIn or handleOut) within the hit
+  /// threshold, or null. Checked separately from [hitTestNode] so handle drags
+  /// take priority when handles overlap with adjacent nodes.
+  static ({String pathId, int nodeIndex, MpHandleType handle})? hitTestHandle(
+    List<VecMotionPath> paths,
+    Offset canvasPos,
+    double zoom,
+  ) {
+    final threshold = _handleHitRadius / zoom;
+    for (final mp in paths) {
+      for (var i = 0; i < mp.nodes.length; i++) {
+        final n = mp.nodes[i];
+        if (n.handleIn != null) {
+          final d =
+              (Offset(n.handleIn!.x, n.handleIn!.y) - canvasPos).distance;
+          if (d <= threshold) {
+            return (pathId: mp.id, nodeIndex: i, handle: MpHandleType.handleIn);
+          }
+        }
+        if (n.handleOut != null) {
+          final d =
+              (Offset(n.handleOut!.x, n.handleOut!.y) - canvasPos).distance;
+          if (d <= threshold) {
+            return (
+              pathId: mp.id,
+              nodeIndex: i,
+              handle: MpHandleType.handleOut
+            );
+          }
+        }
       }
     }
     return null;

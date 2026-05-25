@@ -762,11 +762,77 @@ class _UndoRedoButtons extends ConsumerWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Onion skin toggle
+// Onion skin toggle + popover settings
 // ---------------------------------------------------------------------------
 
-class _OnionSkinToggle extends ConsumerWidget {
+class _OnionSkinToggle extends ConsumerStatefulWidget {
   const _OnionSkinToggle({required this.theme});
+
+  final AppTheme theme;
+
+  @override
+  ConsumerState<_OnionSkinToggle> createState() => _OnionSkinToggleState();
+}
+
+class _OnionSkinToggleState extends ConsumerState<_OnionSkinToggle> {
+  void _openPopover(BuildContext context) {
+    final renderBox = context.findRenderObject() as RenderBox?;
+    if (renderBox == null) return;
+    final offset = renderBox.localToGlobal(Offset.zero);
+    final size = renderBox.size;
+
+    showMenu<void>(
+      context: context,
+      color: Colors.transparent,
+      elevation: 0,
+      position: RelativeRect.fromLTRB(offset.dx, offset.dy + size.height + 4, offset.dx + 240, 0),
+      items: [
+        PopupMenuItem<void>(
+          enabled: false,
+          padding: EdgeInsets.zero,
+          child: _OnionPopover(theme: widget.theme),
+        ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final settings = ref.watch(onionSettingsProvider);
+    final notifier = ref.read(onionSettingsProvider.notifier);
+    final active = settings.enabled;
+
+    return Tooltip(
+      message: 'Onion skinning — tap to toggle, right-click for settings',
+      waitDuration: const Duration(milliseconds: 500),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: notifier.toggleEnabled,
+          onSecondaryTap: () => _openPopover(context),
+          onLongPress: () => _openPopover(context),
+          borderRadius: BorderRadius.circular(4),
+          hoverColor: widget.theme.primaryColor.withAlpha(20),
+          child: Container(
+            width: 28,
+            height: 28,
+            decoration: active
+                ? BoxDecoration(color: widget.theme.primaryColor.withAlpha(18), borderRadius: BorderRadius.circular(4))
+                : null,
+            child: Icon(
+              Icons.layers_outlined,
+              size: 15,
+              color: active ? widget.theme.primaryColor : widget.theme.inactiveIcon,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _OnionPopover extends ConsumerWidget {
+  const _OnionPopover({required this.theme});
 
   final AppTheme theme;
 
@@ -774,24 +840,201 @@ class _OnionSkinToggle extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(onionSettingsProvider);
     final notifier = ref.read(onionSettingsProvider.notifier);
-    final active = settings.enabled;
 
-    return Tooltip(
-      message: 'Onion skinning',
-      waitDuration: const Duration(milliseconds: 500),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: notifier.toggleEnabled,
-          borderRadius: BorderRadius.circular(4),
-          hoverColor: theme.primaryColor.withAlpha(20),
-          child: Container(
-            width: 28,
-            height: 28,
-            decoration: active
-                ? BoxDecoration(color: theme.primaryColor.withAlpha(18), borderRadius: BorderRadius.circular(4))
-                : null,
-            child: Icon(Icons.layers_outlined, size: 15, color: active ? theme.primaryColor : theme.inactiveIcon),
+    return Container(
+      width: 220,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: theme.divider, width: 0.5),
+        boxShadow: [BoxShadow(color: Colors.black.withAlpha(60), blurRadius: 12, offset: const Offset(0, 4))],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Onion Skinning',
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: theme.textPrimary),
+          ),
+          const SizedBox(height: 10),
+
+          _OnionRow(
+            label: 'Before',
+            value: settings.beforeFrames,
+            min: 0,
+            max: 10,
+            theme: theme,
+            onChanged: notifier.setBeforeFrames,
+          ),
+          const SizedBox(height: 6),
+          _OnionRow(
+            label: 'After',
+            value: settings.afterFrames,
+            min: 0,
+            max: 10,
+            theme: theme,
+            onChanged: notifier.setAfterFrames,
+          ),
+          const SizedBox(height: 8),
+
+          Row(
+            children: [
+              Text('Opacity', style: TextStyle(fontSize: 10, color: theme.textSecondary)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: SliderTheme(
+                  data: SliderThemeData(
+                    trackHeight: 2,
+                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5),
+                    overlayShape: const RoundSliderOverlayShape(overlayRadius: 10),
+                    activeTrackColor: theme.primaryColor,
+                    inactiveTrackColor: theme.divider,
+                    thumbColor: theme.primaryColor,
+                    overlayColor: theme.primaryColor.withAlpha(30),
+                  ),
+                  child: Slider(value: settings.opacity, min: 0.05, max: 1.0, onChanged: notifier.setOpacity),
+                ),
+              ),
+              SizedBox(
+                width: 32,
+                child: Text(
+                  '${(settings.opacity * 100).round()}%',
+                  style: TextStyle(fontSize: 10, color: theme.textDisabled),
+                  textAlign: TextAlign.right,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+
+          Row(
+            children: [
+              Text('Mode', style: TextStyle(fontSize: 10, color: theme.textSecondary)),
+              const Spacer(),
+              _ModeToggle(
+                label: 'Outline',
+                selected: settings.mode == OnionMode.outline,
+                theme: theme,
+                onTap: () => notifier.setMode(OnionMode.outline),
+              ),
+              const SizedBox(width: 4),
+              _ModeToggle(
+                label: 'Filled',
+                selected: settings.mode == OnionMode.filled,
+                theme: theme,
+                onTap: () => notifier.setMode(OnionMode.filled),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _OnionRow extends StatelessWidget {
+  const _OnionRow({
+    required this.label,
+    required this.value,
+    required this.min,
+    required this.max,
+    required this.theme,
+    required this.onChanged,
+  });
+
+  final String label;
+  final int value;
+  final int min;
+  final int max;
+  final AppTheme theme;
+  final void Function(int) onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 42,
+          child: Text(label, style: TextStyle(fontSize: 10, color: theme.textSecondary)),
+        ),
+        GestureDetector(
+          onTap: () {
+            if (value > min) onChanged(value - 1);
+          },
+          child: Icon(Icons.remove, size: 14, color: theme.textDisabled),
+        ),
+        const SizedBox(width: 4),
+        SizedBox(
+          width: 24,
+          child: Text(
+            '$value',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: theme.textPrimary),
+          ),
+        ),
+        const SizedBox(width: 4),
+        GestureDetector(
+          onTap: () {
+            if (value < max) onChanged(value + 1);
+          },
+          child: Icon(Icons.add, size: 14, color: theme.textDisabled),
+        ),
+        Expanded(
+          child: SliderTheme(
+            data: SliderThemeData(
+              trackHeight: 2,
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5),
+              overlayShape: const RoundSliderOverlayShape(overlayRadius: 10),
+              activeTrackColor: theme.primaryColor,
+              inactiveTrackColor: theme.divider,
+              thumbColor: theme.primaryColor,
+              overlayColor: theme.primaryColor.withAlpha(30),
+            ),
+            child: Slider(
+              value: value.toDouble(),
+              min: min.toDouble(),
+              max: max.toDouble(),
+              divisions: max - min,
+              onChanged: (v) => onChanged(v.round()),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ModeToggle extends StatelessWidget {
+  const _ModeToggle({required this.label, required this.selected, required this.theme, required this.onTap});
+
+  final String label;
+  final bool selected;
+  final AppTheme theme;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 120),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: selected ? theme.primaryColor.withAlpha(25) : theme.surfaceVariant,
+          borderRadius: BorderRadius.circular(5),
+          border: Border.all(
+            color: selected ? theme.primaryColor.withAlpha(150) : theme.divider.withAlpha(80),
+            width: 1,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 9,
+            fontWeight: selected ? FontWeight.w700 : FontWeight.normal,
+            color: selected ? theme.primaryColor : theme.textSecondary,
           ),
         ),
       ),

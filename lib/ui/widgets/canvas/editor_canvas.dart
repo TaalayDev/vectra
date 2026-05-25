@@ -21,6 +21,7 @@ import '../../../core/rendering/scene_painter.dart';
 import '../../../core/rendering/selection_overlay.dart';
 import '../../../core/utils/onion_painter.dart';
 import '../../../core/utils/shape_scaler.dart';
+import '../../../core/pathfinder/pathfinder.dart';
 import '../../../core/tools/drawing_tool_handler.dart';
 import '../../../core/tools/freedraw_tool_handler.dart';
 import '../../../core/tools/knife_tool.dart';
@@ -34,6 +35,8 @@ import '../../../data/models/vec_transform.dart';
 import '../../../data/models/vec_motion_path.dart';
 import '../../../data/models/vec_path_node.dart';
 import '../../../data/models/vec_point.dart';
+import '../../../data/models/vec_stroke.dart';
+import '../../../data/models/vec_width_profile.dart';
 import '../../../providers/animation_provider.dart';
 import '../../../providers/clipboard_provider.dart';
 import '../../../providers/document_provider.dart';
@@ -133,9 +136,10 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
   double _stageLeft = 0.0;
   double _stageTop = 0.0;
 
-  // Motion path node drag
+  // Motion path node/handle drag
   String? _mpDragPathId;
   int _mpDragNodeIndex = -1;
+  MpHandleType _mpDragHandleType = MpHandleType.node;
 
   // Drag info overlay (dimensions / position label shown during select-tool drag)
   String? _dragInfoText;
@@ -149,6 +153,12 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
 
   // Free Draw tool state
   final List<Offset> _freedrawPoints = []; // canvas-space freehand stroke
+
+  // Width tool state (VecTool.width)
+  bool _widthToolDragging = false;
+  double _widthToolDragStartT = 0.0;
+  Offset _widthToolDragStartCanvas = Offset.zero;
+  Offset _widthToolDragCurrentCanvas = Offset.zero;
 
   // Touch gesture state (two-finger pan + pinch-to-zoom)
   bool _touchIsMulti = false;
@@ -437,6 +447,7 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
     final isBendTool = activeTool == VecTool.bend;
     final isKnifeTool = activeTool == VecTool.knife;
     final isFreedrawTool = activeTool == VecTool.freedraw;
+    final isWidthTool = activeTool == VecTool.width;
     final freedrawSettings = ref.watch(freeDrawSettingsProvider);
 
     // For display purposes (selection overlay, handles, cursor hit-testing)
@@ -626,6 +637,10 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
                     _handleBendToolPanStart(details.localFocalPoint, selectedShape, displaySelectedShape, zoom);
                     return;
                   }
+                  if (isWidthTool) {
+                    _handleWidthToolPanStart(details.localFocalPoint, selectedShape);
+                    return;
+                  }
                   if (isKnifeTool) {
                     final local = _toCanvasPoint(details.localFocalPoint);
                     setState(() {
@@ -681,6 +696,10 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
                   }
                   if (isBendTool && _bendToolDragging) {
                     _handleBendToolPanUpdate(details.localFocalPoint, selectedShape, zoom);
+                    return;
+                  }
+                  if (isWidthTool && _widthToolDragging) {
+                    setState(() => _widthToolDragCurrentCanvas = _toCanvasPoint(details.localFocalPoint));
                     return;
                   }
                   if (isKnifeTool && _knifePoints.isNotEmpty) {
@@ -769,6 +788,10 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
                     });
                     return;
                   }
+                  if (isWidthTool && _widthToolDragging) {
+                    _finishWidthToolDrag(scene, selectedShape);
+                    return;
+                  }
                   if (isKnifeTool && _knifePoints.length >= 2) {
                     _executeKnifeCut(scene);
                     return;
@@ -787,6 +810,7 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
                       _selectDragMode = _SelectDragMode.none;
                       _mpDragPathId = null;
                       _mpDragNodeIndex = -1;
+                      _mpDragHandleType = MpHandleType.node;
                     });
                     return;
                   }
@@ -1208,6 +1232,25 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
                               ),
                             ),
                           ),
+
+                        // Width tool drag handle preview
+                        if (isWidthTool && _widthToolDragging)
+                          Positioned.fill(
+                            child: IgnorePointer(
+                              child: CustomPaint(
+                                painter: _WidthHandlePreviewPainter(
+                                  startCanvas: _widthToolDragStartCanvas,
+                                  currentCanvas: _widthToolDragCurrentCanvas,
+                                  zoom: zoom,
+                                  panOffset: panOffset,
+                                  viewportSize: viewportSize,
+                                  stageWidth: meta.stageWidth,
+                                  stageHeight: meta.stageHeight,
+                                  color: theme.primaryColor,
+                                ),
+                              ),
+                            ),
+                          ),
                       ],
                     ),
                   ),
@@ -1365,13 +1408,15 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
 
             if (scene != null)
               Positioned.fill(
-                child: ClipRect(
-                  child: CustomPaint(
-                    painter: ScenePainter(
-                      scene: scene,
-                      symbols: symbols.cast(),
-                      selectedShapeId: selectedShapeId,
-                      imageCache: _imageCache,
+                child: RepaintBoundary(
+                  child: ClipRect(
+                    child: CustomPaint(
+                      painter: ScenePainter(
+                        scene: scene,
+                        symbols: symbols.cast(),
+                        selectedShapeId: selectedShapeId,
+                        imageCache: _imageCache,
+                      ),
                     ),
                   ),
                 ),
@@ -1379,13 +1424,15 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
 
             if (drawing != null || penDrawing != null)
               Positioned.fill(
-                child: CustomPaint(
-                  painter: DrawingPreviewPainter(
-                    tool: activeTool,
-                    drawing: drawing,
-                    penDrawing: penDrawing,
-                    previewColor: theme.primaryColor,
-                    strokeColor: theme.selectionOutline,
+                child: RepaintBoundary(
+                  child: CustomPaint(
+                    painter: DrawingPreviewPainter(
+                      tool: activeTool,
+                      drawing: drawing,
+                      penDrawing: penDrawing,
+                      previewColor: theme.primaryColor,
+                      strokeColor: theme.selectionOutline,
+                    ),
                   ),
                 ),
               ),
@@ -1584,6 +1631,7 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
                   ),
                 ),
               ),
+
           ],
         ),
       ),
@@ -1757,14 +1805,26 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
     final canvasPoint = _toCanvasPoint(localPosition);
     final selectedIds = ref.read(selectedShapeIdsProvider);
 
-    // --- Motion path node drag ---
+    // --- Motion path handle / node drag ---
     final motionPaths = ref.read(activeSceneMotionPathsProvider);
+    final mpHandleHit =
+        MotionPathHitTest.hitTestHandle(motionPaths, canvasPoint, zoom);
+    if (mpHandleHit != null) {
+      setState(() {
+        _selectDragMode = _SelectDragMode.motionPathNode;
+        _mpDragPathId = mpHandleHit.pathId;
+        _mpDragNodeIndex = mpHandleHit.nodeIndex;
+        _mpDragHandleType = mpHandleHit.handle;
+      });
+      return;
+    }
     final mpHit = MotionPathHitTest.hitTestNode(motionPaths, canvasPoint, zoom);
     if (mpHit != null) {
       setState(() {
         _selectDragMode = _SelectDragMode.motionPathNode;
         _mpDragPathId = mpHit.pathId;
         _mpDragNodeIndex = mpHit.nodeIndex;
+        _mpDragHandleType = MpHandleType.node;
       });
       return;
     }
@@ -3508,6 +3568,93 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
     _addShapeToActiveLayer(shape);
   }
 
+  // ===========================================================================
+  // Width tool
+  // ===========================================================================
+
+  void _handleWidthToolPanStart(Offset screenPos, dynamic selectedShape) {
+    if (selectedShape == null) return;
+    final isPath = (selectedShape as VecShape).maybeMap(path: (_) => true, orElse: () => false);
+    if (!isPath) return;
+    final canvasPos = _toCanvasPoint(screenPos);
+    final path = const ShapeToPath().convert(selectedShape);
+    final t = _nearestTOnPath(path, canvasPos);
+    if (t == null) return;
+    setState(() {
+      _widthToolDragging = true;
+      _widthToolDragStartT = t;
+      _widthToolDragStartCanvas = canvasPos;
+      _widthToolDragCurrentCanvas = canvasPos;
+    });
+  }
+
+  void _finishWidthToolDrag(dynamic scene, dynamic selectedShape) {
+    setState(() => _widthToolDragging = false);
+    if (selectedShape == null || scene == null) return;
+    final layerId = ref.read(activeLayerIdProvider);
+    if (layerId == null) return;
+
+    final dragDist = (_widthToolDragCurrentCanvas - _widthToolDragStartCanvas).distance;
+    if (dragDist < 0.5) return;
+
+    final newPoint = VecWidthPoint(
+      position: _widthToolDragStartT.clamp(0.0, 1.0),
+      leftWidth: dragDist,
+      rightWidth: dragDist,
+    );
+
+    ref.read(vecDocumentStateProvider.notifier).updateShape(
+      scene.id,
+      layerId,
+      (selectedShape as VecShape).id,
+      (s) => s.maybeMap(
+        path: (p) {
+          if (p.data.strokes.isEmpty) return s;
+          final existing = p.data.strokes.first.widthProfile?.points ?? const [];
+          final filtered = existing
+              .where((wp) => (wp.position - newPoint.position).abs() > 0.02)
+              .toList();
+          filtered
+            ..add(newPoint)
+            ..sort((a, b) => a.position.compareTo(b.position));
+          final newStrokes = [
+            p.data.strokes.first.copyWith(widthProfile: VecWidthProfile(points: filtered)),
+            ...p.data.strokes.skip(1),
+          ];
+          return p.copyWith(data: p.data.copyWith(strokes: newStrokes));
+        },
+        orElse: () => s,
+      ),
+    );
+  }
+
+  double? _nearestTOnPath(ui.Path path, Offset canvasPos) {
+    double? bestT;
+    double bestDist = double.infinity;
+    double totalLen = 0.0;
+    for (final m in path.computeMetrics()) {
+      totalLen += m.length;
+    }
+    if (totalLen <= 0) return null;
+
+    double accumulated = 0.0;
+    for (final m in path.computeMetrics()) {
+      const steps = 60;
+      for (var i = 0; i <= steps; i++) {
+        final d = m.length * i / steps;
+        final tangent = m.getTangentForOffset(d);
+        if (tangent == null) continue;
+        final dist = (tangent.position - canvasPos).distance;
+        if (dist < bestDist) {
+          bestDist = dist;
+          bestT = (accumulated + d) / totalLen;
+        }
+      }
+      accumulated += m.length;
+    }
+    return bestT;
+  }
+
   void _addShapeToActiveLayer(dynamic shape) {
     final scene = ref.read(activeSceneProvider);
     final layerId = ref.read(activeLayerIdProvider);
@@ -3606,14 +3753,22 @@ class _EditorCanvasState extends ConsumerState<EditorCanvas> {
     final mp = scene.motionPaths.where((p) => p.id == pathId).firstOrNull;
     if (mp == null || nodeIdx >= mp.nodes.length) return;
 
+    final pt = VecPoint(x: canvasPoint.dx, y: canvasPoint.dy);
+    final node = mp.nodes[nodeIdx];
+
+    VecPathNode updatedNode;
+    switch (_mpDragHandleType) {
+      case MpHandleType.handleIn:
+        updatedNode = node.copyWith(handleIn: pt);
+      case MpHandleType.handleOut:
+        updatedNode = node.copyWith(handleOut: pt);
+      case MpHandleType.node:
+        updatedNode = node.copyWith(position: pt);
+    }
+
     final updatedNodes = [
       for (var i = 0; i < mp.nodes.length; i++)
-        if (i == nodeIdx)
-          mp.nodes[i].copyWith(
-            position: VecPoint(x: canvasPoint.dx, y: canvasPoint.dy),
-          )
-        else
-          mp.nodes[i],
+        if (i == nodeIdx) updatedNode else mp.nodes[i],
     ];
 
     ref.read(vecDocumentStateProvider.notifier).updateMotionPathNodesNoHistory(scene.id, pathId, updatedNodes);
@@ -4395,6 +4550,64 @@ class _PipetteMagnifier extends StatelessWidget {
       ],
     );
   }
+}
+
+// =============================================================================
+// Width tool handle preview painter
+// =============================================================================
+
+class _WidthHandlePreviewPainter extends CustomPainter {
+  const _WidthHandlePreviewPainter({
+    required this.startCanvas,
+    required this.currentCanvas,
+    required this.zoom,
+    required this.panOffset,
+    required this.viewportSize,
+    required this.stageWidth,
+    required this.stageHeight,
+    required this.color,
+  });
+
+  final Offset startCanvas;
+  final Offset currentCanvas;
+  final double zoom;
+  final Offset panOffset;
+  final Size viewportSize;
+  final double stageWidth;
+  final double stageHeight;
+  final Color color;
+
+  Offset _toScreen(Offset canvas) {
+    final cx = viewportSize.width / 2 + panOffset.dx;
+    final cy = viewportSize.height / 2 + panOffset.dy;
+    final ox = cx - stageWidth * zoom / 2;
+    final oy = cy - stageHeight * zoom / 2;
+    return Offset(ox + canvas.dx * zoom, oy + canvas.dy * zoom);
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final start = _toScreen(startCanvas);
+    final end = _toScreen(currentCanvas);
+    final dist = (end - start).distance;
+    if (dist < 1) return;
+
+    final linePaint = Paint()
+      ..color = color.withAlpha(200)
+      ..strokeWidth = 1.5
+      ..style = PaintingStyle.stroke;
+    canvas.drawLine(start, end, linePaint);
+
+    final dotPaint = Paint()..color = color;
+    canvas.drawCircle(start, 4, dotPaint);
+    canvas.drawCircle(end, 3, dotPaint..color = color.withAlpha(160));
+  }
+
+  @override
+  bool shouldRepaint(covariant _WidthHandlePreviewPainter old) =>
+      old.startCanvas != startCanvas ||
+      old.currentCanvas != currentCanvas ||
+      old.zoom != zoom;
 }
 
 class _MagnifierPainter extends CustomPainter {

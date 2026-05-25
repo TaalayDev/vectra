@@ -1,11 +1,10 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:archive/archive_io.dart';
-// import 'package:ffmpeg_kit_flutter_new/ffmpeg_kit.dart';
-// import 'package:ffmpeg_kit_flutter_new/return_code.dart';
+import 'package:ffmpeg_kit_flutter_new/ffmpeg_kit.dart';
+import 'package:ffmpeg_kit_flutter_new/return_code.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart' show Rect, Paint, Size;
@@ -91,8 +90,8 @@ class ExportError extends ExportResult {
 class ExportService {
   ExportService();
 
-  static const _svgExporter = SvgExporter();
-  static const _lottieExporter = LottieExporter();
+  static final _svgExporter = SvgExporter();
+  static final _lottieExporter = LottieExporter();
 
   Future<ExportResult> export(
     VecDocument doc,
@@ -282,6 +281,9 @@ class ExportService {
     if (kIsWeb) {
       return const ExportError('MP4 export is not supported in the web version.');
     }
+    if (!Platform.isMacOS && !Platform.isIOS && !Platform.isAndroid) {
+      return const ExportError('MP4 export is not supported on this platform. Please use PNG sequence or GIF instead.');
+    }
     final totalFrames = scene.timeline.duration;
     final fps = doc.meta.fps.clamp(1, 120);
     final w = _ensureEven((doc.meta.stageWidth * config.scale).round());
@@ -320,24 +322,24 @@ class ExportService {
 
       // ── 2. Encode with FFmpegKit ──────────────────────────────────────────
       onProgress?.call(0.72);
-      // final cmd =
-      //     '-y '
-      //     '-framerate $fps '
-      //     '-i ${framesDir.path}/frame_%04d.png '
-      //     '-c:v libx264 '
-      //     '-preset medium '
-      //     '-crf 18 '
-      //     '-pix_fmt yuv420p '
-      //     '-movflags +faststart '
-      //     '$finalPath';
+      final cmd =
+          '-y '
+          '-framerate $fps '
+          '-i ${framesDir.path}/frame_%04d.png '
+          '-c:v libx264 '
+          '-preset medium '
+          '-crf 18 '
+          '-pix_fmt yuv420p '
+          '-movflags +faststart '
+          '$finalPath';
 
-      // final session = await FFmpegKit.execute(cmd);
-      // final rc = await session.getReturnCode();
+      final session = await FFmpegKit.execute(cmd);
+      final rc = await session.getReturnCode();
 
-      // if (!ReturnCode.isSuccess(rc)) {
-      //   final logs = await session.getAllLogsAsString();
-      //   return ExportError('FFmpeg encoding failed:\n$logs');
-      // }
+      if (!ReturnCode.isSuccess(rc)) {
+        final logs = await session.getAllLogsAsString();
+        return ExportError('FFmpeg encoding failed:\n$logs');
+      }
 
       onProgress?.call(1.0);
 

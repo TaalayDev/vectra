@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import '../../data/models/vec_asset.dart';
 import '../../data/models/vec_document.dart';
 import '../../data/models/vec_effect.dart';
 import '../../data/models/vec_fill.dart';
@@ -9,17 +10,33 @@ import '../../data/models/vec_scene.dart';
 import '../../data/models/vec_path_node.dart';
 import '../../data/models/vec_shape.dart';
 import '../../data/models/vec_stroke.dart';
+import '../../data/models/vec_symbol.dart';
 import '../../data/models/vec_track.dart';
 
 /// Generates a Lottie-compatible JSON from a [VecScene].
 ///
-/// Supported: static shapes (rectangles, ellipses, paths), fills, strokes.
-/// Named markers from the timeline's frame labels are preserved.
-/// Animations (keyframes) are stubbed — the scene is exported at frame 0.
+/// Supports: rectangles, ellipses, paths, polygons/stars, symbol instances, images.
+/// Animates: position, rotation, scale, opacity, fill color, stroke color.
+/// Named markers from timeline frame labels are preserved.
 class LottieExporter {
-  const LottieExporter();
+  LottieExporter();
+
+  // Per-export state — populated in export(), cleared at end.
+  List<VecSymbol> _symbols = const [];
+  List<VecAsset> _assets = const [];
+  final List<Map<String, dynamic>> _lottieAssets = [];
+  int _imgId = 0;
+
+  void _clearExportState() {
+    _symbols = const [];
+    _assets = const [];
+    _lottieAssets.clear();
+    _imgId = 0;
+  }
 
   Map<String, dynamic> export(VecDocument doc, VecScene scene) {
+    _symbols = doc.symbols;
+    _assets = doc.assets;
     final w = doc.meta.stageWidth;
     final h = doc.meta.stageHeight;
     final fps = doc.meta.fps;
@@ -94,7 +111,7 @@ class LottieExporter {
       markers.add({'tm': label.frame, 'cm': label.label, 'dr': 0});
     }
 
-    return {
+    final result = {
       'v': '5.9.6',
       'fr': fps,
       'ip': 0,
@@ -103,16 +120,28 @@ class LottieExporter {
       'h': h.toInt(),
       'nm': doc.meta.name,
       'ddd': 0,
-      'assets': [],
+      'assets': List<Map<String, dynamic>>.from(_lottieAssets),
       'layers': layers,
       'markers': markers,
       'meta': {'g': 'Vectra', 'a': '', 'k': '', 'd': '', 'tc': ''},
     };
+    _clearExportState();
+    return result;
   }
 
   Map<String, dynamic>? _shapeToLayer(VecShape shape, int index, int totalFrames, int fps, {VecTrack? track}) {
+    // Handle special types that can't be expressed as simple shape layers.
+    final special = shape.maybeMap(
+      symbolInstance: (s) => _symbolInstanceToLayer(s, index, totalFrames),
+      image: (s) => _imageToLayer(s, index, totalFrames),
+      orElse: () => null,
+    );
+    if (special != null) return special;
+
     final t = shape.transform;
     final name = shape.name ?? 'Shape $index';
+    final keyframes = track?.keyframes ?? const <VecKeyframe>[];
+    final hasAnimation = keyframes.length >= 2;
 
     // Shape layer (ty: 4)
     final shapeItems = <Map<String, dynamic>>[];
@@ -121,14 +150,24 @@ class LottieExporter {
     final geometry = _shapeGeometry(shape);
     if (geometry != null) shapeItems.add(geometry);
 
-    // Fills
-    for (final fill in shape.fills) {
-      shapeItems.add(_lottieFill(fill));
+    // Fills — animated when keyframes carry fill color changes
+    for (var i = 0; i < shape.fills.length; i++) {
+      final fill = shape.fills[i];
+      if (hasAnimation && _keyframesHaveFillColor(keyframes)) {
+        shapeItems.add(_animatedLottieFill(fill, keyframes, i));
+      } else {
+        shapeItems.add(_lottieFill(fill));
+      }
     }
 
-    // Strokes
-    for (final stroke in shape.strokes) {
-      shapeItems.add(_lottieStroke(stroke));
+    // Strokes — animated when keyframes carry stroke color changes
+    for (var i = 0; i < shape.strokes.length; i++) {
+      final stroke = shape.strokes[i];
+      if (hasAnimation && _keyframesHaveStrokeColor(keyframes)) {
+        shapeItems.add(_animatedLottieStroke(stroke, keyframes, i));
+      } else {
+        shapeItems.add(_lottieStroke(stroke));
+      }
     }
 
     if (shapeItems.isEmpty) return null;
@@ -138,8 +177,6 @@ class LottieExporter {
     final cy = t.y + t.height / 2;
 
     final Map<String, dynamic> ks;
-    final keyframes = track?.keyframes ?? const [];
-    final hasAnimation = keyframes.length >= 2;
 
     if (hasAnimation) {
       ks = {
@@ -333,6 +370,81 @@ class LottieExporter {
     return {'a': 1, 'k': kfList};
   }
 
+  bool _keyframesHaveFillColor(List<VecKeyframe> keyframes) =>
+      keyframes.any((kf) => kf.fillColor != null || (kf.fills != null && kf.fills!.isNotEmpty));
+
+  bool _keyframesHaveStrokeColor(List<VecKeyframe> keyframes) =>
+      keyframes.any((kf) => kf.strokeColor != null || (kf.strokes != null && kf.strokes!.isNotEmpty));
+
+  Map<String, dynamic> _animatedLottieFill(VecFill baseFill, List<VecKeyframe> keyframes, int fillIndex) {
+    final sorted = [...keyframes]..sort((a, b) => a.frame.compareTo(b.frame));
+    final kfList = <Map<String, dynamic>>[];
+    for (var i = 0; i < sorted.length; i++) {
+      final kf = sorted[i];
+      final color = kf.fills != null && fillIndex < kf.fills!.length
+          ? kf.fills![fillIndex].color
+          : (kf.fillColor ?? baseFill.color);
+      final entry = <String, dynamic>{
+        't': kf.frame,
+        's': [color.r / 255.0, color.g / 255.0, color.b / 255.0, 1.0],
+        ..._linearEase,
+      };
+      if (i < sorted.length - 1) {
+        final next = sorted[i + 1];
+        final nc = next.fills != null && fillIndex < next.fills!.length
+            ? next.fills![fillIndex].color
+            : (next.fillColor ?? baseFill.color);
+        entry['e'] = [nc.r / 255.0, nc.g / 255.0, nc.b / 255.0, 1.0];
+      }
+      kfList.add(entry);
+    }
+
+    final baseColor = baseFill.color;
+    return {
+      'ty': 'fl',
+      'nm': 'Fill',
+      'o': _staticValue(baseFill.opacity * (baseColor.a / 255.0) * 100),
+      'c': {'a': 1, 'k': kfList},
+      'r': 1,
+    };
+  }
+
+  Map<String, dynamic> _animatedLottieStroke(VecStroke baseStroke, List<VecKeyframe> keyframes, int strokeIndex) {
+    final sorted = [...keyframes]..sort((a, b) => a.frame.compareTo(b.frame));
+    final kfList = <Map<String, dynamic>>[];
+    for (var i = 0; i < sorted.length; i++) {
+      final kf = sorted[i];
+      final color = kf.strokes != null && strokeIndex < kf.strokes!.length
+          ? kf.strokes![strokeIndex].color
+          : (kf.strokeColor ?? baseStroke.color);
+      final entry = <String, dynamic>{
+        't': kf.frame,
+        's': [color.r / 255.0, color.g / 255.0, color.b / 255.0, 1.0],
+        ..._linearEase,
+      };
+      if (i < sorted.length - 1) {
+        final next = sorted[i + 1];
+        final nc = next.strokes != null && strokeIndex < next.strokes!.length
+            ? next.strokes![strokeIndex].color
+            : (next.strokeColor ?? baseStroke.color);
+        entry['e'] = [nc.r / 255.0, nc.g / 255.0, nc.b / 255.0, 1.0];
+      }
+      kfList.add(entry);
+    }
+
+    final baseColor = baseStroke.color;
+    return {
+      'ty': 'st',
+      'nm': 'Stroke',
+      'o': _staticValue(baseStroke.opacity * (baseColor.a / 255.0) * 100),
+      'c': {'a': 1, 'k': kfList},
+      'w': _staticValue(baseStroke.width),
+      'lc': 2,
+      'lj': 2,
+      'd': [],
+    };
+  }
+
   Map<String, dynamic>? _shapeGeometry(VecShape shape) {
     return shape.map(
       rectangle: (s) => {
@@ -360,6 +472,128 @@ class LottieExporter {
       symbolInstance: (_) => null,
       image: (_) => null,
     );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Symbol instance → shape layer with inlined sub-shapes
+  // ---------------------------------------------------------------------------
+
+  Map<String, dynamic>? _symbolInstanceToLayer(VecSymbolInstanceShape s, int index, int totalFrames) {
+    final symbol = _symbols.cast<VecSymbol?>().firstWhere(
+      (sym) => sym!.id == s.symbolId,
+      orElse: () => null,
+    );
+    if (symbol == null) return null;
+
+    final t = s.transform;
+    final name = s.name ?? 'Symbol $index';
+    final opacity = (s.opacity * s.alphaOverride).clamp(0.0, 1.0);
+
+    // Flatten all shapes from all symbol layers into Lottie groups.
+    final sortedLayers = List<VecLayer>.from(symbol.layers)
+      ..sort((a, b) => a.order.compareTo(b.order));
+
+    final groups = <Map<String, dynamic>>[];
+    for (final layer in sortedLayers) {
+      if (!layer.visible) continue;
+      for (final shape in layer.shapes) {
+        final geo = _shapeGeometry(shape);
+        if (geo == null) continue;
+        final items = <Map<String, dynamic>>[geo];
+        for (final fill in shape.fills) {
+          items.add(_lottieFill(fill));
+        }
+        for (final stroke in shape.strokes) {
+          items.add(_lottieStroke(stroke));
+        }
+        items.add(_transformShape());
+        groups.add({'ty': 'gr', 'nm': shape.name ?? 'Shape', 'it': items});
+      }
+    }
+
+    if (groups.isEmpty) return null;
+
+    final cx = t.x + t.width / 2;
+    final cy = t.y + t.height / 2;
+    return {
+      'ty': 4,
+      'nm': name,
+      'ind': index,
+      'ip': 0,
+      'op': totalFrames,
+      'st': 0,
+      'sr': 1,
+      'ks': {
+        'o': _staticValue(opacity * 100),
+        'r': _staticValue(t.rotation),
+        'p': _staticValue2D(cx, cy),
+        'a': _staticValue2D(t.width / 2, t.height / 2),
+        's': _staticValue2D(t.scaleX * 100, t.scaleY * 100),
+      },
+      'shapes': groups,
+    };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Image shape → Lottie image layer (ty: 2) + asset entry
+  // ---------------------------------------------------------------------------
+
+  Map<String, dynamic>? _imageToLayer(VecImageShape s, int index, int totalFrames) {
+    final t = s.transform;
+    final name = s.name ?? 'Image $index';
+
+    final asset = _assets.cast<VecAsset?>().firstWhere(
+      (a) => a!.id == s.assetId,
+      orElse: () => null,
+    );
+
+    final assetRefId = 'img$_imgId';
+    _imgId++;
+
+    // Build the Lottie asset entry.
+    String assetPath;
+    String assetU; // directory / URL prefix
+    if (asset != null && asset.dataBase64 != null && asset.dataBase64!.isNotEmpty) {
+      final mime = asset.mimeType ?? 'image/png';
+      assetPath = 'data:$mime;base64,${asset.dataBase64}';
+      assetU = '';
+    } else if (asset != null && asset.path.isNotEmpty) {
+      assetPath = asset.name.isNotEmpty ? asset.name : asset.path;
+      assetU = '';
+    } else {
+      assetPath = 'image.png';
+      assetU = '';
+    }
+
+    _lottieAssets.add({
+      'id': assetRefId,
+      'nm': asset?.name ?? name,
+      'w': t.width.toInt(),
+      'h': t.height.toInt(),
+      'u': assetU,
+      'p': assetPath,
+      'e': asset?.dataBase64 != null ? 1 : 0, // 1 = embedded data URI
+    });
+
+    final cx = t.x + t.width / 2;
+    final cy = t.y + t.height / 2;
+    return {
+      'ty': 2, // image layer
+      'nm': name,
+      'ind': index,
+      'ip': 0,
+      'op': totalFrames,
+      'st': 0,
+      'sr': 1,
+      'refId': assetRefId,
+      'ks': {
+        'o': _staticValue(s.opacity * 100),
+        'r': _staticValue(t.rotation),
+        'p': _staticValue2D(cx, cy),
+        'a': _staticValue2D(t.width / 2, t.height / 2),
+        's': _staticValue2D(t.scaleX * 100, t.scaleY * 100),
+      },
+    };
   }
 
   Map<String, dynamic> _buildLottieShape(List<VecPathNode> nodes, bool closed) {

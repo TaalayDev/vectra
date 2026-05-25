@@ -18,6 +18,7 @@ class StatusBar extends ConsumerWidget {
     final playhead = ref.watch(playheadFrameProvider);
     final scene = ref.watch(activeSceneProvider);
     final duration = scene?.timeline.duration ?? 72;
+    final undoState = ref.watch(undoAvailabilityProvider);
 
     return Container(
       height: 24,
@@ -41,6 +42,17 @@ class StatusBar extends ConsumerWidget {
               tool.name[0].toUpperCase() + tool.name.substring(1),
               style: TextStyle(color: theme.textSecondary),
             ),
+            const SizedBox(width: 12),
+            // Undo depth indicator
+            if (undoState.undoDepth > 0)
+              Text(
+                '⌘Z ×${undoState.undoDepth}',
+                style: TextStyle(
+                  color: undoState.canUndo
+                      ? theme.textDisabled
+                      : theme.textDisabled.withAlpha(80),
+                ),
+              ),
             const Spacer(),
             // Cursor position
             Text('X: ${cursor.dx.toInt()}  Y: ${cursor.dy.toInt()}'),

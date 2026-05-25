@@ -23,6 +23,8 @@ enum StorageKey {
   editorTwoFingerUndo,
   editorShowPixelGrid,
   editorPixelGridOpacity,
+  // Recent file paths (iCloud / external)
+  recentOpenedPaths,
 }
 
 /// A singleton class to handle simple storage operations.

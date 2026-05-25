@@ -111,9 +111,14 @@ class _GraphEditorPanelState extends ConsumerState<GraphEditorPanel> {
                         (r) => r.shapeId == selectedShapeId,
                         orElse: () => widget.rows.first,
                       );
+                      // Use no-history variant during live drag to avoid
+                      // flooding the undo stack. onEasingDragEnd commits once.
                       ref
                           .read(vecDocumentStateProvider.notifier)
-                          .updateKeyframeForShape(scene.id, row.layerId, row.shapeId, frame, (_) => updatedKf);
+                          .updateKeyframeForShapeNoHistory(scene.id, row.layerId, row.shapeId, frame, (_) => updatedKf);
+                    },
+                    onEasingDragEnd: () {
+                      ref.read(vecDocumentStateProvider.notifier).commitCurrentState();
                     },
                   ),
           ),
@@ -135,6 +140,7 @@ class _GraphArea extends StatefulWidget {
     required this.showSpeed,
     required this.scrollController,
     required this.onKeyframeEasingChanged,
+    required this.onEasingDragEnd,
   });
 
   final AppTheme theme;
@@ -143,6 +149,8 @@ class _GraphArea extends StatefulWidget {
   final bool showSpeed;
   final ScrollController scrollController;
   final void Function(int frame, VecKeyframe updatedKf) onKeyframeEasingChanged;
+  /// Called on pan-end so the caller can commit the drag to undo history.
+  final VoidCallback onEasingDragEnd;
 
   @override
   State<_GraphArea> createState() => _GraphAreaState();
@@ -166,7 +174,10 @@ class _GraphAreaState extends State<_GraphArea> {
         return GestureDetector(
           onPanStart: (d) => _onPanStart(d, h),
           onPanUpdate: (d) => _onPanUpdate(d, h),
-          onPanEnd: (_) => setState(() => _draggingHandleIndex = null),
+          onPanEnd: (_) {
+            setState(() => _draggingHandleIndex = null);
+            widget.onEasingDragEnd();
+          },
           child: CustomPaint(
             painter: _GraphPainter(
               timeline: widget.timeline,

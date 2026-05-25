@@ -62,9 +62,11 @@ class ZoomLevel extends _$ZoomLevel {
 @Riverpod(keepAlive: true)
 class UndoAvailability extends _$UndoAvailability {
   @override
-  ({bool canUndo, bool canRedo}) build() => (canUndo: false, canRedo: false);
+  ({bool canUndo, bool canRedo, int undoDepth}) build() =>
+      (canUndo: false, canRedo: false, undoDepth: 0);
 
-  void update({required bool canUndo, required bool canRedo}) => state = (canUndo: canUndo, canRedo: canRedo);
+  void update({required bool canUndo, required bool canRedo, required int undoDepth}) =>
+      state = (canUndo: canUndo, canRedo: canRedo, undoDepth: undoDepth);
 }
 
 /// Incremented to request a zoom-to-fit from the canvas.

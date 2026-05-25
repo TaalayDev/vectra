@@ -7,6 +7,7 @@ import Foundation
 
 import custom_mouse_cursor
 import desktop_drop
+import ffmpeg_kit_flutter_new
 import file_picker
 import file_selector_macos
 import firebase_analytics
@@ -29,6 +30,7 @@ import window_manager
 func RegisterGeneratedPlugins(registry: FlutterPluginRegistry) {
   CustomMouseCursorPlugin.register(with: registry.registrar(forPlugin: "CustomMouseCursorPlugin"))
   DesktopDropPlugin.register(with: registry.registrar(forPlugin: "DesktopDropPlugin"))
+  FFmpegKitFlutterPlugin.register(with: registry.registrar(forPlugin: "FFmpegKitFlutterPlugin"))
   FilePickerPlugin.register(with: registry.registrar(forPlugin: "FilePickerPlugin"))
   FileSelectorPlugin.register(with: registry.registrar(forPlugin: "FileSelectorPlugin"))
   FirebaseAnalyticsPlugin.register(with: registry.registrar(forPlugin: "FirebaseAnalyticsPlugin"))

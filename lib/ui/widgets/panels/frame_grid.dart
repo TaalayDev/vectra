@@ -413,7 +413,7 @@ class _FrameGridState extends ConsumerState<FrameGrid> with SingleTickerProvider
     }
   }
 
-  /// Right-click: open the easing editor for an existing keyframe.
+  /// Right-click: show context menu for an existing keyframe.
   void _handleSecondaryTap(Offset localPos, Map<String, VecTrack> trackMap, BuildContext ctx) {
     final dy = localPos.dy;
     final canvasX = localPos.dx + _scrollOffset;
@@ -432,15 +432,84 @@ class _FrameGridState extends ConsumerState<FrameGrid> with SingleTickerProvider
     final scene = ref.read(activeSceneProvider);
     if (scene == null) return;
 
-    showKeyframeEasingEditor(
+    final theme = widget.theme;
+    final renderBox = ctx.findRenderObject() as RenderBox?;
+    if (renderBox == null) return;
+    final globalPos = renderBox.localToGlobal(localPos);
+
+    showMenu<_KeyframeMenuAction>(
       context: ctx,
-      theme: widget.theme,
-      keyframe: kf,
-      onChanged: (updatedKf) {
-        ref
-            .read(vecDocumentStateProvider.notifier)
-            .updateKeyframeForShape(scene.id, row.layerId, row.shapeId, frame, (_) => updatedKf);
-      },
+      color: theme.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(7),
+        side: BorderSide(color: theme.divider, width: 0.5),
+      ),
+      elevation: 8,
+      position: RelativeRect.fromLTRB(globalPos.dx, globalPos.dy, globalPos.dx + 1, globalPos.dy + 1),
+      items: [
+        PopupMenuItem(
+          value: _KeyframeMenuAction.editEasing,
+          height: 32,
+          child: _KeyframeMenuItem(icon: Icons.show_chart, label: 'Edit Easing', theme: theme),
+        ),
+        PopupMenuItem(
+          value: _KeyframeMenuAction.duplicate,
+          height: 32,
+          child: _KeyframeMenuItem(icon: Icons.copy_outlined, label: 'Duplicate', theme: theme),
+        ),
+        const PopupMenuDivider(height: 6),
+        PopupMenuItem(
+          value: _KeyframeMenuAction.delete,
+          height: 32,
+          child: _KeyframeMenuItem(icon: Icons.delete_outline, label: 'Delete', theme: theme, isDestructive: true),
+        ),
+      ],
+    ).then((action) {
+      if (action == null) return;
+      switch (action) {
+        case _KeyframeMenuAction.editEasing:
+          showKeyframeEasingEditor(
+            context: ctx,
+            theme: theme,
+            keyframe: kf,
+            onChanged: (updatedKf) {
+              ref
+                  .read(vecDocumentStateProvider.notifier)
+                  .updateKeyframeForShape(scene.id, row.layerId, row.shapeId, frame, (_) => updatedKf);
+            },
+          );
+        case _KeyframeMenuAction.duplicate:
+          ref
+              .read(vecDocumentStateProvider.notifier)
+              .duplicateKeyframeForShape(scene.id, row.layerId, row.shapeId, frame, frame + 1);
+          ref.read(selectedKeyframeFrameProvider.notifier).state = frame + 1;
+          ref.read(playheadFrameProvider.notifier).set(frame + 1);
+        case _KeyframeMenuAction.delete:
+          ref.read(vecDocumentStateProvider.notifier).removeKeyframeForShape(scene.id, row.layerId, row.shapeId, frame);
+      }
+    });
+  }
+}
+
+enum _KeyframeMenuAction { editEasing, duplicate, delete }
+
+class _KeyframeMenuItem extends StatelessWidget {
+  const _KeyframeMenuItem({required this.icon, required this.label, required this.theme, this.isDestructive = false});
+
+  final IconData icon;
+  final String label;
+  final AppTheme theme;
+  final bool isDestructive;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = isDestructive ? theme.error : theme.textPrimary;
+    return Row(
+      children: [
+        Icon(icon, size: 13, color: color),
+        const SizedBox(width: 8),
+        Text(label, style: TextStyle(fontSize: 12, color: color)),
+      ],
     );
   }
 }

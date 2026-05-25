@@ -150,6 +150,30 @@ class PropertiesPanel extends ConsumerWidget {
           ],
           orElse: () => const <Widget>[],
         ),
+        // Width profile — path shapes with variable-width stroke only
+        ...shape.maybeMap(
+          path: (p) {
+            final profile = p.data.strokes.isNotEmpty ? p.data.strokes.first.widthProfile : null;
+            if (profile == null) return const <Widget>[];
+            return [
+              Divider(height: 1, color: theme.divider.withAlpha(60)),
+              WidthProfileSection(
+                profile: profile,
+                theme: theme,
+                onClear: () => onUpdate((s) {
+                  final ps = s as VecPathShape;
+                  if (ps.data.strokes.isEmpty) return s;
+                  final newStrokes = [
+                    ps.data.strokes.first.copyWith(widthProfile: null),
+                    ...ps.data.strokes.skip(1),
+                  ];
+                  return ps.copyWith(data: ps.data.copyWith(strokes: newStrokes));
+                }),
+              ),
+            ];
+          },
+          orElse: () => const <Widget>[],
+        ),
         // Text properties — text shapes only
         ...shape.maybeMap(
           text: (t) => [

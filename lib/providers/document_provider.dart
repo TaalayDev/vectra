@@ -98,7 +98,11 @@ class VecDocumentState extends _$VecDocumentState {
   }
 
   void _notifyAvailability() {
-    ref.read(undoAvailabilityProvider.notifier).update(canUndo: canUndo, canRedo: canRedo);
+    ref.read(undoAvailabilityProvider.notifier).update(
+      canUndo: canUndo,
+      canRedo: canRedo,
+      undoDepth: _cursor,
+    );
   }
 
   void undo() {
@@ -151,9 +155,13 @@ class VecDocumentState extends _$VecDocumentState {
   /// Whether the document has unsaved changes.
   bool get isDirty => _service.isDirty;
 
-  Future<void> openFile(String filePath) async {
-    final doc = await _service.openFile(filePath);
+  Future<void> openFile(
+    String filePath, {
+    Future<bool> Function(VecDocument recovered)? onAutosaveFound,
+  }) async {
+    final doc = await _service.openFile(filePath, onAutosaveFound: onAutosaveFound);
     _resetHistory(doc);
+    _service.startAutosave(() => state);
   }
 
   Future<void> save() async {
@@ -175,6 +183,7 @@ class VecDocumentState extends _$VecDocumentState {
       _history[_cursor] = saved;
     }
     await _service.saveAs(saved, filePath);
+    _service.startAutosave(() => state);
   }
 
   void newDocument({
@@ -184,6 +193,7 @@ class VecDocumentState extends _$VecDocumentState {
     int fps = 24,
     VecColor backgroundColor = VecColor.white,
   }) {
+    _service.stopAutosave();
     final doc = _service.createNew(
       name: name,
       stageWidth: stageWidth,
@@ -1008,6 +1018,20 @@ class VecDocumentState extends _$VecDocumentState {
   void sendToBack(String sceneId, String layerId, String shapeId) =>
       _commitZOrder(sceneId, layerId, shapeId, _moveToStart);
 
+  /// Flips [shapeId] horizontally by negating its scaleX.
+  void flipHorizontal(String sceneId, String layerId, String shapeId) =>
+      updateShape(sceneId, layerId, shapeId, (s) {
+        final t = s.data.transform;
+        return s.copyWith(data: s.data.copyWith(transform: t.copyWith(scaleX: -t.scaleX)));
+      });
+
+  /// Flips [shapeId] vertically by negating its scaleY.
+  void flipVertical(String sceneId, String layerId, String shapeId) =>
+      updateShape(sceneId, layerId, shapeId, (s) {
+        final t = s.data.transform;
+        return s.copyWith(data: s.data.copyWith(transform: t.copyWith(scaleY: -t.scaleY)));
+      });
+
   /// Moves a shape from [fromIndex] to [toIndex] (used by drag-to-reorder).
   void reorderShape(String sceneId, String layerId, int fromIndex, int toIndex) {
     _commit(
@@ -1409,6 +1433,38 @@ class VecDocumentState extends _$VecDocumentState {
         );
       }),
     );
+  }
+
+  /// Updates a keyframe's easing without adding to undo history.
+  /// Use during live drag (e.g. graph-editor bezier handle drag);
+  /// call [commitCurrentState] on drag end to create one undo entry.
+  void updateKeyframeForShapeNoHistory(
+    String sceneId,
+    String layerId,
+    String shapeId,
+    int frame,
+    VecKeyframe Function(VecKeyframe) updater,
+  ) {
+    final newDoc = _withScene(sceneId, (scene) {
+      return scene.copyWith(
+        timeline: scene.timeline.copyWith(
+          tracks: [
+            for (final t in scene.timeline.tracks)
+              if (t.layerId == layerId && t.shapeId == shapeId)
+                t.copyWith(
+                  keyframes: [
+                    for (final k in t.keyframes)
+                      if (k.frame == frame) updater(k) else k,
+                  ],
+                )
+              else
+                t,
+          ],
+        ),
+      );
+    });
+    state = newDoc;
+    _service.markDirty();
   }
 
   void removeKeyframeForShape(String sceneId, String layerId, String shapeId, int frame) {

@@ -5,6 +5,7 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import '../../../app/theme/theme.dart';
 import '../../../data/models/vec_layer.dart';
 import '../../../data/models/vec_shape.dart';
+import '../../../data/models/vec_symbol.dart';
 import '../../../providers/document_provider.dart';
 import '../../../providers/editor_state_provider.dart';
 import '../common/panel_header.dart';
@@ -45,6 +46,11 @@ class LayersPanel extends HookConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final editingSymbolId = ref.watch(editingSymbolIdProvider);
+    if (editingSymbolId != null) {
+      return _SymbolLayersContent(symbolId: editingSymbolId, theme: theme);
+    }
+
     final scene = ref.watch(activeSceneProvider);
     final activeLayerId = ref.watch(activeLayerIdProvider);
     final layers = scene?.layers ?? [];
@@ -274,6 +280,117 @@ class _HeaderButton extends StatelessWidget {
             child: Icon(icon, size: 14, color: color),
           ),
         ),
+      ),
+    );
+  }
+}
+
+// =============================================================================
+// Symbol layers content — shown when a symbol is being edited
+// =============================================================================
+
+class _SymbolLayersContent extends ConsumerWidget {
+  const _SymbolLayersContent({required this.symbolId, required this.theme});
+
+  final String symbolId;
+  final AppTheme theme;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final symbols = ref.watch(symbolLibraryProvider);
+    final symbol = symbols.cast<VecSymbol?>().firstWhere((s) => s!.id == symbolId, orElse: () => null);
+
+    if (symbol == null) {
+      return Center(child: Text('Symbol not found', style: TextStyle(fontSize: 11, color: theme.textDisabled)));
+    }
+
+    final layers = symbol.layers;
+    final activeLayerId = ref.watch(activeLayerIdProvider);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.surface,
+        border: Border(right: BorderSide(color: theme.divider, width: 0.5)),
+      ),
+      child: Column(
+        children: [
+          PanelHeader(
+            title: symbol.name,
+            theme: theme,
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (activeLayerId != null && layers.length > 1)
+                  _HeaderButton(
+                    icon: Icons.delete_outline,
+                    color: theme.error,
+                    tooltip: 'Delete layer',
+                    onTap: () {
+                      ref.read(vecDocumentStateProvider.notifier).removeSymbolLayer(symbolId, activeLayerId);
+                      final remaining = layers.where((l) => l.id != activeLayerId).toList();
+                      if (remaining.isNotEmpty) {
+                        ref.read(activeLayerIdProvider.notifier).set(remaining.last.id);
+                      }
+                    },
+                  ),
+                _HeaderButton(
+                  icon: Icons.add,
+                  color: theme.textSecondary,
+                  tooltip: 'Add layer',
+                  onTap: () => ref.read(vecDocumentStateProvider.notifier).addSymbolLayer(symbolId),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: layers.isEmpty
+                ? Center(child: Text('No layers', style: TextStyle(fontSize: 11, color: theme.textDisabled)))
+                : ReorderableListView.builder(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    buildDefaultDragHandles: false,
+                    itemCount: layers.length,
+                    onReorder: (oldIdx, newIdx) {
+                      final n = layers.length;
+                      final displayIds = List<String>.generate(n, (i) => layers[n - 1 - i].id);
+                      final id = displayIds.removeAt(oldIdx);
+                      final insertAt = newIdx > oldIdx ? newIdx - 1 : newIdx;
+                      displayIds.insert(insertAt, id);
+                      final actualIds = displayIds.reversed.toList();
+                      ref.read(vecDocumentStateProvider.notifier).reorderSymbolLayers(symbolId, actualIds);
+                    },
+                    itemBuilder: (_, displayIdx) {
+                      final n = layers.length;
+                      final layer = layers[n - 1 - displayIdx];
+                      return LayerRow(
+                        key: ValueKey(layer.id),
+                        layer: layer,
+                        sceneId: symbolId,
+                        isActive: layer.id == activeLayerId,
+                        theme: theme,
+                        index: displayIdx,
+                      );
+                    },
+                  ),
+          ),
+          Container(
+            height: 28,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              color: theme.accentColor.withAlpha(30),
+              border: Border(top: BorderSide(color: theme.accentColor.withAlpha(60), width: 0.5)),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.edit_outlined, size: 12, color: theme.accentColor),
+                const SizedBox(width: 6),
+                Text(
+                  'Editing symbol',
+                  style: TextStyle(fontSize: 10, color: theme.accentColor, fontWeight: FontWeight.w600),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

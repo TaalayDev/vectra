@@ -12,11 +12,15 @@ import '../../../data/models/vec_motion_path.dart';
 import '../../../data/models/vec_pattern.dart';
 import '../../../data/models/vec_shape.dart';
 import '../../../data/models/vec_stroke.dart';
+import '../../../data/models/vec_width_profile.dart';
 import '../../../data/models/vec_transform.dart';
 import '../common/collapsible_section.dart';
 import '../common/color_swatch_button.dart';
 import '../common/numeric_input.dart';
 import '../common/color_picker.dart';
+import '../common/panel_slider.dart';
+
+export '../common/panel_slider.dart' show PanelSlider;
 
 // ---------------------------------------------------------------------------
 // Callback typedefs
@@ -2105,31 +2109,6 @@ class _IndependentToggle extends StatelessWidget {
 // Shared sub-widgets
 // ---------------------------------------------------------------------------
 
-/// Compact slider without the big Material height.
-class PanelSlider extends StatelessWidget {
-  const PanelSlider({super.key, required this.value, required this.theme, required this.onChanged, this.onChangeEnd});
-
-  final double value;
-  final AppTheme theme;
-  final ValueChanged<double> onChanged;
-  final ValueChanged<double>? onChangeEnd;
-
-  @override
-  Widget build(BuildContext context) {
-    return SliderTheme(
-      data: SliderThemeData(
-        trackHeight: 2,
-        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5),
-        activeTrackColor: theme.primaryColor,
-        inactiveTrackColor: theme.divider,
-        thumbColor: theme.primaryColor,
-        overlayShape: const RoundSliderOverlayShape(overlayRadius: 10),
-      ),
-      child: Slider(value: value.clamp(0.0, 1.0), onChanged: onChanged, onChangeEnd: onChangeEnd),
-    );
-  }
-}
-
 /// Blend mode dropdown.
 class _BlendDropdown extends StatelessWidget {
   const _BlendDropdown({required this.value, required this.theme, required this.onChanged});
@@ -2738,6 +2717,139 @@ class _MpToggle extends StatelessWidget {
       ),
     );
   }
+}
+
+// ---------------------------------------------------------------------------
+// Width Profile Section — shown when a path shape has a variable-width stroke
+// ---------------------------------------------------------------------------
+
+/// Displays a compact summary of the [VecWidthProfile] on [shape]'s first
+/// stroke and provides a "Clear" button to remove it.
+class WidthProfileSection extends StatelessWidget {
+  const WidthProfileSection({
+    super.key,
+    required this.profile,
+    required this.theme,
+    required this.onClear,
+  });
+
+  final VecWidthProfile profile;
+  final AppTheme theme;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    final points = profile.points;
+    final avgLeft = points.isEmpty
+        ? 0.0
+        : points.fold(0.0, (s, p) => s + p.leftWidth) / points.length;
+    final avgRight = points.isEmpty
+        ? 0.0
+        : points.fold(0.0, (s, p) => s + p.rightWidth) / points.length;
+
+    return CollapsibleSection(
+      title: 'Width Profile',
+      theme: theme,
+      content: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        child: Row(
+          children: [
+            // Mini sparkline preview
+            Expanded(
+              child: CustomPaint(
+                size: const Size(double.infinity, 28),
+                painter: _WidthProfileSparklinePainter(profile: profile, color: theme.accentColor),
+              ),
+            ),
+            const SizedBox(width: 8),
+            // Stats
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  '${points.length} pt${points.length == 1 ? '' : 's'}',
+                  style: TextStyle(fontSize: 10, color: theme.textSecondary),
+                ),
+                Text(
+                  'avg ±${((avgLeft + avgRight) / 2).toStringAsFixed(1)}px',
+                  style: TextStyle(fontSize: 9, color: theme.textDisabled),
+                ),
+              ],
+            ),
+            const SizedBox(width: 8),
+            // Clear button
+            GestureDetector(
+              onTap: onClear,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  border: Border.all(color: theme.divider),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  'Clear',
+                  style: TextStyle(fontSize: 10, color: theme.textSecondary),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _WidthProfileSparklinePainter extends CustomPainter {
+  const _WidthProfileSparklinePainter({required this.profile, required this.color});
+
+  final VecWidthProfile profile;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (profile.points.isEmpty) return;
+    final sorted = List<VecWidthPoint>.from(profile.points)
+      ..sort((a, b) => a.position.compareTo(b.position));
+
+    final midY = size.height / 2;
+    final maxW = sorted.fold(0.0, (m, p) => m > p.leftWidth + p.rightWidth ? m : p.leftWidth + p.rightWidth);
+    if (maxW <= 0) return;
+    final scale = (size.height * 0.45) / maxW;
+
+    final topPath = Path();
+    final botPath = Path();
+
+    for (var i = 0; i < sorted.length; i++) {
+      final pt = sorted[i];
+      final x = pt.position * size.width;
+      final yTop = midY - pt.leftWidth * scale;
+      final yBot = midY + pt.rightWidth * scale;
+      if (i == 0) {
+        topPath.moveTo(x, yTop);
+        botPath.moveTo(x, yBot);
+      } else {
+        topPath.lineTo(x, yTop);
+        botPath.lineTo(x, yBot);
+      }
+    }
+
+    final paint = Paint()
+      ..color = color.withAlpha(180)
+      ..strokeWidth = 1.5
+      ..style = PaintingStyle.stroke;
+
+    canvas.drawPath(topPath, paint);
+    canvas.drawPath(botPath, paint);
+
+    // Center line
+    final centerPaint = Paint()
+      ..color = color.withAlpha(60)
+      ..strokeWidth = 0.5;
+    canvas.drawLine(Offset(0, midY), Offset(size.width, midY), centerPaint);
+  }
+
+  @override
+  bool shouldRepaint(_WidthProfileSparklinePainter old) => old.profile != profile;
 }
 
 // ---------------------------------------------------------------------------

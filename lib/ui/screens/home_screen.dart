@@ -188,6 +188,7 @@ class HomeScreen extends HookConsumerWidget {
 
       if (ext == 'vct') {
         await ref.read(vecDocumentStateProvider.notifier).openFile(path);
+        await ref.read(recentProjectsProvider.notifier).trackFilePath(path);
         if (context.mounted) {
           Navigator.of(context).push(MaterialPageRoute(builder: (_) => const EditorScreen()));
         }
@@ -534,6 +535,7 @@ class _ActionButtons extends ConsumerWidget {
     if (result != null && result.files.single.path != null) {
       final path = result.files.single.path!;
       await ref.read(vecDocumentStateProvider.notifier).openFile(path);
+      await ref.read(recentProjectsProvider.notifier).trackFilePath(path);
       if (context.mounted) {
         Navigator.of(context).push(MaterialPageRoute(builder: (_) => const EditorScreen()));
       }

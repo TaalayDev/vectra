@@ -47,6 +47,8 @@ class ShortcutsWrapper extends StatefulWidget {
     this.onHelpSheet,
     this.onToolSwitch,
     this.onNudge,
+    this.onFlipH,
+    this.onFlipV,
     this.currentBrushSize = 1,
     this.maxBrushSize = 10,
     this.maxLayers = 10,
@@ -113,6 +115,9 @@ class ShortcutsWrapper extends StatefulWidget {
   /// Called when Arrow keys are pressed while the select tool is active.
   /// [dx] and [dy] are the pixel offset to apply (1 or 10 px).
   final void Function(double dx, double dy)? onNudge;
+
+  final VoidCallback? onFlipH;
+  final VoidCallback? onFlipV;
 
   // State
   final int currentBrushSize;
@@ -339,6 +344,15 @@ class _ShortcutsWrapperState extends State<ShortcutsWrapper> {
       if (event.logicalKey == LogicalKeyboardKey.arrowRight) { widget.onNudge?.call(step, 0); return; }
       if (event.logicalKey == LogicalKeyboardKey.arrowUp) { widget.onNudge?.call(0, -step); return; }
       if (event.logicalKey == LogicalKeyboardKey.arrowDown) { widget.onNudge?.call(0, step); return; }
+    }
+
+    // Flip shortcuts — Shift+H (horizontal) / Shift+V (vertical)
+    if (event is KeyDownEvent &&
+        HardwareKeyboard.instance.isShiftPressed &&
+        !HardwareKeyboard.instance.isControlPressed &&
+        !HardwareKeyboard.instance.isMetaPressed) {
+      if (event.logicalKey == LogicalKeyboardKey.keyH) { widget.onFlipH?.call(); return; }
+      if (event.logicalKey == LogicalKeyboardKey.keyV) { widget.onFlipV?.call(); return; }
     }
   }
 
